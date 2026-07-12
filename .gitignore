@@ -1,0 +1,9 @@
+.DS_Store
+build/
+dist/
+*.zip
+*.m4a
+.swiftpm/
+.build/
+xcuserdata/
+*.xcuserstate
