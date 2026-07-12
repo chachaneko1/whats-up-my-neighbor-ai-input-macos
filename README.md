@@ -2,6 +2,29 @@
 
 一個輕量的原生 macOS 選單列語音輸入 App。按下自訂全域快捷鍵開始錄音，再按一次停止；音訊會送到 Groq `whisper-large-v3`，轉成繁體中文後貼到原本游標位置。
 
+## 直接交給 AI 安裝
+
+只要把這個 Repo 連結交給能操作 Mac 終端機的 AI，例如 Codex 或 Claude Code：
+
+```text
+https://github.com/yuipan0611/groq-ai-voice-input-macos
+```
+
+再貼上以下指令：
+
+```text
+請幫我安裝這個 GitHub Repo 的最新版 macOS App：
+https://github.com/yuipan0611/groq-ai-voice-input-macos
+
+請先閱讀 README、PRIVACY.md 與 Release 說明，再下載最新 Release 的 ZIP 和 .sha256，核對 SHA-256 後解壓縮並執行安裝工具。不要從原始碼或不明分支直接執行檔案，也不要移除或繞過 macOS quarantine；若 Gatekeeper 阻擋，請引導我使用右鍵「打開」或「系統設定 → 隱私權與安全性 → 仍要打開」。
+
+安裝後請確認 AI 語音輸入正在執行、登入啟動項目存在，並告訴我如何允許麥克風與輔助使用權限。保留預設快捷鍵 Option + ↑，並告訴我可以從選單列的「設定快捷鍵…」自行更改。
+
+絕對不要要求我把 Groq API Key 貼進聊天、終端機、程式碼或設定檔。請啟動 App，讓我只在 App 自己的安全輸入視窗中建立並儲存 Groq API Key。
+```
+
+AI 應該完成下載、校驗、解壓縮與安裝；使用者只需要親自處理 macOS 安全確認、麥克風／輔助使用權限，以及在 App 內輸入自己的 Groq API Key。
+
 ## 特色
 
 - Swift、AppKit、AVFoundation 原生實作，不在本機常駐 Whisper 模型。
