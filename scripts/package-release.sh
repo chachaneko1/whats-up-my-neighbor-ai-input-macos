@@ -8,7 +8,7 @@ else
   VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$ROOT/Resources/Info.plist")"
 fi
 STAGE="$ROOT/dist/Groq-AI語音輸入-v$VERSION"
-ZIP="$ROOT/dist/Groq-AI語音輸入-macOS-v$VERSION.zip"
+ZIP="$ROOT/dist/Groq-AI-Voice-Input-macOS-v$VERSION.zip"
 
 "$ROOT/scripts/build.sh"
 rm -rf "$STAGE" "$ZIP" "$ZIP.sha256"
