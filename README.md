@@ -67,6 +67,54 @@ AI 應該完成下載、校驗、解壓縮與安裝；使用者只需要親自�
 
 App 不會把 Key 寫入設定檔、Repo 或日誌，只會保存在這台 Mac 的鑰匙圈。之後可從選單列選「設定／更換 Groq API 金鑰…」。
 
+## Groq 免費方案限制 / Groq Free Tier Limits
+
+本專案固定使用 Groq `whisper-large-v3` 進行語音轉文字。以下是截至 **2026-07-15**，[Groq 官方 Rate Limits](https://console.groq.com/docs/rate-limits) 公開的 Free Plan 限制：
+
+| 限制 | 數值 |
+|---|---:|
+| 每分鐘請求數（RPM） | 20 |
+| 每日請求數（RPD） | 2,000 |
+| 每小時音訊秒數（ASH） | 7,200 秒（2 小時） |
+| 每日音訊秒數（ASD） | 28,800 秒（8 小時） |
+
+### 這對日常使用代表什麼？
+
+一般語音輸入通常每段只有 5–30 秒，因此很難碰到上述限制。例如每天使用 200 次、每次錄音 10 秒：
+
+- 總音訊量為 2,000 秒，約 33 分鐘。
+- 只使用約 **7%** 的每日免費音訊額度。
+- 200 次請求也只使用每日 2,000 次請求上限的 10%。
+
+非常適合語音打字、程式開發口述、ChatGPT 提示詞輸入、短篇會議筆記及一般生產力工作。較可能超過限制的情境包括：轉錄數小時的會議、處理長篇影片、批次轉錄大量音訊檔，或持續不中斷地錄音。
+
+> [!NOTE]
+> Groq 目前公開的是 RPM、RPD、ASH、ASD 等速率限制，官方並未另外公布固定的「每月免費 X 小時」轉錄配額。這不代表免費方案永久無限量；Groq 可能調整限制，而且不同帳號可能有例外。請以 [Groq Console](https://console.groq.com/) 中自己帳號顯示的最新 Limits 為準。
+
+> [!WARNING]
+> 到達任何一項限制後，Groq API 會回傳 `429 Too Many Requests`，App 在限制重置前將無法完成轉錄。請勿透過多帳號或其他方式規避免費方案限制。
+
+### English
+
+This project uses Groq `whisper-large-v3` for speech-to-text. As of **2026-07-15**, the public [Groq Rate Limits](https://console.groq.com/docs/rate-limits) list the following Free Plan limits:
+
+| Limit | Value |
+|---|---:|
+| Requests per minute (RPM) | 20 |
+| Requests per day (RPD) | 2,000 |
+| Audio seconds per hour (ASH) | 7,200 seconds (2 hours) |
+| Audio seconds per day (ASD) | 28,800 seconds (8 hours) |
+
+For normal voice dictation, recordings are usually only 5–30 seconds long, so these limits are unlikely to be reached. For example, 200 ten-second recordings per day use 2,000 audio seconds (about 33 minutes), approximately **7%** of the daily audio allowance and 10% of the daily request allowance.
+
+This is well suited to voice typing, coding dictation, ChatGPT prompt input, short meeting notes, and everyday productivity. You are more likely to exceed the limits when transcribing multi-hour meetings, long videos, large batches of audio files, or continuous recordings.
+
+> [!NOTE]
+> Groq currently publishes rate limits such as RPM, RPD, ASH, and ASD; it does not separately publish a fixed “X free transcription hours per month” quota. This does not mean the Free Plan is permanently unlimited. Limits may change, and exceptions may apply to individual accounts. Always check the latest Limits shown for your account in the [Groq Console](https://console.groq.com/).
+
+> [!WARNING]
+> When any applicable limit is reached, the Groq API returns `429 Too Many Requests`, and the app cannot complete transcription until the limit resets. Do not use multiple accounts or other methods to circumvent Free Plan limits.
+
 ## 自訂快捷鍵
 
 1. 點選單列的麥克風圖示。
