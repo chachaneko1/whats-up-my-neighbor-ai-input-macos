@@ -9,6 +9,8 @@ mkdir -p "$OUTPUT/Contents/MacOS" "$OUTPUT/Contents/Resources"
 cp "$ROOT/Resources/Info.plist" "$OUTPUT/Contents/Info.plist"
 cp "$ROOT/Resources/AppIcon.icns" "$OUTPUT/Contents/Resources/AppIcon.icns"
 
+SOURCES=("$ROOT"/Sources/GroqVoiceInput/*.swift)
+
 swiftc \
   -swift-version 5 \
   -O \
@@ -17,7 +19,8 @@ swiftc \
   -framework ApplicationServices \
   -framework Carbon \
   -framework Security \
-  "$ROOT/Sources/GroqVoiceInput/main.swift" \
+  -framework MultipeerConnectivity \
+  "${SOURCES[@]}" \
   -o "$OUTPUT/Contents/MacOS/FreeVoiceType"
 
 codesign --force --deep --sign - \
