@@ -402,6 +402,8 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
     private var convertChineseNumerals = false
     /// 0 表示關閉。關閉是預設值，因為思考中的停頓會被誤判成講完了。
     private var silenceAutoStopSeconds = 0
+    /// 本次執行期間的金鑰快取，只存在記憶體。見 `readAPIKey()` 的說明。
+    private var cachedAPIKey: String?
     private var meteringTimer: Timer?
     private var recordingStartedAt: Date?
     private var lastLoudAt: Date?
@@ -1233,7 +1235,18 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
         }
     }
 
+    /// 讀取金鑰，成功後在本次執行期間快取。
+    ///
+    /// 這個 App 使用 ad-hoc 簽章，每次重新建置的程式碼身分（CDHash）都不同，
+    /// 鑰匙圈會把它當成另一個程式而要求使用者授權。原本每段錄音會讀兩次
+    /// （開始錄音檢查一次、上傳前再讀一次），授權提示因此出現得很頻繁。
+    /// 快取後每次啟動最多只會問一次。
+    ///
+    /// 只快取成功的結果：讀取失敗或使用者取消授權時不寫入快取，下次會重新嘗試。
+    /// 快取僅存在記憶體，不寫入任何檔案；金鑰更新時由 `saveAPIKey` 覆蓋。
     private func readAPIKey() -> String? {
+        if let cachedAPIKey { return cachedAPIKey }
+
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: keychainService,
@@ -1246,6 +1259,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
               let data = item as? Data,
               let key = String(data: data, encoding: .utf8),
               !key.isEmpty else { return nil }
+        cachedAPIKey = key
         return key
     }
 
@@ -1261,10 +1275,16 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
             var add = base
             add[kSecValueData as String] = data
             let addStatus = SecItemAdd(add as CFDictionary, nil)
-            guard addStatus == errSecSuccess else { throw VoiceTypeError.message("Keychain 錯誤 \(addStatus)") }
+            guard addStatus == errSecSuccess else {
+                cachedAPIKey = nil
+                throw VoiceTypeError.message("Keychain 錯誤 \(addStatus)")
+            }
         } else if updateStatus != errSecSuccess {
+            cachedAPIKey = nil
             throw VoiceTypeError.message("Keychain 錯誤 \(updateStatus)")
         }
+        // 使用者更換金鑰後，快取必須立刻跟上，否則會繼續用舊金鑰直到重啟。
+        cachedAPIKey = key
     }
 
     @objc private func openAccessibilitySettings() {
