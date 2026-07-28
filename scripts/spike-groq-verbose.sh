@@ -72,10 +72,11 @@ transcribe() {
   local elapsed
   elapsed=$(curl "${args[@]}" -D "$prefix.headers" -o "$prefix.json" -w '%{time_total}')
 
-  local status
-  status=$(head -1 "$prefix.headers" | awk '{print $2}')
-  if [[ "$status" != "200" ]]; then
-    print -u2 "  HTTP $status —— 回應內容："
+  # 注意：zsh 的 $status 是唯讀保留變數，不能拿來當區域變數名。
+  local http_status
+  http_status=$(head -1 "$prefix.headers" | awk '{print $2}')
+  if [[ "$http_status" != "200" ]]; then
+    print -u2 "  HTTP $http_status —— 回應內容："
     jq . "$prefix.json" 2>/dev/null || cat "$prefix.json"
     die "請求失敗（$format）"
   fi
