@@ -1090,6 +1090,11 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
         }
     }
 
+    /// 介面 A 的轉錄入口，實際工作交給共用核心 `GroqTranscriptionClient`。
+    ///
+    /// 這裡固定用 `.plain`（`response_format=json`）：介面 A 從按快捷鍵到貼上是
+    /// 延遲敏感路徑，而它不需要時間戳或把握度，沒有理由承擔 `verbose_json`
+    /// 的額外回應體積。逐字稿工作台（介面 B）才會用 `.verbose`。
     private func transcribe(
         url: URL,
         apiKey: String,
@@ -1099,63 +1104,19 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
         let primaryLanguage = languageSettings.primary
         let allowed = languageSettings.allowedLanguages.map(\.displayName).joined(separator: "、")
         let reinforceHint = "這段錄音的語言是\(primaryLanguage.displayName)，可能混合少量\(allowed)。請只輸出這些語言。"
+        let basePrompt = primaryLanguage.transcriptionPrompt
+        // 重試時加強主要語言的提示，處理第一次辨識出非預期語言的情況。
+        let prompt = reinforce ? reinforceHint + basePrompt : basePrompt
+
         DispatchQueue.global(qos: .userInitiated).async {
-            do {
-                let audioData = try Data(contentsOf: url)
-                let boundary = "Boundary-\(UUID().uuidString)"
-                var request = URLRequest(url: URL(string: "https://api.groq.com/openai/v1/audio/transcriptions")!)
-                request.httpMethod = "POST"
-                request.timeoutInterval = 90
-                request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-                request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-
-                var body = Data()
-                func addField(_ name: String, _ value: String) {
-                    body.append("--\(boundary)\r\n".data(using: .utf8)!)
-                    body.append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n".data(using: .utf8)!)
-                    body.append("\(value)\r\n".data(using: .utf8)!)
-                }
-                addField("model", "whisper-large-v3")
-                addField("language", primaryLanguage.rawValue)
-                addField("response_format", "json")
-                addField("temperature", "0")
-                let basePrompt = primaryLanguage.transcriptionPrompt
-                // 重試時加強主要語言的提示，處理第一次辨識出非預期語言的情況。
-                let retryPrompt = reinforceHint + basePrompt
-                addField("prompt", reinforce ? retryPrompt : basePrompt)
-
-                body.append("--\(boundary)\r\n".data(using: .utf8)!)
-                body.append("Content-Disposition: form-data; name=\"file\"; filename=\"speech.m4a\"\r\n".data(using: .utf8)!)
-                body.append("Content-Type: audio/mp4\r\n\r\n".data(using: .utf8)!)
-                body.append(audioData)
-                body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
-                request.httpBody = body
-
-                URLSession.shared.dataTask(with: request) { data, response, error in
-                    if let error {
-                        completion(.failure(VoiceTypeError.message("雲端辨識失敗：\(error.localizedDescription)")))
-                        return
-                    }
-                    guard let http = response as? HTTPURLResponse, let data else {
-                        completion(.failure(VoiceTypeError.message("雲端沒有回傳有效結果。")))
-                        return
-                    }
-                    guard (200..<300).contains(http.statusCode) else {
-                        let detail = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])
-                            .flatMap { $0["error"] as? [String: Any] }?
-                            .flatMap { $0["message"] as? String }
-                        completion(.failure(VoiceTypeError.message(detail ?? "Groq 回傳錯誤（HTTP \(http.statusCode)）。")))
-                        return
-                    }
-                    guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                          let text = object["text"] as? String else {
-                        completion(.failure(VoiceTypeError.message("無法讀取辨識結果。")))
-                        return
-                    }
-                    completion(.success(text))
-                }.resume()
-            } catch {
-                completion(.failure(VoiceTypeError.message("無法讀取錄音：\(error.localizedDescription)")))
+            GroqTranscriptionClient.transcribe(
+                audioURL: url,
+                apiKey: apiKey,
+                language: primaryLanguage.rawValue,
+                prompt: prompt,
+                format: .plain
+            ) { result in
+                completion(result.map(\.text))
             }
         }
     }
@@ -1309,15 +1270,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
     }
 }
 
-enum VoiceTypeError: LocalizedError {
-    case message(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .message(let value): return value
-        }
-    }
-}
+// `VoiceTypeError` 已移到 GroqTranscriptionClient.swift，讓共用核心能單獨編譯與測試。
 
 let app = NSApplication.shared
 let delegate = VoiceTypeController()
