@@ -29,8 +29,15 @@ PROMPT="繁體中文口述，使用台灣繁體中文字形與自然標點。可
 
 die() { print -u2 "錯誤：$1"; exit 1; }
 
+# 金鑰來源：優先環境變數，否則讀 App 既有的 Keychain 項目。
+# 兩條路都不把金鑰寫進任何檔案，也不印出來。
 require_key() {
-  [[ -n "${GROQ_API_KEY:-}" ]] || die "GROQ_API_KEY 未設定。請先 export GROQ_API_KEY=..."
+  if [[ -n "${GROQ_API_KEY:-}" ]]; then
+    return
+  fi
+  GROQ_API_KEY=$(security find-generic-password -s tw.panh.FreeVoiceType.groq -a api-key -w 2>/dev/null) \
+    || die "拿不到金鑰。請 export GROQ_API_KEY=... 或確認 Keychain 裡有 tw.panh.FreeVoiceType.groq"
+  [[ -n "$GROQ_API_KEY" ]] || die "Keychain 讀到空字串"
 }
 
 require_tools() {
