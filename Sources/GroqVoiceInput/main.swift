@@ -19,10 +19,15 @@ private let additionalLanguagesDefaultsKey = "additionalLanguages"
 private let automaticLanguageRetryDefaultsKey = "automaticLanguageRetry"
 private let convertChineseNumeralsDefaultsKey = "convertChineseNumerals"
 private let silenceAutoStopSecondsDefaultsKey = "silenceAutoStopSeconds"
+private let relayHotKeyCodeDefaultsKey = "relayHotKeyCode"
+private let relayHotKeyModifiersDefaultsKey = "relayHotKeyModifiers"
+private let preferredInputDeviceUIDDefaultsKey = "preferredInputDeviceUID"
+private let allowContinuityMicrophoneDefaultsKey = "allowContinuityMicrophone"
 
-/// 主快捷鍵與第二快捷鍵的識別碼，用來在事件處理器裡分辨是哪一個被按下。
+/// 三組快捷鍵的識別碼，用來在事件處理器裡分辨是哪一個被按下。
 private let primaryHotKeyID: UInt32 = 1
 private let alternateHotKeyID: UInt32 = 2
+private let relayHotKeyID: UInt32 = 3
 
 /// 最長錄音時間。純保護機制，不可能誤停，用來防止忘記按第二次快捷鍵。
 private let maximumRecordingDuration: TimeInterval = 300
@@ -46,6 +51,15 @@ private struct HotKeyShortcut: Equatable {
 private let defaultHotKey = HotKeyShortcut(
     keyCode: UInt32(kVK_UpArrow),
     modifiers: UInt32(optionKey)
+)
+
+/// 切換 iPhone 接力模式的預設快捷鍵。
+///
+/// 沿用主快捷鍵的 ↑ 好記，但用 ⌃⌥ 而不是 ⌥⇧：`⌥⇧↑` 是 macOS 標準的「向上延伸
+/// 選取」，被 `RegisterEventHotKey` 全域攔截後，每個 App 的文字選取都會壞掉。
+private let defaultRelayHotKey = HotKeyShortcut(
+    keyCode: UInt32(kVK_UpArrow),
+    modifiers: UInt32(controlKey) | UInt32(optionKey)
 )
 
 private func shortcutDisplayName(_ shortcut: HotKeyShortcut) -> String {
@@ -365,6 +379,121 @@ private final class TextSettingsView: NSView {
     }
 }
 
+/// iPhone 接力與錄音麥克風的設定。
+///
+/// 這兩件事放在同一個面板，是因為使用者感受到的是同一個症狀（「它自己連到手機」），
+/// 但底下其實是兩個獨立機制：接力模式管的是手機能不能連上來貼字；錄音麥克風管的是
+/// macOS 的連續互通麥克風會不會把 Mac 的錄音來源搶走。
+private final class RelaySettingsView: NSView {
+    private let shortcutRecorder: ShortcutRecorderView
+    private let clearShortcutButton: NSButton
+    private var hasShortcut: Bool
+    private let continuityCheckbox: NSButton
+    private let devicePopUp = NSPopUpButton(frame: NSRect(x: 110, y: 108, width: 350, height: 26))
+    private let devices: [AudioInputDevice]
+
+    init(
+        relayShortcut: HotKeyShortcut?,
+        preferredDeviceUID: String?,
+        allowContinuityMicrophone: Bool,
+        devices: [AudioInputDevice]
+    ) {
+        shortcutRecorder = ShortcutRecorderView(shortcut: relayShortcut ?? defaultRelayHotKey)
+        clearShortcutButton = NSButton(title: "清除", target: nil, action: nil)
+        hasShortcut = relayShortcut != nil
+        continuityCheckbox = NSButton(
+            checkboxWithTitle: "允許使用 iPhone 連續互通麥克風錄音",
+            target: nil,
+            action: nil
+        )
+        self.devices = devices
+        super.init(frame: NSRect(x: 0, y: 0, width: 460, height: 316))
+
+        addNote(
+            "接力模式關閉時，Mac 不會廣播、也不接受任何 iPhone 連線，等於只用電腦輸入。"
+            + "需要用手機講話時再開啟即可。App 每次啟動一律是關閉狀態。",
+            x: 0, y: 272, width: 460, height: 44
+        )
+
+        addLabel("接力模式快捷鍵", x: 0, y: 248, width: 460)
+
+        // ShortcutRecorderView 的內部佈局固定為 360×72，必須給它原本的尺寸。
+        shortcutRecorder.frame = NSRect(x: 0, y: 170, width: 360, height: 72)
+        if relayShortcut == nil { shortcutRecorder.reset() }
+        addSubview(shortcutRecorder)
+
+        clearShortcutButton.bezelStyle = .rounded
+        clearShortcutButton.target = self
+        clearShortcutButton.action = #selector(clearShortcut)
+        clearShortcutButton.frame = NSRect(x: 368, y: 190, width: 66, height: 32)
+        addSubview(clearShortcutButton)
+
+        addNote("未設定時仍可從選單列切換接力模式。", x: 0, y: 146, width: 460)
+
+        addLabel("錄音麥克風", x: 0, y: 112, width: 105)
+        devicePopUp.addItem(withTitle: "自動（排除 iPhone）")
+        for device in devices {
+            let suffix = AudioInputPolicy.isContinuityCapture(device.transportType) ? "（iPhone 連續互通）" : ""
+            devicePopUp.addItem(withTitle: device.name + suffix)
+        }
+        if let preferredDeviceUID,
+           let index = devices.firstIndex(where: { $0.uid == preferredDeviceUID }) {
+            devicePopUp.selectItem(at: index + 1)
+        } else {
+            devicePopUp.selectItem(at: 0)
+        }
+        addSubview(devicePopUp)
+        addNote(
+            "「自動」會沿用系統目前的輸入裝置，但排除 iPhone。AirPods 與 USB 麥克風不受影響。",
+            x: 110, y: 78, width: 350, height: 26
+        )
+
+        continuityCheckbox.state = allowContinuityMicrophone ? .on : .off
+        continuityCheckbox.frame = NSRect(x: 0, y: 52, width: 460, height: 20)
+        addSubview(continuityCheckbox)
+        addNote(
+            "連續互通麥克風是 macOS 的功能，手機 App 沒開、手機鎖屏、手機在別的房間都會出現在裝置清單裡。"
+            + "勾選後 Mac 錄音可能會被隔空轉到 iPhone 上，通常只會錄到靜音。",
+            x: 18, y: 0, width: 442, height: 46
+        )
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    var relayShortcut: HotKeyShortcut? {
+        guard hasShortcut || shortcutRecorder.didRecord else { return nil }
+        return shortcutRecorder.shortcut
+    }
+
+    /// 回傳 nil 代表「自動」，交給 `AudioInputPolicy` 決定。
+    var preferredDeviceUID: String? {
+        let index = devicePopUp.indexOfSelectedItem
+        guard index > 0, index - 1 < devices.count else { return nil }
+        return devices[index - 1].uid
+    }
+
+    var allowContinuityMicrophone: Bool { continuityCheckbox.state == .on }
+
+    @objc private func clearShortcut() {
+        hasShortcut = false
+        shortcutRecorder.reset()
+    }
+
+    private func addLabel(_ text: String, x: CGFloat, y: CGFloat, width: CGFloat) {
+        let label = NSTextField(labelWithString: text)
+        label.frame = NSRect(x: x, y: y, width: width, height: 18)
+        addSubview(label)
+    }
+
+    private func addNote(_ text: String, x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat = 20) {
+        let note = NSTextField(wrappingLabelWithString: text)
+        note.textColor = .secondaryLabelColor
+        note.font = .systemFont(ofSize: 11)
+        note.frame = NSRect(x: x, y: y, width: width, height: height)
+        addSubview(note)
+    }
+}
+
 private var sharedController: VoiceTypeController?
 
 private let hotKeyHandler: EventHandlerUPP = { _, event, _ in
@@ -379,24 +508,31 @@ private let hotKeyHandler: EventHandlerUPP = { _, event, _ in
         nil,
         &identifier
     )
-    let useAlternate = status == noErr && identifier.id == alternateHotKeyID
+    let pressedID = status == noErr ? identifier.id : primaryHotKeyID
     DispatchQueue.main.async {
-        sharedController?.toggleRecording(useAlternateMode: useAlternate)
+        if pressedID == relayHotKeyID {
+            sharedController?.toggleRelayMode()
+        } else {
+            sharedController?.toggleRecording(useAlternateMode: pressedID == alternateHotKeyID)
+        }
     }
     return noErr
 }
 
-final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorderDelegate {
+final class VoiceTypeController: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var toggleMenuItem: NSMenuItem!
     private var remoteConnectionMenuItem: NSMenuItem!
     private var remoteTargetMenuItem: NSMenuItem!
+    private var relayMenuItem: NSMenuItem!
     private var modeMenuItems: [TextOutputMode: NSMenuItem] = [:]
     private var hotKeyRef: EventHotKeyRef?
     private var alternateHotKeyRef: EventHotKeyRef?
+    private var relayHotKeyRef: EventHotKeyRef?
     private var eventHandlerRef: EventHandlerRef?
     private var currentHotKey = defaultHotKey
     private var alternateHotKey: HotKeyShortcut?
+    private var relayHotKey: HotKeyShortcut? = defaultRelayHotKey
     private var alternateOutputMode: TextOutputMode = .concise
     private var languageSettings = LanguageSettings.default
     private var convertChineseNumerals = false
@@ -409,7 +545,16 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
     private var lastLoudAt: Date?
     /// 本次錄音實際採用的模式。第二快捷鍵只影響當次，不改變儲存的偏好。
     private var activeOutputMode: TextOutputMode = .verbatim
-    private var recorder: AVAudioRecorder?
+    private let micRecorder = PinnedMicrophoneRecorder()
+    /// 使用者指定的固定錄音裝置。nil 表示「自動」，由 `AudioInputPolicy` 決定。
+    private var preferredInputDeviceUID: String?
+    /// 是否允許用 iPhone 的連續互通麥克風錄音。預設不允許，這正是「收不到音」的來源。
+    private var allowContinuityMicrophone = false
+    /// iPhone 接力模式是否開啟。
+    ///
+    /// 刻意不寫入 `UserDefaults`：使用者回報的問題就是「它常常自己連到手機」，
+    /// 所以每次啟動一律從關閉開始，不讓上次忘記關的狀態延續到下次。
+    private var isRelayModeEnabled = false
     private var recordingURL: URL?
     private var activeUploadURL: URL?
     private var isUploading = false
@@ -430,9 +575,11 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
         activeOutputMode = textOutputMode
         languageSettings = loadLanguageSettings()
         loadTextSettings()
+        loadRelaySettings()
         configureStatusItem()
         registerHotKey()
         requestPermissions()
+        configureRecorder()
         configureRemoteInput()
 
         if readAPIKey() == nil {
@@ -443,11 +590,13 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        recorder?.stop()
+        micRecorder.shutdown()
         if let recordingURL { try? FileManager.default.removeItem(at: recordingURL) }
         if let activeUploadURL { try? FileManager.default.removeItem(at: activeUploadURL) }
         if let pendingRetryURL { try? FileManager.default.removeItem(at: pendingRetryURL) }
         if let hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
+        if let alternateHotKeyRef { UnregisterEventHotKey(alternateHotKeyRef) }
+        if let relayHotKeyRef { UnregisterEventHotKey(relayHotKeyRef) }
         if let eventHandlerRef { RemoveEventHandler(eventHandlerRef) }
         remoteBridge.stop()
     }
@@ -504,6 +653,14 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
         menu.addItem(permissionsItem)
 
         menu.addItem(NSMenuItem.separator())
+        relayMenuItem = NSMenuItem(
+            title: relayMenuTitle(),
+            action: #selector(toggleRelayFromMenu),
+            keyEquivalent: ""
+        )
+        relayMenuItem.target = self
+        menu.addItem(relayMenuItem)
+
         remoteConnectionMenuItem = NSMenuItem(title: "iPhone 遠端：準備中…", action: nil, keyEquivalent: "")
         remoteConnectionMenuItem.isEnabled = false
         menu.addItem(remoteConnectionMenuItem)
@@ -511,6 +668,14 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
         remoteTargetMenuItem = NSMenuItem(title: "尚未鎖定輸入框", action: nil, keyEquivalent: "")
         remoteTargetMenuItem.isEnabled = false
         menu.addItem(remoteTargetMenuItem)
+
+        let relaySettingsItem = NSMenuItem(
+            title: "iPhone 接力與麥克風設定…",
+            action: #selector(showRelaySettingsDialog),
+            keyEquivalent: ""
+        )
+        relaySettingsItem.target = self
+        menu.addItem(relaySettingsItem)
 
         let pairingItem = NSMenuItem(title: "配對 iPhone…", action: #selector(showPairingCode), keyEquivalent: "")
         pairingItem.target = self
@@ -525,6 +690,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
         quit.target = self
         menu.addItem(quit)
         statusItem.menu = menu
+        updateRelayMenu()
     }
 
     private func configureRemoteInput() {
@@ -545,7 +711,41 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
         remoteTargetController.onTargetChange = { [weak self] status in
             self?.remoteTargetMenuItem.title = status
         }
-        remoteBridge.start()
+        // 這裡刻意不呼叫 remoteBridge.start()。以前它在啟動時就無條件開始廣播，
+        // 而且對已配對的手機是零確認自動接受，等於 App 一開就永遠在等手機連進來。
+        // 現在只有使用者明確開啟接力模式時才會開始廣播。
+    }
+
+    /// 把錄音器的三個非同步回呼接到 UI 與轉錄流程上。
+    ///
+    /// 改用 `AVCaptureSession` 之後，開始與結束都不再是同步完成的，這個方法就是
+    /// 兩者的銜接點。細節見 `PinnedMicrophoneRecorder` 的說明。
+    private func configureRecorder() {
+        micRecorder.onRecordingStarted = { [weak self] in
+            guard let self else { return }
+            self.startMetering()
+            self.statusItem.button?.image = NSImage(
+                systemSymbolName: "record.circle.fill",
+                accessibilityDescription: "正在錄音"
+            )
+            self.statusItem.button?.contentTintColor = .systemRed
+            // 提示音刻意留到這一刻才播。使用者的既有習慣是「聽到 Tink 就開始講」，
+            // 若在按下快捷鍵當下就播，錄音裝置還沒就緒，第一個字會被吃掉。
+            NSSound(named: "Tink")?.play()
+        }
+
+        micRecorder.onStartFailed = { [weak self] error in
+            guard let self else { return }
+            if let url = self.recordingURL {
+                try? FileManager.default.removeItem(at: url)
+                self.recordingURL = nil
+            }
+            self.showError("無法開始錄音：\(error.localizedDescription)")
+        }
+
+        micRecorder.onRecordingFinished = { [weak self] url, error in
+            self?.handleRecordingFinished(url: url, error: error)
+        }
     }
 
     @objc private func showPairingCode() {
@@ -559,15 +759,31 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
         }
 
         let code = String(format: "%06u", randomValue % 1_000_000)
+
+        // 配對必須讓 iPhone 找得到這台 Mac，而那需要 Mac 正在廣播。接力模式預設
+        // 是關的，如果不在這裡暫時開啟，iPhone 會永遠掃不到 Mac，配對功能等於整個
+        // 壞掉——而且因為平常不會重新配對，這種壞法可能很久以後才被發現。
+        let relayModeBeforePairing = isRelayModeEnabled
+        if !relayModeBeforePairing { setRelayMode(enabled: true, playSound: false) }
         remoteBridge.beginPairing(code: code)
 
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "配對 iPhone"
-        alert.informativeText = "請在 iPhone 的「Mac 連線」中選擇這台 Mac，輸入配對碼：\n\n\(code)\n\n配對碼 5 分鐘後失效。"
+        var informativeText = "請在 iPhone 的「Mac 連線」中選擇這台 Mac，輸入配對碼：\n\n\(code)\n\n配對碼 5 分鐘後失效。"
+        if !relayModeBeforePairing {
+            informativeText += "\n\n配對期間會暫時開啟接力模式。關閉這個視窗後會恢復原狀，"
+                + "之後要用 iPhone 輸入時，請按 \(shortcutDisplayName(relayHotKey ?? defaultRelayHotKey)) 或從選單列開啟接力模式。"
+        }
+        alert.informativeText = informativeText
         alert.alertStyle = .informational
         alert.addButton(withTitle: "完成")
         alert.runModal()
+
+        remoteBridge.endPairing()
+        // 一律還原成使用者原本選擇的狀態。配對成功就自動留在接力模式，正是這次要
+        // 消除的「沒同意就連上手機」，所以寧可讓使用者自己再按一次。
+        if !relayModeBeforePairing { setRelayMode(enabled: false, playSound: false) }
         NSApp.hide(nil)
     }
 
@@ -586,6 +802,136 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
         NSApp.hide(nil)
     }
 
+    // MARK: - iPhone 接力模式
+
+    func toggleRelayMode() {
+        setRelayMode(enabled: !isRelayModeEnabled)
+    }
+
+    @objc private func toggleRelayFromMenu() {
+        toggleRelayMode()
+    }
+
+    /// 開關接力模式。
+    ///
+    /// 關閉時不只是停止廣播，還會斷開已連線的 iPhone 並清掉已鎖定的輸入框。
+    /// 少了後兩步，「關閉」就只是不再接受新連線，既有連線仍能繼續貼字。
+    private func setRelayMode(enabled: Bool, playSound: Bool = true) {
+        guard isRelayModeEnabled != enabled else { return }
+        isRelayModeEnabled = enabled
+
+        if enabled {
+            remoteBridge.start()
+        } else {
+            remoteTargetController.clearTarget()
+            remoteBridge.stop()
+        }
+        updateRelayMenu()
+        if playSound { NSSound(named: enabled ? "Glass" : "Pop")?.play() }
+    }
+
+    private func relayMenuTitle() -> String {
+        guard let relayHotKey else { return "iPhone 接力模式" }
+        return "iPhone 接力模式（\(shortcutDisplayName(relayHotKey))）"
+    }
+
+    private func updateRelayMenu() {
+        relayMenuItem.state = isRelayModeEnabled ? .on : .off
+        relayMenuItem.title = relayMenuTitle()
+        if !isRelayModeEnabled {
+            remoteConnectionMenuItem.title = "iPhone 遠端：已停用"
+            remoteTargetMenuItem.title = "尚未鎖定輸入框"
+        }
+        resetStatus()
+    }
+
+    private func loadRelaySettings() {
+        let defaults = UserDefaults.standard
+        preferredInputDeviceUID = defaults.string(forKey: preferredInputDeviceUIDDefaultsKey)
+        allowContinuityMicrophone = defaults.bool(forKey: allowContinuityMicrophoneDefaultsKey)
+
+        // 鍵值不存在代表從未設定過，給預設快捷鍵；modifiers 為 0 則是使用者按過
+        // 「清除」的明確標記（快捷鍵至少要有一個修飾鍵，0 不可能是有效值）。
+        // 少了這個區分，清除過的快捷鍵下次啟動就會自己跑回來。
+        guard defaults.object(forKey: relayHotKeyCodeDefaultsKey) != nil,
+              defaults.object(forKey: relayHotKeyModifiersDefaultsKey) != nil else {
+            relayHotKey = defaultRelayHotKey
+            return
+        }
+        let modifiers = UInt32(defaults.integer(forKey: relayHotKeyModifiersDefaultsKey))
+        relayHotKey = modifiers == 0 ? nil : HotKeyShortcut(
+            keyCode: UInt32(defaults.integer(forKey: relayHotKeyCodeDefaultsKey)),
+            modifiers: modifiers
+        )
+    }
+
+    @objc private func showRelaySettingsDialog() {
+        NSApp.activate(ignoringOtherApps: true)
+        let view = RelaySettingsView(
+            relayShortcut: relayHotKey,
+            preferredDeviceUID: preferredInputDeviceUID,
+            allowContinuityMicrophone: allowContinuityMicrophone,
+            devices: AudioInputDevices.current()
+        )
+        let alert = NSAlert()
+        alert.messageText = "iPhone 接力與麥克風設定"
+        alert.alertStyle = .informational
+        alert.accessoryView = view
+        alert.addButton(withTitle: "儲存")
+        alert.addButton(withTitle: "取消")
+
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            NSApp.hide(nil)
+            return
+        }
+
+        let defaults = UserDefaults.standard
+        preferredInputDeviceUID = view.preferredDeviceUID
+        allowContinuityMicrophone = view.allowContinuityMicrophone
+        if let preferredInputDeviceUID {
+            defaults.set(preferredInputDeviceUID, forKey: preferredInputDeviceUIDDefaultsKey)
+        } else {
+            defaults.removeObject(forKey: preferredInputDeviceUIDDefaultsKey)
+        }
+        defaults.set(allowContinuityMicrophone, forKey: allowContinuityMicrophoneDefaultsKey)
+
+        relayHotKey = view.relayShortcut
+        saveRelayHotKey()
+        if registerRelayHotKey() != noErr {
+            relayHotKey = nil
+            registerRelayHotKey()
+            saveRelayHotKey()
+            showError("接力模式快捷鍵無法註冊，可能已被其他程式占用。仍可從選單列切換接力模式。")
+        }
+        updateRelayMenu()
+        NSApp.hide(nil)
+    }
+
+    private func saveRelayHotKey() {
+        let defaults = UserDefaults.standard
+        defaults.set(Int(relayHotKey?.keyCode ?? 0), forKey: relayHotKeyCodeDefaultsKey)
+        defaults.set(Int(relayHotKey?.modifiers ?? 0), forKey: relayHotKeyModifiersDefaultsKey)
+    }
+
+    /// 註冊接力模式快捷鍵。沒有設定時只是解除註冊，不視為錯誤。
+    @discardableResult
+    private func registerRelayHotKey() -> OSStatus {
+        if let relayHotKeyRef {
+            UnregisterEventHotKey(relayHotKeyRef)
+            self.relayHotKeyRef = nil
+        }
+        guard let relayHotKey else { return noErr }
+        let hotKeyID = EventHotKeyID(signature: hotKeySignature, id: relayHotKeyID)
+        return RegisterEventHotKey(
+            relayHotKey.keyCode,
+            relayHotKey.modifiers,
+            hotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &relayHotKeyRef
+        )
+    }
+
     private func registerHotKey() {
         var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
         let installStatus = InstallEventHandler(
@@ -598,6 +944,15 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
         )
 
         let registerStatus = registerCurrentHotKey()
+
+        // 接力快捷鍵註冊失敗不是致命問題（選單列仍可切換），但也不能讓選單顯示一個
+        // 按下去沒反應的組合鍵，所以直接視為未設定，讓使用者自己去改一個沒衝突的。
+        // 選單標題在 configureStatusItem() 就已經寫好了，這裡必須重新整理一次。
+        if registerRelayHotKey() != noErr {
+            relayHotKey = nil
+            registerRelayHotKey()
+            updateRelayMenu()
+        }
 
         if installStatus != noErr || registerStatus != noErr {
             showError("無法註冊快捷鍵 \(shortcutDisplayName(currentHotKey))。可能已被其他程式使用。")
@@ -835,8 +1190,12 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
             return
         }
 
-        if recorder?.isRecording == true {
-            stopRecordingAndTranscribe()
+        if micRecorder.isRecording {
+            stopRecording()
+        } else if micRecorder.isBusy {
+            // 錄音裝置還在啟動中（AVCaptureSession 要 100–300ms）。這時再按一次
+            // 快捷鍵不能當成「停止」，否則會停掉一段還沒開始的錄音。
+            NSSound.beep()
         } else {
             // 第二快捷鍵只影響這一次錄音，不改變儲存的偏好。
             activeOutputMode = useAlternateMode ? alternateOutputMode : textOutputMode
@@ -855,36 +1214,24 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
             return
         }
 
+        // 明確挑一個裝置，而不是讓系統決定。macOS 會在 iPhone 靠近時把預設輸入
+        // 切到連續互通麥克風，那時候錄到的是一段靜音，手機還會被隔空叫醒。
+        guard let device = AudioInputDevices.selected(
+            preferredUID: preferredInputDeviceUID,
+            allowContinuityCapture: allowContinuityMicrophone
+        ) else {
+            showError(
+                "找不到可用的麥克風。目前唯一的輸入裝置是 iPhone 的連續互通麥克風，"
+                + "用它錄音通常只會收到靜音。請接上其他麥克風，或在「iPhone 接力與麥克風設定…」中允許使用它。"
+            )
+            return
+        }
+
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("FreeVoiceType-\(UUID().uuidString).m4a")
-        let settings: [String: Any] = [
-            AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-            AVSampleRateKey: 16_000,
-            AVNumberOfChannelsKey: 1,
-            AVEncoderBitRateKey: 32_000,
-            AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
-        ]
-
-        do {
-            let newRecorder = try AVAudioRecorder(url: url, settings: settings)
-            newRecorder.delegate = self
-            newRecorder.isMeteringEnabled = true
-            newRecorder.prepareToRecord()
-            guard newRecorder.record() else {
-                try? FileManager.default.removeItem(at: url)
-                showError("無法開始錄音。")
-                return
-            }
-            recorder = newRecorder
-            recordingURL = url
-            startMetering()
-            statusItem.button?.image = NSImage(systemSymbolName: "record.circle.fill", accessibilityDescription: "正在錄音")
-            statusItem.button?.contentTintColor = .systemRed
-            NSSound(named: "Tink")?.play()
-        } catch {
-            try? FileManager.default.removeItem(at: url)
-            showError("無法開始錄音：\(error.localizedDescription)")
-        }
+        recordingURL = url
+        // 開始是非同步的：狀態列圖示與提示音都留到 onRecordingStarted 才更新。
+        micRecorder.start(deviceUID: device.uid, url: url)
     }
 
     /// 錄音期間定時檢查兩件事：是否超過最長錄音時間，以及是否已靜音夠久。
@@ -905,41 +1252,60 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
     }
 
     private func checkRecordingLimits() {
-        guard let recorder, recorder.isRecording else { return }
+        guard micRecorder.isRecording else { return }
 
         // 最長錄音保護：永遠啟用，防止忘記按第二次快捷鍵而一直錄下去。
         if let startedAt = recordingStartedAt, Date().timeIntervalSince(startedAt) >= maximumRecordingDuration {
-            stopRecordingAndTranscribe()
+            stopRecording()
             return
         }
 
         // 靜音自動停止：預設關閉，因為思考中的停頓會被誤判成講完了。
+        // `averagePowerLevel` 與 AVAudioRecorder 的 `averagePower` 同樣是 dBFS，
+        // 所以門檻值與這段判斷都沿用改版前的行為。
         guard silenceAutoStopSeconds > 0 else { return }
-        recorder.updateMeters()
-        if recorder.averagePower(forChannel: 0) > silenceThresholdDecibels {
+        if micRecorder.averagePowerLevel > silenceThresholdDecibels {
             lastLoudAt = Date()
             return
         }
         if let lastLoudAt, Date().timeIntervalSince(lastLoudAt) >= TimeInterval(silenceAutoStopSeconds) {
-            stopRecordingAndTranscribe()
+            stopRecording()
         }
     }
 
-    private func stopRecordingAndTranscribe() {
+    /// 按下停止。
+    ///
+    /// 這裡刻意不做上傳。`AVCaptureAudioFileOutput` 在 `stopRecording()` 之後還會
+    /// 在背景把剩下的資料寫完，此刻的檔案是不完整的，直接上傳會送出半個音檔而讓
+    /// Groq 回報「沒有辨識到語音」。實際的上傳在 `handleRecordingFinished(url:error:)`。
+    private func stopRecording() {
         stopMetering()
-        recorder?.stop()
-        recorder = nil
         statusItem.button?.image = NSImage(systemSymbolName: "ellipsis.circle", accessibilityDescription: "正在辨識")
         statusItem.button?.contentTintColor = .systemOrange
         NSSound(named: "Pop")?.play()
+        micRecorder.stop()
+    }
 
-        guard let url = recordingURL, let apiKey = readAPIKey() else {
-            if let recordingURL { try? FileManager.default.removeItem(at: recordingURL) }
-            recordingURL = nil
+    /// 音檔已完整寫入磁碟，這時候才能上傳。
+    private func handleRecordingFinished(url: URL, error: Error?) {
+        // 錄音也可能不是由 stopRecording() 結束的（裝置被拔掉、系統中斷等），
+        // 那條路徑不會經過 stopMetering()，計時器會一直空轉下去。
+        stopMetering()
+        recordingURL = nil
+
+        if let error {
+            try? FileManager.default.removeItem(at: url)
+            resetStatus()
+            showError("錄音未能完成：\(error.localizedDescription)")
+            return
+        }
+
+        guard let apiKey = readAPIKey() else {
+            try? FileManager.default.removeItem(at: url)
             resetStatus()
             return
         }
-        recordingURL = nil
+
         activeUploadURL = url
         isUploading = true
         extraRequestCount = 0
@@ -1142,8 +1508,12 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
         NSSound(named: "Glass")?.play()
     }
 
+    /// 回到待機圖示。接力模式開啟時用不同的符號，讓使用者一眼看得出手機現在連得上來。
     private func resetStatus() {
-        statusItem.button?.image = NSImage(systemSymbolName: "mic", accessibilityDescription: "AI 語音輸入")
+        let description = isRelayModeEnabled ? "AI 語音輸入（iPhone 接力已開啟）" : "AI 語音輸入"
+        let symbol = isRelayModeEnabled ? "mic.badge.plus" : "mic"
+        statusItem.button?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: description)
+            ?? NSImage(systemSymbolName: "mic", accessibilityDescription: description)
         statusItem.button?.contentTintColor = nil
     }
 

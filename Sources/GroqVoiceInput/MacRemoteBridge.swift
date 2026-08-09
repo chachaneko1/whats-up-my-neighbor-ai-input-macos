@@ -14,32 +14,80 @@ final class MacRemoteBridge: NSObject, @unchecked Sendable {
     private var pairingCode: String?
     private var pairingExpiresAt: Date?
 
+    /// 接力模式狀態與連線物件，一律由 `relayLock` 保護。
+    ///
+    /// 需要鎖的原因有兩個。其一，光是停止廣播還不夠：`stopAdvertisingPeer()`
+    /// 之後仍可能有已經在路上的邀請進來，delegate 要能無條件拒絕，「關閉」才是
+    /// 真的關閉。其二，delegate 回呼是在 MultipeerConnectivity 自己的執行緒上跑，
+    /// 而開關接力模式是在主執行緒，兩者會同時碰這幾個變數。
+    private let relayLock = NSLock()
+    private var relayEnabled = false
+    /// 只在接力模式開啟時存在。MultipeerConnectivity 在 `disconnect()` 之後重複
+    /// 使用同一個 session 重連並不可靠，每次開啟都重建最單純也最好推理。
+    private var relaySession: MCSession?
+    private var relayAdvertiser: MCNearbyServiceAdvertiser?
+
     private lazy var localPeerID: MCPeerID = loadPeer(forKey: localPeerDefaultsKey) ?? makeAndSaveLocalPeer()
-    private lazy var session = MCSession(
-        peer: localPeerID,
-        securityIdentity: nil,
-        encryptionPreference: .required
-    )
-    private lazy var advertiser = MCNearbyServiceAdvertiser(
-        peer: localPeerID,
-        discoveryInfo: ["protocol": String(RemoteMessage.currentVersion)],
-        serviceType: Self.serviceType
-    )
 
     override init() {
         super.init()
     }
 
     func start() {
-        session.delegate = self
-        advertiser.delegate = self
-        advertiser.startAdvertisingPeer()
+        let newSession = MCSession(
+            peer: localPeerID,
+            securityIdentity: nil,
+            encryptionPreference: .required
+        )
+        newSession.delegate = self
+        let newAdvertiser = MCNearbyServiceAdvertiser(
+            peer: localPeerID,
+            discoveryInfo: ["protocol": String(RemoteMessage.currentVersion)],
+            serviceType: Self.serviceType
+        )
+        newAdvertiser.delegate = self
+
+        relayLock.lock()
+        relayEnabled = true
+        relaySession = newSession
+        relayAdvertiser = newAdvertiser
+        relayLock.unlock()
+
+        newAdvertiser.startAdvertisingPeer()
         notifyConnectionChange()
     }
 
     func stop() {
-        advertiser.stopAdvertisingPeer()
-        session.disconnect()
+        relayLock.lock()
+        relayEnabled = false
+        let previousSession = relaySession
+        let previousAdvertiser = relayAdvertiser
+        relaySession = nil
+        relayAdvertiser = nil
+        relayLock.unlock()
+
+        endPairing()
+        previousAdvertiser?.stopAdvertisingPeer()
+        previousAdvertiser?.delegate = nil
+        previousSession?.disconnect()
+        previousSession?.delegate = nil
+        notifyConnectionChange()
+    }
+
+    /// 取得目前可用的 session，接力模式關閉時回傳 nil。
+    ///
+    /// 「檢查旗標」與「取得 session」必須在同一個鎖裡完成，否則兩步之間狀態可能
+    /// 已經被切換，變成用一個剛被關閉的 session 繼續收送訊息。
+    private func activeSession() -> MCSession? {
+        relayLock.lock()
+        defer { relayLock.unlock() }
+        return relayEnabled ? relaySession : nil
+    }
+
+    private var isRelayEnabled: Bool {
+        relayLock.lock()
+        defer { relayLock.unlock() }
+        return relayEnabled
     }
 
     func beginPairing(code: String, validFor seconds: TimeInterval = 300) {
@@ -57,13 +105,13 @@ final class MacRemoteBridge: NSObject, @unchecked Sendable {
     }
 
     func forgetPairedPhone() {
-        session.disconnect()
+        activeSession()?.disconnect()
         UserDefaults.standard.removeObject(forKey: pairedPeerDefaultsKey)
         notifyConnectionChange()
     }
 
     var connectedPhoneName: String? {
-        session.connectedPeers.first?.displayName
+        activeSession()?.connectedPeers.first?.displayName
     }
 
     var hasPairedPhone: Bool {
@@ -72,6 +120,7 @@ final class MacRemoteBridge: NSObject, @unchecked Sendable {
 
     @discardableResult
     func send(_ message: RemoteMessage) -> Bool {
+        guard let session = activeSession() else { return false }
         let peers = session.connectedPeers
         guard !peers.isEmpty,
               let data = try? RemoteMessageCodec.encode(message) else { return false }
@@ -118,7 +167,9 @@ final class MacRemoteBridge: NSObject, @unchecked Sendable {
 
     private func notifyConnectionChange() {
         let status: String
-        if let connectedPhoneName {
+        if !isRelayEnabled {
+            status = "已停用"
+        } else if let connectedPhoneName {
             status = "已連線：\(connectedPhoneName)"
         } else if hasPairedPhone {
             status = "已配對，等待 iPhone 連線"
@@ -138,6 +189,13 @@ extension MacRemoteBridge: MCNearbyServiceAdvertiserDelegate {
         withContext context: Data?,
         invitationHandler: @escaping (Bool, MCSession?) -> Void
     ) {
+        // 接力模式關閉時一律拒絕。以前這裡對已配對的手機是零確認自動接受，
+        // 等於 App 一開就永遠在等手機連進來，正是使用者回報的「沒同意就連上手機」。
+        guard let session = activeSession() else {
+            invitationHandler(false, nil)
+            return
+        }
+
         if isPaired(peerID) {
             invitationHandler(true, session)
             return
@@ -170,7 +228,8 @@ extension MacRemoteBridge: MCSessionDelegate {
     }
 
     func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
-        guard isPaired(peerID),
+        guard activeSession() != nil,
+              isPaired(peerID),
               let message = try? RemoteMessageCodec.decode(RemoteMessage.self, from: data) else { return }
         DispatchQueue.main.async { [weak self] in
             self?.onMessage?(message)
