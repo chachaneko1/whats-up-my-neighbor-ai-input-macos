@@ -261,8 +261,12 @@ Mac 在執行前與貼上後都會重新確認焦點。若 App、視窗或輸入
 3. **六位數配對碼失敗：**在 Mac 關閉舊配對畫面，再選一次「配對 iPhone…」取得新碼，並在五分鐘內完成。
 4. **配對後無法自動重連：**喚醒並解鎖兩端。仍失敗時，兩端各自忘記舊配對，再用新碼重新配對。
 5. **顯示版本不相容：**更新 Mac 與 iPhone App，確保兩端採用相同遠端協定。
+6. **iPhone 顯示「『Groq 語音輸入』無法再使用」：**這是 iPhone App 的佈建描述檔到期，不是 Mac 端的問題。用免費 Apple ID 簽署的 App 只有 **7 天效期**，重新用 Xcode 連上 iPhone 按 Run 就會換發新的描述檔。詳見 iPhone repo 的「免費 Apple ID 的 7 天限制」。
 
 附近連線使用加密的 Apple Multipeer Connectivity；它不是 AirDrop，不需要 Tailscale、VPS、固定 IP 或額外帳號。
+
+> [!NOTE]
+> 兩個 App 的簽署方式不同，不要混淆：Mac 端的「AI 語音輸入」使用 ad-hoc 簽章，**沒有憑證也沒有效期欄位，不會過期**；只有 iPhone 端的「Groq 語音輸入」受免費 Apple ID 的 7 天佈建限制。手機端到期時，Mac 端的錄音與貼上完全不受影響，只是暫時無法使用接力模式。
 
 ## 隱私與資料
 
