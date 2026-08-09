@@ -1,0 +1,15 @@
+#!/bin/zsh
+set -euo pipefail
+
+ROOT="${0:A:h:h}"
+OUTPUT="$ROOT/build/TranscriptionClientTests"
+
+mkdir -p "$ROOT/build"
+
+swiftc \
+  -swift-version 5 \
+  "$ROOT/Sources/GroqVoiceInput/GroqTranscriptionClient.swift" \
+  "$ROOT/Tests/TranscriptionClientTests.swift" \
+  -o "$OUTPUT"
+
+"$OUTPUT"
