@@ -8,6 +8,8 @@
 
 實作驗證基準為提交 `b46bcef3c0b0cf0218d6d22bc77f09b7cb76ccad`，其 [Windows CI run 38616740645](https://github.com/yuipan0611/groq-ai-voice-input-macos/actions/runs/38616740645) 已全數通過。最終發布另以最新提交重跑；**下載檔的確切 commit、CI run、bytes、完整 SHA-256 與逐項結果，以同次建置的發布附件為準**，不套用較早產物的雜湊。
 
+同一提交另一次 [PR CI run 38616750378](https://github.com/yuipan0611/groq-ai-voice-input-macos/actions/runs/38616750378/job/116033669527) 在 WPF 測試視窗啟動時超過原有 8 秒期限；其他建置、離線測試與安裝流程通過。這只能確認啟動等待曾間歇失敗，尚未證明 runner 負載或其他具體原因。測試 harness 現將 WPF 與相同啟動流程的 WinForms fixture 改為獨立 30 秒啟動期限，仍須同時取得 ready 訊號與有效視窗；程序提前結束會立即失敗，日誌保留經過時間、ready／視窗狀態及 exit code。原有 8 秒 UI 動作等待與所有貼上、UIA 範圍斷言均不變，也不重跑整套測試。新增假時鐘回歸覆蓋延遲就緒、缺少任一訊號、逾時與提前結束；以上通過數為既有基準；此修正的原生編譯與執行結果以 [PR #3 最新提交的 Windows 檢查](https://github.com/yuipan0611/groq-ai-voice-input-macos/pull/3/checks) 為準。
+
 | 交付項目 | 位置／內容 |
 | --- | --- |
 | Windows 測試版 | [0.1.0-beta.1 預發布頁](https://github.com/yuipan0611/groq-ai-voice-input-macos/releases/tag/windows-v0.1.0-beta.1) |

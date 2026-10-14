@@ -21,12 +21,7 @@ namespace Neighbor.Tests
             {
                 fixture = Process.Start(new ProcessStartInfo(Assembly.GetEntryAssembly().Location,
                     "--platform-wpf-target \"" + directory + "\"") { UseShellExecute = false });
-                Wait(() =>
-                {
-                    if (fixture.HasExited) throw new InvalidOperationException("WPF fixture exited: " + fixture.ExitCode);
-                    fixture.Refresh();
-                    return File.Exists(Path.Combine(directory, "ready")) && fixture.MainWindowHandle != IntPtr.Zero;
-                }, "startup");
+                FixtureStartup.Wait(fixture, directory, "WPF fixture");
                 Action activate = () =>
                 {
                     fixture.Refresh(); var window = fixture.MainWindowHandle;

@@ -31,6 +31,7 @@ namespace Neighbor.Tests
         }
         public static void Run(Action<bool, string> check)
         {
+            FixtureStartupTests.Run(check);
             var backend = new FakeRegistrar();
             using (var service = new HotKeyService(backend))
             {
@@ -138,12 +139,7 @@ namespace Neighbor.Tests
             try
             {
                 fixture = Process.Start(new ProcessStartInfo(Assembly.GetEntryAssembly().Location, "--platform-ui-target \"" + directory + "\"") { UseShellExecute = false });
-                Wait(() =>
-                {
-                    if (fixture.HasExited) throw new InvalidOperationException("Isolated UI fixture exited during startup: " + fixture.ExitCode);
-                    fixture.Refresh();
-                    return File.Exists(Path.Combine(directory, "ready")) && fixture.MainWindowHandle != IntPtr.Zero;
-                }, "fixture startup");
+                FixtureStartup.Wait(fixture, directory, "WinForms fixture");
                 Action activate = () =>
                 {
                     fixture.Refresh();
