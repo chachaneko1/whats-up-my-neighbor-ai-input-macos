@@ -1,0 +1,47 @@
+name: Windows
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/windows-desktop]
+    paths: ['windows/**', '.github/workflows/windows.yml']
+  pull_request:
+    paths: ['windows/**', '.github/workflows/windows.yml']
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore, build and offline tests
+        shell: pwsh
+        run: ./windows/scripts/build.ps1
+      - name: UI integration tests
+        shell: pwsh
+        run: |
+          & ./windows/Neighbor.Tests/bin/Release/net48/Neighbor.Tests.exe --interactive
+          if ($LASTEXITCODE -ne 0) { throw 'UI integration failed' }
+      - name: Package installer
+        shell: pwsh
+        run: ./windows/scripts/package.ps1
+      - name: Install, launch, upgrade and uninstall
+        shell: pwsh
+        run: ./windows/scripts/test-install.ps1
+      - name: Collect test evidence
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force windows/dist | Out-Null
+          if (Test-Path windows/Neighbor.Tests/bin/Release/net48/test-results) {
+            Copy-Item windows/Neighbor.Tests/bin/Release/net48/test-results windows/dist -Recurse -Force
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: neighbor-windows-x64
+          path: windows/dist/
+          if-no-files-found: warn
