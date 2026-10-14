@@ -62,7 +62,7 @@ namespace Neighbor.Windows.Platform
                 try
                 {
                     // This diagnostic contains only COM status, never control content.
-                    try { Diagnostic?.Invoke("capture.com-initialize: 0x" + automation.InitializationResult.ToString("X8", CultureInfo.InvariantCulture)); } catch { }
+                    try { Diagnostic?.Invoke("capture.com-initialize: " + automation.InitializationDiagnostic); } catch { }
                     var window = Native.GetForegroundWindow();
                     uint thread = Native.GetWindowThreadProcessId(window, out uint pid);
                     stage = "focused-element";
@@ -376,7 +376,7 @@ namespace Neighbor.Windows.Platform
         {
             private readonly BlockingCollection<Action> queue = new BlockingCollection<Action>();
             private Exception initializationError;
-            internal int InitializationResult { get; private set; }
+            internal string InitializationDiagnostic { get; private set; }
             public Worker(ApartmentState apartment, string name)
             {
                 var thread = new Thread(() =>
@@ -385,10 +385,14 @@ namespace Neighbor.Windows.Platform
                     // Keep an explicit COM apartment alive for the entire worker so
                     // remote text-range objects survive between individual API calls.
                     // Both S_OK and S_FALSE require a balanced CoUninitialize.
-                    InitializationResult = CoInitializeEx(IntPtr.Zero, apartment == ApartmentState.MTA ? 0u : 2u);
-                    if (InitializationResult < 0) initializationError = Marshal.GetExceptionForHR(InitializationResult);
+                    int prior = CoGetApartmentType(out int priorType, out int priorQualifier);
+                    int initialized = CoInitializeEx(IntPtr.Zero, apartment == ApartmentState.MTA ? 0u : 2u);
+                    InitializationDiagnostic = "prior=0x" + prior.ToString("X8", CultureInfo.InvariantCulture) +
+                        "; type=" + priorType + "; qualifier=" + priorQualifier +
+                        "; init=0x" + initialized.ToString("X8", CultureInfo.InvariantCulture);
+                    if (initialized < 0) initializationError = Marshal.GetExceptionForHR(initialized);
                     try { foreach (var action in queue.GetConsumingEnumerable()) action(); }
-                    finally { if (InitializationResult >= 0) CoUninitialize(); }
+                    finally { if (initialized >= 0) CoUninitialize(); }
                 }) { IsBackground = true, Name = name };
                 thread.SetApartmentState(apartment); thread.Start();
             }
@@ -412,6 +416,7 @@ namespace Neighbor.Windows.Platform
                 return source.Task;
             }
             public void Dispose() { queue.CompleteAdding(); }
+            [DllImport("ole32.dll")] private static extern int CoGetApartmentType(out int type, out int qualifier);
             [DllImport("ole32.dll")] private static extern int CoInitializeEx(IntPtr reserved, uint apartment);
             [DllImport("ole32.dll")] private static extern void CoUninitialize();
         }

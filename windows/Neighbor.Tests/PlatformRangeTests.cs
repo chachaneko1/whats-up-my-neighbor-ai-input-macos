@@ -46,6 +46,7 @@ namespace Neighbor.Tests
                         string expected = replacements[index];
                         string label = new[] { "same-length", "longer", "shorter" }[index];
                         command("reset-" + index);
+                        if (index == 0) PlatformRangeDiagnostics.Run(fixture.Id, "WPF");
                         FocusSnapshot target = null;
                         for (int attempt = 0; attempt < 3; attempt++)
                         {

@@ -167,6 +167,7 @@ namespace Neighbor.Tests
                 {
                     delivery.Diagnostic += detail => Console.WriteLine("UIA diagnostic: " + detail);
                     command("edit-1");
+                    PlatformRangeDiagnostics.Run(fixture.Id, "RichTextBox");
                     FocusSnapshot target = null;
                     // The first cross-process UIA request can pay provider startup costs.
                     // Retry capture only; never repeat an uncertain paste operation.
