@@ -61,6 +61,8 @@ namespace Neighbor.Windows.Platform
                 string stage = "foreground";
                 try
                 {
+                    // This diagnostic contains only COM status, never control content.
+                    try { Diagnostic?.Invoke("capture.com-initialize: 0x" + automation.InitializationResult.ToString("X8", CultureInfo.InvariantCulture)); } catch { }
                     var window = Native.GetForegroundWindow();
                     uint thread = Native.GetWindowThreadProcessId(window, out uint pid);
                     stage = "focused-element";
@@ -373,9 +375,21 @@ namespace Neighbor.Windows.Platform
         private sealed class Worker : IDisposable
         {
             private readonly BlockingCollection<Action> queue = new BlockingCollection<Action>();
+            private Exception initializationError;
+            internal int InitializationResult { get; private set; }
             public Worker(ApartmentState apartment, string name)
             {
-                var thread = new Thread(() => { foreach (var action in queue.GetConsumingEnumerable()) action(); }) { IsBackground = true, Name = name };
+                var thread = new Thread(() =>
+                {
+                    // The net48 UIA facade invokes native exports through P/Invoke.
+                    // Keep an explicit COM apartment alive for the entire worker so
+                    // remote text-range objects survive between individual API calls.
+                    // Both S_OK and S_FALSE require a balanced CoUninitialize.
+                    InitializationResult = CoInitializeEx(IntPtr.Zero, apartment == ApartmentState.MTA ? 0u : 2u);
+                    if (InitializationResult < 0) initializationError = Marshal.GetExceptionForHR(InitializationResult);
+                    try { foreach (var action in queue.GetConsumingEnumerable()) action(); }
+                    finally { if (InitializationResult >= 0) CoUninitialize(); }
+                }) { IsBackground = true, Name = name };
                 thread.SetApartmentState(apartment); thread.Start();
             }
             public Task<T> Run<T>(Func<T> work)
@@ -385,7 +399,11 @@ namespace Neighbor.Windows.Platform
                 {
                     queue.Add(() =>
                     {
-                        try { source.TrySetResult(work()); }
+                        try
+                        {
+                            if (initializationError != null) throw initializationError;
+                            source.TrySetResult(work());
+                        }
                         catch (OperationCanceledException) { source.TrySetCanceled(); }
                         catch (Exception error) { source.TrySetException(error); }
                     });
@@ -394,6 +412,8 @@ namespace Neighbor.Windows.Platform
                 return source.Task;
             }
             public void Dispose() { queue.CompleteAdding(); }
+            [DllImport("ole32.dll")] private static extern int CoInitializeEx(IntPtr reserved, uint apartment);
+            [DllImport("ole32.dll")] private static extern void CoUninitialize();
         }
 
         private enum Composition { Clear, Active, Unknown }
