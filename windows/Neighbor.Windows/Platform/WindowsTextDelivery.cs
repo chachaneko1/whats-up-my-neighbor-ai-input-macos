@@ -30,7 +30,7 @@ namespace Neighbor.Windows.Platform
             public TextPatternRange Range, Start, End;
             public string Original, Latest;
             public DateTime ExpiresUtc;
-            public int Generation;
+            public int Generation, PrefixUnits, SuffixUnits;
         }
         private sealed class InsertionAnchor
         {
@@ -166,8 +166,11 @@ namespace Neighbor.Windows.Platform
                         var end = inserted.Clone();
                         end.MoveEndpointByRange(TextPatternRangeEndpoint.Start, inserted, TextPatternRangeEndpoint.End);
                         result.PasteVerified = true;
+                        if (!TryBoundaryCounts(inserted, out int prefixUnits, out int suffixUnits))
+                        { result.Message = "已確認貼上；此欄位範圍無法可靠追蹤，詞典可手動新增。"; return result; }
                         observation = new Observation { Target = native, Range = inserted, Start = start, End = end,
-                            Original = text, Latest = text, ExpiresUtc = DateTime.UtcNow.AddSeconds(120), Generation = ownGeneration };
+                            Original = text, Latest = text, ExpiresUtc = DateTime.UtcNow.AddSeconds(120), Generation = ownGeneration,
+                            PrefixUnits = prefixUnits, SuffixUnits = suffixUnits };
                         result.Message = "已確認貼上；兩分鐘內可從這段文字的修正學習詞彙。";
                         break;
                     }
@@ -203,6 +206,19 @@ namespace Neighbor.Windows.Platform
                 return null;
             }
             catch { return null; }
+        }
+        private static bool TryBoundaryCounts(TextPatternRange range, out int prefixUnits, out int suffixUnits)
+        {
+            // Endpoint movement obtains only lengths, never surrounding text. It also
+            // detects providers that keep stale absolute offsets after a shorter edit,
+            // which would otherwise let the tracked range include neighboring text.
+            var before = range.Clone();
+            before.MoveEndpointByRange(TextPatternRangeEndpoint.End, before, TextPatternRangeEndpoint.Start);
+            prefixUnits = -before.MoveEndpointByUnit(TextPatternRangeEndpoint.Start, TextUnit.Character, -8193);
+            var after = range.Clone();
+            after.MoveEndpointByRange(TextPatternRangeEndpoint.Start, after, TextPatternRangeEndpoint.End);
+            suffixUnits = after.MoveEndpointByUnit(TextPatternRangeEndpoint.End, TextUnit.Character, 8193);
+            return prefixUnits >= 0 && suffixUnits >= 0 && prefixUnits <= 8192 && suffixUnits <= 8192;
         }
 
         private static bool Editable(Target target)
@@ -262,7 +278,7 @@ namespace Neighbor.Windows.Platform
                 CorrectionObserved?.Invoke(this, new CorrectionEventArgs { IsValid = false, Reason = "文字範圍已失效；可手動新增詞彙。" });
             }
         }
-        private static bool TryReadObservation(Observation current, out string text, out string reason)
+        private bool TryReadObservation(Observation current, out string text, out string reason)
         {
             text = null; reason = "已離開原欄位或超過兩分鐘，詞彙學習已停止。";
             if (DateTime.UtcNow > current.ExpiresUtc || !SameFocus(current.Target)) return false;
@@ -275,6 +291,11 @@ namespace Neighbor.Windows.Platform
             if (current.Range.CompareEndpoints(TextPatternRangeEndpoint.Start, current.Start, TextPatternRangeEndpoint.Start) != 0 ||
                 current.Range.CompareEndpoints(TextPatternRangeEndpoint.End, current.End, TextPatternRangeEndpoint.Start) != 0)
             { reason = "文字範圍邊界無法驗證，詞彙學習已停止。"; return false; }
+            if (!TryBoundaryCounts(current.Range, out int prefixUnits, out int suffixUnits) ||
+                prefixUnits != current.PrefixUnits || suffixUnits != current.SuffixUnits)
+            { reason = "文字範圍邊界已變動，詞彙學習已停止。"; return false; }
+            if (!SameFocus(current.Target) || current.Generation != Volatile.Read(ref generation) || DateTime.UtcNow > current.ExpiresUtc)
+                return false;
             int limit = Math.Min(4224, current.Original.Length + 128);
             text = current.Range.GetText(limit + 1);
             if (text.Length > limit || text.Length == 0)
