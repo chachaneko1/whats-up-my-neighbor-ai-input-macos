@@ -40,11 +40,22 @@ namespace Neighbor.Tests
                 using (var delivery = new WindowsTextDelivery())
                 {
                     delivery.Diagnostic += detail => Console.WriteLine("WPF UIA diagnostic: " + detail);
-                    string[] replacements = { "NEKO", "neighbor", "cat" };
-                    for (int index = 0; index < replacements.Length; index++)
+                    const string sentence = "the neko sleeps";
+                    var scenarios = new[]
                     {
-                        string expected = replacements[index];
-                        string label = new[] { "same-length", "longer", "shorter" }[index];
+                        new Scenario("sentence same-length", sentence, "correct-word|NEKO", "the NEKO sleeps", true),
+                        new Scenario("sentence longer", sentence, "correct-word|neighbor", "the neighbor sleeps", true),
+                        new Scenario("sentence shorter", sentence, "correct-word|cat", "the cat sleeps", true),
+                        new Scenario("complete same-length", "neko", "correct-all|NEKO", "NEKO", false),
+                        new Scenario("complete longer", "neko", "correct-all|neighbor", "neighbor", false),
+                        new Scenario("complete shorter", "neko", "correct-all|cat", "cat", false),
+                        new Scenario("neighboring prefix", sentence, "edit-prefix", sentence, false, "neighbour " + sentence + " suffix"),
+                        new Scenario("neighboring suffix", sentence, "edit-suffix", sentence, false, "prefix " + sentence + " / suffix")
+                    };
+                    for (int index = 0; index < scenarios.Length; index++)
+                    {
+                        var scenario = scenarios[index];
+                        string label = "WPF " + scenario.Label;
                         command("reset-" + index);
                         if (index == 0) PlatformRangeDiagnostics.Run(fixture.Id, "WPF");
                         FocusSnapshot target = null;
@@ -54,14 +65,14 @@ namespace Neighbor.Tests
                             if (target.CanPaste) break;
                             Thread.Sleep(100);
                         }
-                        check(target.CanPaste, "WPF " + label + " editable target captured");
+                        check(target.CanPaste, label + " editable target captured");
                         if (!target.CanPaste) { Console.WriteLine("WPF capture: " + target.Reason); continue; }
-                        var inserted = delivery.DeliverAsync("neko", target, CancellationToken.None).GetAwaiter().GetResult();
-                        Console.WriteLine("WPF " + label + " insertion: sent=" + inserted.PasteSent + "; verified=" + inserted.PasteVerified + "; " + inserted.Message);
-                        check(inserted.PasteSent && inserted.PasteVerified, "WPF " + label + " exact insertion range verified");
+                        var inserted = delivery.DeliverAsync(scenario.Inserted, target, CancellationToken.None).GetAwaiter().GetResult();
+                        Console.WriteLine(label + " insertion: sent=" + inserted.PasteSent + "; verified=" + inserted.PasteVerified + "; " + inserted.Message);
+                        check(inserted.PasteSent && inserted.PasteVerified, label + " exact insertion range verified");
                         if (!inserted.PasteSent || !inserted.PasteVerified) continue;
-                        Wait(() => Read(Path.Combine(directory, "text")) == "prefix neko suffix", "inserted text");
-                        check(delivery.RevalidateCorrectionAsync().GetAwaiter().GetResult(), "WPF " + label + " inserted range is actively tracked");
+                        Wait(() => Read(Path.Combine(directory, "text")) == "prefix " + scenario.Inserted + " suffix", "inserted text");
+                        check(delivery.RevalidateCorrectionAsync().GetAwaiter().GetResult(), label + " inserted range is actively tracked");
                         using (var signal = new ManualResetEventSlim())
                         {
                             object gate = new object(); bool listening = true; string observed = null; string invalidReason = null;
@@ -70,27 +81,37 @@ namespace Neighbor.Tests
                                 lock (gate)
                                 {
                                     if (!listening) return;
-                                    if (change.IsValid) observed = change.Corrected; else invalidReason = change.Reason;
-                                    signal.Set();
+                                    if (change.IsValid) observed = change.Corrected;
+                                    else if (change.Reason != "組字或選取中，暫停詞彙學習。") invalidReason = change.Reason;
+                                    if (observed != null || invalidReason != null) signal.Set();
                                 }
                             };
                             delivery.CorrectionObserved += handler;
                             try
                             {
-                                // Select/replace exactly the four inserted characters. Never
-                                // replace the whole field to simulate an in-place correction.
-                                command("correct|" + expected);
-                                Wait(() => Read(Path.Combine(directory, "text")) == "prefix " + expected + " suffix", "corrected text");
+                                // Commands modify only the explicitly selected span,
+                                // never replace the whole field to simulate a correction.
+                                command(scenario.Command);
+                                Wait(() => Read(Path.Combine(directory, "text")) == scenario.ExpectedField, "corrected text");
                                 signal.Wait(TimeSpan.FromSeconds(4));
                                 string actual, reason; lock (gate) { actual = observed; reason = invalidReason; }
-                                check(actual == expected, "WPF " + label + " correction stays within inserted text");
-                                if (actual != expected) Console.WriteLine("WPF correction status: " + (reason ?? "no matching observation"));
-                                check(delivery.RevalidateCorrectionAsync().GetAwaiter().GetResult(), "WPF " + label + " correction revalidates live endpoints");
+                                if (scenario.ShouldLearn)
+                                {
+                                    check(actual == scenario.Corrected, label + " correction stays within inserted text");
+                                    if (actual != scenario.Corrected) Console.WriteLine(label + " correction status: " + (reason ?? "no matching observation"));
+                                    check(delivery.RevalidateCorrectionAsync().GetAwaiter().GetResult(), label + " correction revalidates live endpoints");
+                                }
+                                else
+                                {
+                                    check(actual == null && reason != null, label + " unsafe boundary change stops learning without a candidate");
+                                    Console.WriteLine(label + " stopped: " + (reason ?? "no stop observation"));
+                                    check(!delivery.RevalidateCorrectionAsync().GetAwaiter().GetResult(), label + " stopped range cannot revalidate");
+                                }
                             }
                             finally { lock (gate) { listening = false; delivery.CorrectionObserved -= handler; } }
                         }
                         delivery.StopObserving();
-                        check(!delivery.RevalidateCorrectionAsync().GetAwaiter().GetResult(), "WPF " + label + " observation can be stopped");
+                        check(!delivery.RevalidateCorrectionAsync().GetAwaiter().GetResult(), label + " observation can be stopped");
                     }
                 }
             }
@@ -99,6 +120,17 @@ namespace Neighbor.Tests
                 if (fixture != null && !fixture.HasExited) { fixture.CloseMainWindow(); if (!fixture.WaitForExit(2000)) fixture.Kill(); }
                 fixture?.Dispose();
                 try { Directory.Delete(directory, true); } catch { }
+            }
+        }
+
+        private sealed class Scenario
+        {
+            internal readonly string Label, Inserted, Command, Corrected, ExpectedField;
+            internal readonly bool ShouldLearn;
+            internal Scenario(string label, string inserted, string command, string corrected, bool shouldLearn, string expectedField = null)
+            {
+                Label = label; Inserted = inserted; Command = command; Corrected = corrected; ShouldLearn = shouldLearn;
+                ExpectedField = expectedField ?? "prefix " + corrected + " suffix";
             }
         }
 
@@ -120,11 +152,20 @@ namespace Neighbor.Tests
                 if (string.IsNullOrEmpty(command) || command == previous) return;
                 previous = command; window.Activate(); edit.Focus();
                 if (command.StartsWith("reset-", StringComparison.Ordinal)) { edit.Text = "prefix  suffix"; edit.Select(7, 0); }
-                else if (command.StartsWith("correct|", StringComparison.Ordinal))
+                else if (command.StartsWith("correct-word|", StringComparison.Ordinal))
                 {
-                    string replacement = command.Substring(8);
+                    string replacement = command.Substring(13);
+                    edit.Select(11, 4); edit.SelectedText = replacement; edit.Select(11 + replacement.Length, 0);
+                }
+                else if (command.StartsWith("correct-all|", StringComparison.Ordinal))
+                {
+                    string replacement = command.Substring(12);
                     edit.Select(7, 4); edit.SelectedText = replacement; edit.Select(7 + replacement.Length, 0);
                 }
+                else if (command == "edit-prefix")
+                { edit.Select(0, 6); edit.SelectedText = "neighbour"; edit.Select(9, 0); }
+                else if (command == "edit-suffix")
+                { edit.Select(22, 1); edit.SelectedText = " / "; edit.Select(25, 0); }
                 File.WriteAllText(Path.Combine(directory, "ack"), command);
             };
             window.Closed += (sender, e) => timer.Stop();

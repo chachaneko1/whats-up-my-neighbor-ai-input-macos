@@ -320,9 +320,15 @@ namespace Neighbor.Windows.Platform
                 selection[0].CompareEndpoints(TextPatternRangeEndpoint.End, current.Range, TextPatternRangeEndpoint.End) > 0) return false;
             if (!Collapsed(selection[0]) || Native.CompositionState(current.Target) != Composition.Clear)
             { reason = "組字或選取中，暫停詞彙學習。"; return false; }
-            if (current.Range.CompareEndpoints(TextPatternRangeEndpoint.Start, current.Start, TextPatternRangeEndpoint.Start) != 0 ||
-                current.Range.CompareEndpoints(TextPatternRangeEndpoint.End, current.End, TextPatternRangeEndpoint.Start) != 0)
-            { reason = "文字範圍邊界無法驗證，詞彙學習已停止。"; return false; }
+            int startComparison = current.Range.CompareEndpoints(TextPatternRangeEndpoint.Start, current.Start, TextPatternRangeEndpoint.Start);
+            int endComparison = current.Range.CompareEndpoints(TextPatternRangeEndpoint.End, current.End, TextPatternRangeEndpoint.Start);
+            if (startComparison != 0 || endComparison != 0)
+            {
+                // Endpoint relationships only; no surrounding text is inspected.
+                try { Diagnostic?.Invoke("observation.boundaries: start=" + startComparison + "; end=" + endComparison +
+                    "; rangeCollapsed=" + Collapsed(current.Range) + "; startCollapsed=" + Collapsed(current.Start) + "; endCollapsed=" + Collapsed(current.End)); } catch { }
+                reason = "文字範圍邊界無法驗證，詞彙學習已停止。"; return false;
+            }
             if (!TryBoundaryCounts(current.Range, out int prefixUnits, out int suffixUnits) ||
                 prefixUnits != current.PrefixUnits || suffixUnits != current.SuffixUnits)
             { reason = "文字範圍邊界已變動，詞彙學習已停止。"; return false; }
