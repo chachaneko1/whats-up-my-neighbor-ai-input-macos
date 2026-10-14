@@ -83,8 +83,9 @@ namespace Neighbor.Windows.Platform
                         try
                         {
                             target.TextPattern = (TextPattern)pattern;
-                            stage = "text-selection";
+                            stage = "text-selection-read";
                             var selections = target.TextPattern.GetSelection();
+                            stage = "text-selection-clone";
                             if (selections.Length == 1) target.Selection = selections[0].Clone();
                         }
                         catch (Exception error)
@@ -92,7 +93,7 @@ namespace Neighbor.Windows.Platform
                             // Some native controls expose TextPattern but cannot supply
                             // live ranges. Writable ValuePattern is sufficient for paste;
                             // exact range access is mandatory only for verification/learning.
-                            ReportFailure("capture.optional-selection", error);
+                            ReportFailure("capture.optional-" + stage, error);
                             target.TextPattern = null; target.Selection = null;
                         }
                     }

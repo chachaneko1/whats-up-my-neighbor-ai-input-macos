@@ -164,18 +164,28 @@ namespace Neighbor.Core
         }
         private void OnLevel(object sender, AudioLevelEventArgs e)
         {
+            var current = Volatile.Read(ref job);
+            if (current == null) return;
+            var receivedUtc = now();
+            var reading = new AudioLevelEventArgs { Decibels = e.Decibels, IsKnown = e.IsKnown };
             Dispatch(() => {
-                if (State != DictationState.Recording || job == null) return;
-                job.LevelKnown = e.IsKnown; job.LastLevelUtc = now();
-                if (!e.IsKnown || e.Decibels > -45) job.LastLoudUtc = now();
-                LevelChanged?.Invoke(this, e);
+                // A recorder callback can wait behind cancellation and a new start
+                // in the UI queue. It still belongs to the job that received it.
+                if (State != DictationState.Recording || !IsCurrent(current)) return;
+                current.LevelKnown = reading.IsKnown; current.LastLevelUtc = receivedUtc;
+                if (!reading.IsKnown || reading.Decibels > -45) current.LastLoudUtc = receivedUtc;
+                LevelChanged?.Invoke(this, reading);
             });
         }
         private void OnRecorderFailure(object sender, EventArgs e)
         {
+            var current = Volatile.Read(ref job);
+            if (current == null) return;
             Dispatch(async () => {
-                if (job == null || (State != DictationState.Recording && State != DictationState.Starting)) return;
-                await CancelAsync(); SetState(DictationState.Idle, "麥克風中斷，請重新選擇裝置後錄音。");
+                if (!IsCurrent(current) || (State != DictationState.Recording && State != DictationState.Starting)) return;
+                await CancelAsync();
+                if (job == null && State == DictationState.Idle)
+                    SetState(DictationState.Idle, "麥克風中斷，請重新選擇裝置後錄音。");
             });
         }
         private void Dispatch(Action action) { if (context == null || SynchronizationContext.Current == context) action(); else context.Post(_ => action(), null); }

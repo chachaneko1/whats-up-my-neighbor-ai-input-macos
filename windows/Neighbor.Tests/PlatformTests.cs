@@ -49,6 +49,7 @@ namespace Neighbor.Tests
                 check(!service.TryApply(new Shortcut { Modifiers = 0 }, null, out _), "unmodified shortcut rejected");
             }
             check(backend.Registered.Count == 0, "hotkeys released on dispose");
+            RecorderCompletionChecks(check);
             if (Environment.OSVersion.Platform != PlatformID.Win32NT) return;
 
             var normalizer = new WindowsTextNormalizer();
@@ -83,6 +84,45 @@ namespace Neighbor.Tests
                 try { delivery.DeliverAsync("must-not-copy", null, canceled).GetAwaiter().GetResult(); }
                 catch (OperationCanceledException) { canceledCorrectly = true; }
                 check(canceledCorrectly, "cancelled delivery exits before clipboard write");
+            }
+        }
+
+        private static void RecorderCompletionChecks(Action<bool, string> check)
+        {
+            // Exercise the real completion path without opening a device or creating
+            // audio. Regression: an old failure event used to arrive after StopAsync
+            // succeeded, allowing it to interfere with a later recording job.
+            var recorderType = typeof(WasapiRecorder);
+            var sessionType = recorderType.GetNestedType("Session", BindingFlags.NonPublic);
+            var current = recorderType.GetField("current", BindingFlags.Instance | BindingFlags.NonPublic);
+            var finish = recorderType.GetMethod("Finish", BindingFlags.Instance | BindingFlags.NonPublic);
+            for (int scenario = 0; scenario < 3; scenario++)
+            {
+                using (var recorder = new WasapiRecorder())
+                {
+                    var session = Activator.CreateInstance(sessionType, true);
+                    sessionType.GetField("StopRequested").SetValue(session, scenario < 2);
+                    current.SetValue(recorder, session);
+                    var stopped = (System.Threading.Tasks.TaskCompletionSource<bool>)sessionType.GetField("Stopped").GetValue(session);
+                    int notifications = 0, notifiedBeforeCompletion = 0;
+                    recorder.StoppedUnexpectedly += (sender, e) =>
+                    {
+                        Interlocked.Increment(ref notifications);
+                        if (!stopped.Task.IsCompleted) Interlocked.Exchange(ref notifiedBeforeCompletion, 1);
+                    };
+                    Exception original = scenario == 1 ? new IOException("synthetic capture failure") : null;
+                    finish.Invoke(recorder, new object[] { session, original });
+                    Exception returned = null;
+                    try { recorder.StopAsync().GetAwaiter().GetResult(); } catch (Exception error) { returned = error; }
+                    if (scenario == 0)
+                        check(returned == null && notifications == 0, "normal recorder completion succeeds without interruption event");
+                    else
+                    {
+                        check(notifications == 1 && notifiedBeforeCompletion == 1, "recorder interruption is published before StopAsync completes (" + scenario + ")");
+                        check(scenario == 1 ? ReferenceEquals(returned, original) : returned is InvalidOperationException,
+                            "StopAsync preserves capture failure or unexpected-stop error (" + scenario + ")");
+                    }
+                }
             }
         }
 

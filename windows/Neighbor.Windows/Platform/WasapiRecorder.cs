@@ -139,18 +139,27 @@ namespace Neighbor.Windows.Platform
             // Cleanup off the callback; cancellation disposal may wait for its callback.
             Task.Run(() =>
             {
-                try
+                var failures = new List<Exception>();
+                if (error != null) failures.Add(error);
+                Cleanup(() => session.Cancellation.Dispose(), failures);
+                Cleanup(() => session.Writer?.Dispose(), failures);
+                Cleanup(() => session.Capture?.Dispose(), failures);
+                Cleanup(() => session.Device?.Dispose(), failures);
+                unexpected = unexpected || failures.Count > 0;
+                if (unexpected)
                 {
-                    session.Cancellation.Dispose();
-                    session.Writer?.Dispose();
-                    session.Capture?.Dispose();
-                    session.Device?.Dispose();
-                    session.Stopped.TrySetResult(true);
+                    if (failures.Count == 0) failures.Add(new InvalidOperationException("麥克風意外停止錄音。"));
+                    // Publish interruption before allowing StopAsync/new StartAsync to
+                    // continue, so an old failure cannot be mistaken for the next job.
+                    Cleanup(() => StoppedUnexpectedly?.Invoke(this, EventArgs.Empty), failures);
                 }
-                catch (Exception cleanupError) { session.Stopped.TrySetException(cleanupError); unexpected = true; }
-                if (unexpected) StoppedUnexpectedly?.Invoke(this, EventArgs.Empty);
+                if (failures.Count == 0) session.Stopped.TrySetResult(true);
+                else if (failures.Count == 1) session.Stopped.TrySetException(failures[0]);
+                else session.Stopped.TrySetException(new AggregateException("錄音結束時發生錯誤。", failures));
             });
         }
+        private static void Cleanup(Action action, List<Exception> failures)
+        { try { action(); } catch (Exception error) { failures.Add(error); } }
 
         public async Task StopAsync()
         {
@@ -172,7 +181,9 @@ namespace Neighbor.Windows.Platform
             finally { gate.Release(); }
             // Do not dispose native audio objects while callbacks are still active. If
             // a driver never reports RecordingStopped, process exit releases them.
-            try { StopAsync().GetAwaiter().GetResult(); } catch (TimeoutException) { }
+            // StopAsync and StoppedUnexpectedly already surface recording failures;
+            // disposal must still let the owner release its other resources.
+            try { StopAsync().GetAwaiter().GetResult(); } catch { }
         }
     }
 }

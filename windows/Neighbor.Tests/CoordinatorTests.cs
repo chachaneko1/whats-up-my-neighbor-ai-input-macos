@@ -178,6 +178,115 @@ namespace Neighbor.Tests
                 f.Transcriber.Results.Enqueue(_ => Task.FromResult("嗯")); await f.Coordinator.StartAsync(new AppSettings { Mode = OutputMode.Standard }); await f.Coordinator.StopAsync();
                 check(f.Delivery.Text == "嗯", "Cleanup that removes all content falls back to original utterance");
             }
+            QueuedRecorderChecks(check);
+        }
+
+        private static void QueuedRecorderChecks(Action<bool, string> check)
+        {
+            var previous = SynchronizationContext.Current;
+            var ui = new PumpContext();
+            SynchronizationContext.SetSynchronizationContext(ui);
+            try
+            {
+                using (var f = new Fixture())
+                {
+                    int readings = 0;
+                    f.Coordinator.LevelChanged += (_, e) => readings++;
+                    f.Coordinator.StartAsync(new AppSettings { SilenceSeconds = 3 }).GetAwaiter().GetResult();
+                    ui.FromWorker(() => f.Recorder.Level(-60, true));
+                    check(ui.Count == 1 && readings == 0, "Recorder levels wait for the captured UI synchronization context");
+                    f.Coordinator.CancelAsync().GetAwaiter().GetResult();
+                    f.Coordinator.StartAsync(new AppSettings { SilenceSeconds = 3 }).GetAwaiter().GetResult();
+                    f.Advance(4); ui.Pump();
+                    f.Coordinator.TickAsync().GetAwaiter().GetResult();
+                    check(readings == 0 && f.Coordinator.State == DictationState.Recording && f.Transcriber.Calls.Count == 0,
+                        "Queued old recording level cannot update the meter or silence-stop a newer recording");
+                    f.Coordinator.CancelAsync().GetAwaiter().GetResult();
+                }
+                using (var f = new Fixture())
+                {
+                    f.Coordinator.StartAsync(new AppSettings()).GetAwaiter().GetResult();
+                    ui.FromWorker(f.Recorder.Interrupt);
+                    check(ui.Count == 1, "Recorder failures are queued for the captured UI context");
+                    f.Coordinator.CancelAsync().GetAwaiter().GetResult();
+                    f.Coordinator.StartAsync(new AppSettings()).GetAwaiter().GetResult();
+                    int stops = f.Recorder.StopCount;
+                    ui.Pump();
+                    check(f.Coordinator.State == DictationState.Recording && f.Recorder.StopCount == stops && f.Transcriber.Calls.Count == 0,
+                        "Queued old recorder failure cannot cancel a newer recording");
+                    f.Coordinator.CancelAsync().GetAwaiter().GetResult();
+                }
+                using (var f = new Fixture())
+                {
+                    ui.FromWorker(() => { f.Recorder.Level(-20, true); f.Recorder.Interrupt(); });
+                    f.Coordinator.StartAsync(new AppSettings()).GetAwaiter().GetResult();
+                    ui.Pump();
+                    check(f.Coordinator.State == DictationState.Recording && f.Recorder.StopCount == 0,
+                        "Recorder callbacks received without a job cannot attach to a later recording");
+                    f.Coordinator.CancelAsync().GetAwaiter().GetResult();
+                }
+                using (var f = new Fixture())
+                {
+                    int readings = 0;
+                    f.Coordinator.LevelChanged += (_, e) => { if (e.IsKnown && e.Decibels == -60) readings++; };
+                    f.Coordinator.StartAsync(new AppSettings { SilenceSeconds = 3 }).GetAwaiter().GetResult();
+                    f.Advance(3); ui.FromWorker(() => f.Recorder.Level(-60, true));
+                    ui.Pump(); f.Coordinator.TickAsync().GetAwaiter().GetResult();
+                    check(readings == 1 && f.Coordinator.State == DictationState.Idle && f.Transcriber.Calls.Count == 1,
+                        "Current queued recorder level still updates the meter and silence timer");
+                }
+                using (var f = new Fixture())
+                {
+                    f.Coordinator.StartAsync(new AppSettings { SilenceSeconds = 3 }).GetAwaiter().GetResult();
+                    f.Advance(3); ui.FromWorker(() => f.Recorder.Level(-60, true));
+                    f.Advance(2); ui.Pump(); f.Coordinator.TickAsync().GetAwaiter().GetResult();
+                    check(f.Coordinator.State == DictationState.Recording && f.Transcriber.Calls.Count == 0,
+                        "Delayed queued meter data keeps its arrival time and cannot masquerade as a fresh silent sample");
+                    f.Coordinator.CancelAsync().GetAwaiter().GetResult();
+                }
+                using (var f = new Fixture())
+                {
+                    f.Coordinator.StartAsync(new AppSettings()).GetAwaiter().GetResult();
+                    ui.FromWorker(f.Recorder.Interrupt); ui.Pump();
+                    check(f.Coordinator.State == DictationState.Idle && f.Recorder.StopCount == 1 && f.Coordinator.Status.Contains("麥克風中斷"),
+                        "Current queued recorder failure still stops its recording and reports the interruption");
+                }
+                using (var f = new Fixture())
+                {
+                    f.Coordinator.StartAsync(new AppSettings()).GetAwaiter().GetResult();
+                    bool restarted = false;
+                    f.Coordinator.StatusChanged += (_, e) =>
+                    {
+                        if (e.State != DictationState.Idle || restarted) return;
+                        restarted = true;
+                        f.Coordinator.StartAsync(new AppSettings()).GetAwaiter().GetResult();
+                    };
+                    ui.FromWorker(f.Recorder.Interrupt); ui.Pump();
+                    check(restarted && f.Coordinator.State == DictationState.Recording && f.Recorder.StartCount == 2,
+                        "Recorder failure completion cannot overwrite a recording started from the idle notification");
+                    f.Coordinator.CancelAsync().GetAwaiter().GetResult();
+                }
+            }
+            finally { SynchronizationContext.SetSynchronizationContext(previous); }
+        }
+
+        private sealed class PumpContext : SynchronizationContext
+        {
+            private readonly Queue<Action> queue = new Queue<Action>();
+            public int Count { get { return queue.Count; } }
+            public override void Post(SendOrPostCallback callback, object state) { queue.Enqueue(() => callback(state)); }
+            public void FromWorker(Action action)
+            {
+                var previous = Current;
+                try { SetSynchronizationContext(null); action(); }
+                finally { SetSynchronizationContext(previous); }
+            }
+            public void Pump()
+            {
+                var previous = Current;
+                try { SetSynchronizationContext(this); while (queue.Count > 0) queue.Dequeue()(); }
+                finally { SetSynchronizationContext(previous); }
+            }
         }
 
         private sealed class Fixture : IDisposable
