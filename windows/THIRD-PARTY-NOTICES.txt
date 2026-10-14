@@ -4,6 +4,12 @@ NAudio.Core 2.2.1 and NAudio.Wasapi 2.2.1
 https://github.com/naudio/NAudio/tree/v2.2.1
 Copyright (c) 2023 Mark Heath
 
+Interop.UIAutomationClient 10.19041.0
+https://github.com/FlaUI/UIAutomation-Interop
+Copyright (c) 2019 Roman
+
+Both components above are distributed under the following MIT License.
+
 MIT License
 
 Permission is hereby granted, free of charge, to any person obtaining a copy

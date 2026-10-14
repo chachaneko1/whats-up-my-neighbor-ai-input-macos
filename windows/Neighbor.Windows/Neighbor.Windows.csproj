@@ -11,6 +11,7 @@
     <ProjectReference Include="../Neighbor.Core/Neighbor.Core.csproj" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+    <PackageReference Include="Interop.UIAutomationClient" Version="10.19041.0" />
     <PackageReference Include="Microsoft.Windows.SDK.Contracts" Version="10.0.19041.1" />
     <Reference Include="System.Windows.Forms" /><Reference Include="System.Drawing" />
     <Reference Include="UIAutomationClient" /><Reference Include="UIAutomationTypes" /><Reference Include="WindowsBase" />

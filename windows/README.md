@@ -45,6 +45,8 @@ API Key 只存目前帳號的 Windows 認證管理員，目標名稱 `WhatsUpMyN
 
 Windows 開發環境需 .NET SDK、.NET Framework 4.8 targeting pack（亦可由鎖定的 reference-assemblies 套件提供）及 Inno Setup 6。
 
+執行依賴固定為 NAudio.Wasapi／NAudio.Core 2.2.1 與 Interop.UIAutomationClient 10.19041.0。後者只提供 Windows 原生文字介面的呼叫宣告；不附加另一套桌面執行環境。安裝包使用明確檔案清單，排除測試、除錯符號、SDK、模型與測試音訊。
+
 ```powershell
 ./windows/scripts/build.ps1
 ./windows/Neighbor.Tests/bin/Release/net48/Neighbor.Tests.exe --interactive

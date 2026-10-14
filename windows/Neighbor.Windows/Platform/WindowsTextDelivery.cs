@@ -21,20 +21,20 @@ namespace Neighbor.Windows.Platform
             public uint ProcessId, ThreadId;
             public AutomationElement Element;
             public int[] RuntimeId;
-            public TextPattern TextPattern;
-            public TextPatternRange Selection;
+            public NativeTextPattern TextPattern;
+            public NativeTextRange Selection;
         }
         private sealed class Observation
         {
             public Target Target;
-            public TextPatternRange Range, Start, End;
+            public NativeTextRange Range, Start, End;
             public string Original, Latest;
             public DateTime ExpiresUtc;
             public int Generation, PrefixUnits, SuffixUnits;
         }
         private sealed class InsertionAnchor
         {
-            public TextPatternRange PreviousCharacter;
+            public NativeTextRange PreviousCharacter;
             public bool AtDocumentStart;
         }
         private readonly Worker automation = new Worker(ApartmentState.MTA, "Neighbor.Accessibility");
@@ -80,24 +80,23 @@ namespace Neighbor.Windows.Platform
                     if (!editable || !Native.HasCompatibleIntegrity(pid))
                     { snapshot.Reason = "無法確認一般文字欄位或輸入權限；完成後請手動貼上。"; return snapshot; }
                     stage = "text-pattern";
-                    if (element.TryGetCurrentPattern(TextPattern.Pattern, out var pattern))
+                    try
                     {
-                        try
+                        target.TextPattern = target.TextPattern ?? NativeTextAccess.Pattern(target.RuntimeId);
+                        if (target.TextPattern != null)
                         {
-                            target.TextPattern = (TextPattern)pattern;
                             stage = "text-selection-read";
                             var selections = target.TextPattern.GetSelection();
                             stage = "text-selection-clone";
                             if (selections.Length == 1) target.Selection = selections[0].Clone();
                         }
-                        catch (Exception error)
-                        {
-                            // Some native controls expose TextPattern but cannot supply
-                            // live ranges. Writable ValuePattern is sufficient for paste;
-                            // exact range access is mandatory only for verification/learning.
-                            ReportFailure("capture.optional-" + stage, error);
-                            target.TextPattern = null; target.Selection = null;
-                        }
+                    }
+                    catch (Exception error)
+                    {
+                        // Writable ValuePattern is sufficient for paste; native live
+                        // ranges are mandatory for insertion verification/learning.
+                        ReportFailure("capture.optional-" + stage, error);
+                        target.TextPattern = null; target.Selection = null;
                     }
                     stage = "final-focus-check";
                     if (!SameFocus(target)) { snapshot.Reason = "輸入欄位已變更；完成後請手動貼上。"; return snapshot; }
@@ -179,7 +178,7 @@ namespace Neighbor.Windows.Platform
                         if (selected.Length != 1 || !Collapsed(selected[0])) return result;
                         // A degenerate caret often moves to the end of pasted text. Keep
                         // an anchor at the preceding character instead, without reading it.
-                        TextPatternRange inserted;
+                        NativeTextRange inserted;
                         if (anchor.AtDocumentStart)
                         {
                             inserted = native.TextPattern.DocumentRange;
@@ -221,10 +220,10 @@ namespace Neighbor.Windows.Platform
 
         private static bool Equivalent(string a, string b)
         { return (a ?? "").Replace("\r\n", "\n").Replace('\r', '\n') == (b ?? "").Replace("\r\n", "\n").Replace('\r', '\n'); }
-        private static bool Collapsed(TextPatternRange range)
+        private static bool Collapsed(NativeTextRange range)
         { return range.CompareEndpoints(TextPatternRangeEndpoint.Start, range, TextPatternRangeEndpoint.End) == 0; }
 
-        private static InsertionAnchor MakeInsertionAnchor(TextPattern pattern, TextPatternRange selection)
+        private static InsertionAnchor MakeInsertionAnchor(NativeTextPattern pattern, NativeTextRange selection)
         {
             try
             {
@@ -239,7 +238,7 @@ namespace Neighbor.Windows.Platform
             }
             catch { return null; }
         }
-        private static bool TryBoundaryCounts(TextPatternRange range, out int prefixUnits, out int suffixUnits)
+        private static bool TryBoundaryCounts(NativeTextRange range, out int prefixUnits, out int suffixUnits)
         {
             // Endpoint movement obtains only lengths, never surrounding text. It also
             // detects providers that keep stale absolute offsets after a shorter edit,
@@ -259,11 +258,12 @@ namespace Neighbor.Windows.Platform
             if (state.IsPassword || !state.IsEnabled || !state.HasKeyboardFocus || (uint)state.ProcessId != target.ProcessId) return false;
             if (state.ControlType != ControlType.Edit && state.ControlType != ControlType.Document) return false;
             if (target.Element.TryGetCurrentPattern(ValuePattern.Pattern, out var value)) return !((ValuePattern)value).Current.IsReadOnly;
-            if (target.Element.TryGetCurrentPattern(TextPattern.Pattern, out var text))
+            target.TextPattern = target.TextPattern ?? NativeTextAccess.Pattern(target.RuntimeId);
+            if (target.TextPattern != null)
             {
-                var selections = ((TextPattern)text).GetSelection();
+                var selections = target.TextPattern.GetSelection();
                 if (selections.Length != 1) return false;
-                var readOnly = selections[0].GetAttributeValue(TextPattern.IsReadOnlyAttribute);
+                var readOnly = selections[0].GetAttributeValue(TextPattern.IsReadOnlyAttribute.Id);
                 return readOnly is bool && !(bool)readOnly;
             }
             return false;
@@ -392,7 +392,11 @@ namespace Neighbor.Windows.Platform
                         "; init=0x" + initialized.ToString("X8", CultureInfo.InvariantCulture);
                     if (initialized < 0) initializationError = Marshal.GetExceptionForHR(initialized);
                     try { foreach (var action in queue.GetConsumingEnumerable()) action(); }
-                    finally { if (initialized >= 0) CoUninitialize(); }
+                    finally
+                    {
+                        try { if (apartment == ApartmentState.MTA) NativeTextAccess.ReleaseCurrentClient(); }
+                        finally { if (initialized >= 0) CoUninitialize(); }
+                    }
                 }) { IsBackground = true, Name = name };
                 thread.SetApartmentState(apartment); thread.Start();
             }

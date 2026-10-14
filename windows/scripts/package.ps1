@@ -7,7 +7,12 @@ New-Item -ItemType Directory -Force $app | Out-Null
 Get-ChildItem $app -File | Remove-Item
 $build = "$root/Neighbor.Windows/bin/Release/net48"
 # Explicit payload: CLR/Windows SDK contract metadata, test code and symbols are not runtime payload.
-Get-ChildItem $build -File | Where-Object { $_.Extension -in '.exe', '.dll', '.config' } | Copy-Item -Destination $app
+$runtimeFiles = @('Neighbor.exe', 'Neighbor.Core.dll', 'NAudio.Core.dll', 'NAudio.Wasapi.dll', 'Interop.UIAutomationClient.dll', 'Neighbor.exe.config')
+foreach ($name in $runtimeFiles) {
+    $source = Join-Path $build $name
+    if (!(Test-Path $source -PathType Leaf)) { throw "Missing runtime payload: $name" }
+    Copy-Item $source $app
+}
 Copy-Item "$root/使用說明.txt", "$root/THIRD-PARTY-NOTICES.txt", "$root/../LICENSE" $app
 $forbidden = Get-ChildItem $app -File | Where-Object { $_.Name -match 'Tests|\.pdb$|\.winmd$|\.wav$|\.m4a$|whisper|ffmpeg|python|torch' }
 if ($forbidden) { throw 'Unexpected files in installer payload' }

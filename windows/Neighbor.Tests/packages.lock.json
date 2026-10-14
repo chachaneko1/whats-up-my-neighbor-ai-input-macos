@@ -11,6 +11,11 @@
           "Microsoft.NETFramework.ReferenceAssemblies.net48": "1.0.3"
         }
       },
+      "Interop.UIAutomationClient": {
+        "type": "Transitive",
+        "resolved": "10.19041.0",
+        "contentHash": "Me5vKNZ1JSg6txTsPQXaWx7fVNh+fmcUPPwtDKJtqvbMM0N8aoa/l/QPolkJIRnasCabCNt4v2zG4p1Q9HU98A=="
+      },
       "Microsoft.NETFramework.ReferenceAssemblies.net48": {
         "type": "Transitive",
         "resolved": "1.0.3",
@@ -54,6 +59,7 @@
       "Neighbor": {
         "type": "Project",
         "dependencies": {
+          "Interop.UIAutomationClient": "[10.19041.0, )",
           "Microsoft.Windows.SDK.Contracts": "[10.0.19041.1, )",
           "NAudio.Wasapi": "[2.2.1, )",
           "Neighbor.Core": "[1.0.0, )"

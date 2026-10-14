@@ -3,7 +3,6 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Automation;
-using System.Windows.Automation.Text;
 
 namespace Neighbor.Tests
 {
@@ -22,29 +21,9 @@ namespace Neighbor.Tests
                     if (element == null || element.Current.ProcessId != fixtureProcessId)
                     { Console.WriteLine(label + " range probe: fixture focus absent"); return; }
                     var runtimeId = element.GetRuntimeId();
-                    if (element.TryGetCurrentPattern(TextPattern.Pattern, out var patternObject))
-                    {
-                        var pattern = (TextPattern)patternObject;
-                        TextPatternRange selection = null, document = null;
-                        Probe(label, "managed.selection", () =>
-                        {
-                            var ranges = pattern.GetSelection();
-                            if (ranges?.Length == 1) selection = ranges[0];
-                            return "count=" + (ranges?.Length ?? -1);
-                        });
-                        if (selection != null)
-                        {
-                            Probe(label, "managed.selection.text", () => "length=" + selection.GetText(1).Length);
-                            Probe(label, "managed.selection.endpoints", () => "comparison=" + selection.CompareEndpoints(TextPatternRangeEndpoint.Start, selection, TextPatternRangeEndpoint.End));
-                            Probe(label, "managed.selection.clone", () => "created=" + (selection.Clone() != null));
-                        }
-                        Probe(label, "managed.document", () => { document = pattern.DocumentRange; return "created=" + (document != null); });
-                        if (document != null)
-                        {
-                            Probe(label, "managed.document.text", () => "length=" + document.GetText(1).Length);
-                            Probe(label, "managed.document.clone", () => "created=" + (document.Clone() != null));
-                        }
-                    }
+                    // The prior diagnostic run proved the net48 legacy range bridge
+                    // can raise AccessViolation in RawTextRange_GetText. Do not call
+                    // that bridge again, even against an isolated fixture.
                     ProbeNative(runtimeId, label);
                 }
                 catch (Exception error) { Failure(label, "setup", error); }
