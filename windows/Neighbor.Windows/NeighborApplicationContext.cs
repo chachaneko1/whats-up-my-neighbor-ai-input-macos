@@ -77,7 +77,7 @@ namespace Neighbor.Windows
             coordinator.PromptChanged += value => { latestPrompt = value; vocabularyForm?.UpdatePrompt(value); };
             coordinator.Delivered += result => {
                 SystemSounds.Asterisk.Play();
-                learningStatus = result.PasteVerified ? "正在觀察本次貼入範圍的修正（最多兩分鐘）。" : "尚未確認貼入範圍，未啟用自動學習；可手動新增詞條。";
+                learningStatus = string.IsNullOrWhiteSpace(result.Message) ? "未啟用自動學習；可手動新增詞條。" : result.Message;
                 RefreshLearningStatus();
                 if (!result.PasteSent || !result.PasteVerified) Notify(result.Message);
             };

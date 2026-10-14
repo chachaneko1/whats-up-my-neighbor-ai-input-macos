@@ -125,6 +125,7 @@ namespace Neighbor.Tests
                 };
                 using (var delivery = new WindowsTextDelivery())
                 {
+                    delivery.Diagnostic += detail => Console.WriteLine("UIA diagnostic: " + detail);
                     command("edit-1");
                     FocusSnapshot target = null;
                     // The first cross-process UIA request can pay provider startup costs.

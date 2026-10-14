@@ -35,6 +35,10 @@ namespace Neighbor.Windows.UI
             entries.Columns.Add("詞彙", 250); entries.Columns.Add("狀態", 170); entries.Columns.Add("釘選", 70);
             entries.CheckBoxes = true;
             candidates.Columns.Add("原文字", 220); candidates.Columns.Add("修正詞彙", 220); candidates.Columns.Add("狀態", 130);
+            entries.SizeChanged += (sender, args) => FitColumns();
+            candidates.SizeChanged += (sender, args) => FitColumns();
+            entries.FontChanged += (sender, args) => FitColumns();
+            candidates.FontChanged += (sender, args) => FitColumns();
             search.Margin = new Padding(0, 8, 0, 10);
             search.TextChanged += (sender, args) => RefreshLists();
             var searchHeader = new Panel { Dock = DockStyle.Top, Height = 64 };
@@ -102,14 +106,15 @@ namespace Neighbor.Windows.UI
                 foreach (var entry in store.Entries.Where(item => String.IsNullOrEmpty(search.Text) || item.Term.IndexOf(search.Text, StringComparison.CurrentCultureIgnoreCase) >= 0).OrderByDescending(item => item.Pinned).ThenBy(item => item.Term))
                 {
                     string applied = !entry.Enabled ? "已停用" : !promptKnown ? "下次辨識時套用" : included.Contains(entry.Id) ? "已列入辨識提示" : excluded.Contains(entry.Id) ? "提示已滿，暫未列入" : "下次辨識時套用";
-                    var item = new ListViewItem(new[] { entry.Term, applied, entry.Pinned ? "已釘選" : "" }) { Tag = entry.Id, Checked = entry.Enabled, Selected = entry.Id == selectedEntry };
+                    var item = new ListViewItem(new[] { entry.Term, applied, entry.Pinned ? "已釘選" : "" }) { Tag = entry.Id, Checked = entry.Enabled, Selected = entry.Id == selectedEntry, ToolTipText = entry.Term + " · " + applied };
                     entries.Items.Add(item);
                 }
                 foreach (var candidate in store.Candidates.OrderByDescending(item => item.CreatedUtc))
-                    candidates.Items.Add(new ListViewItem(new[] { candidate.Original ?? "", candidate.Corrected ?? "", candidate.Status ?? "" }) { Tag = candidate.Id, Selected = candidate.Id == selectedCandidate });
+                    candidates.Items.Add(new ListViewItem(new[] { candidate.Original ?? "", candidate.Corrected ?? "", candidate.Status ?? "" }) { Tag = candidate.Id, Selected = candidate.Id == selectedCandidate, ToolTipText = candidate.Original + " → " + candidate.Corrected + " · " + candidate.Status });
                 count.Text = $"{store.Entries.Count} / 200 個詞彙 · 每詞最多 40 個字 · 勾選啟用，釘選優先列入提示";
                 status.Text = String.IsNullOrEmpty(store.LoadError) ? learningStatus : store.LoadError;
                 UpdateCandidateActions();
+                FitColumns();
             }
             finally { entries.EndUpdate(); candidates.EndUpdate(); refreshing = false; }
         }
@@ -178,7 +183,28 @@ namespace Neighbor.Windows.UI
             catch { Theme.Error(this, "無法儲存詞典，請確認個人資料夾可寫入。"); RefreshLists(); }
         }
         private static string SelectedId(ListView list) { return list.SelectedItems.Count == 0 ? null : (string)list.SelectedItems[0].Tag; }
-        private static ListView List() { return new ListView { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false, BorderStyle = BorderStyle.FixedSingle }; }
+        private void FitColumns()
+        {
+            if (entries.Columns.Count == 3 && entries.ClientSize.Width > 100)
+            {
+                int available = Math.Max(0, entries.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 4);
+                int statusWidth = TextRenderer.MeasureText("提示已滿，暫未列入", entries.Font).Width + 16;
+                int pinWidth = TextRenderer.MeasureText("已釘選", entries.Font).Width + 16;
+                entries.Columns[0].Width = Math.Max(70, available - statusWidth - pinWidth);
+                entries.Columns[1].Width = statusWidth;
+                entries.Columns[2].Width = pinWidth;
+            }
+            if (candidates.Columns.Count == 3 && candidates.ClientSize.Width > 100)
+            {
+                int available = Math.Max(0, candidates.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 4);
+                int statusWidth = TextRenderer.MeasureText("等待確認", candidates.Font).Width + 20;
+                int termWidth = Math.Max(70, (available - statusWidth) / 2);
+                candidates.Columns[0].Width = termWidth;
+                candidates.Columns[1].Width = termWidth;
+                candidates.Columns[2].Width = statusWidth;
+            }
+        }
+        private static ListView List() { return new ListView { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, HideSelection = false, MultiSelect = false, ShowItemToolTips = true, BorderStyle = BorderStyle.FixedSingle }; }
         protected override void Dispose(bool disposing)
         {
             if (disposing) store.Changed -= QueueRefresh;

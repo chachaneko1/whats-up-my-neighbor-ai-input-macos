@@ -18,18 +18,26 @@ jobs:
         with:
           dotnet-version: '8.0.x'
       - name: Restore, build and offline tests
+        id: build
+        timeout-minutes: 5
         shell: pwsh
         run: ./windows/scripts/build.ps1
       - name: UI integration tests
+        timeout-minutes: 3
         if: ${{ !cancelled() }}
         shell: pwsh
         run: |
           & ./windows/Neighbor.Tests/bin/Release/net48/Neighbor.Tests.exe --interactive
           if ($LASTEXITCODE -ne 0) { throw 'UI integration failed' }
       - name: Package installer
+        id: package
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 3
         shell: pwsh
         run: ./windows/scripts/package.ps1
       - name: Install, launch, upgrade and uninstall
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
+        timeout-minutes: 3
         shell: pwsh
         run: ./windows/scripts/test-install.ps1
       - name: Collect test evidence

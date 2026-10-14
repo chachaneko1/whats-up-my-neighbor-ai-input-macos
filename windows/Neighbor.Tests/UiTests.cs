@@ -114,8 +114,6 @@ namespace Neighbor.Tests
             {
                 form.Scale(new SizeF(scale, scale));
                 form.Font = new Font(form.Font.FontFamily, form.Font.Size * scale, form.Font.Style, GraphicsUnit.Point);
-                foreach (var list in Descendants(form).OfType<ListView>())
-                    foreach (ColumnHeader column in list.Columns) column.Width = (int)Math.Round(column.Width * scale);
             }
             var requested = new Size((int)Math.Round(originalSize.Width * scale), (int)Math.Round(originalSize.Height * scale));
             form.Show(); Application.DoEvents();
@@ -218,14 +216,23 @@ namespace Neighbor.Tests
                 var store = new VocabularyStore(Path.Combine(folder, "vocabulary.json"));
                 using (var form = new VocabularyForm(store))
                 {
-                    var handle = form.Handle;
+                    // ItemChecked is driven by native ListView notifications. Creating
+                    // only the parent Form handle does not create hidden child handles.
+                    form.Show(); Application.DoEvents();
                     var entry = store.Add("ChatGPT"); Application.DoEvents();
                     var list = Descendants(form).OfType<ListView>().Single(control => control.CheckBoxes);
+                    check(list.IsHandleCreated && list.Visible, "Vocabulary checkbox checks use a visible native ListView");
                     check(list.Items.Count == 1 && list.Items[0].Text == "ChatGPT", "Vocabulary dialog refreshes when the shared store changes");
                     form.UpdatePrompt(new VocabularyPrompt { IncludedIds = new List<string> { entry.Id } });
                     check(list.Items[0].SubItems[1].Text == "已列入辨識提示", "Vocabulary dialog distinguishes applied prompt entries");
                     list.Items[0].Checked = false;
-                    check(!store.Entries.Single().Enabled, "Vocabulary checkbox persists the enabled state");
+                    Application.DoEvents();
+                    check(!store.Entries.Single().Enabled && !new VocabularyStore(Path.Combine(folder, "vocabulary.json")).Entries.Single().Enabled, "Vocabulary checkbox persists the disabled state to disk");
+                    list.Items[0].Checked = true;
+                    Application.DoEvents();
+                    check(store.Entries.Single().Enabled && new VocabularyStore(Path.Combine(folder, "vocabulary.json")).Entries.Single().Enabled, "Vocabulary checkbox persists the re-enabled state to disk");
+                    check(list.Columns.Cast<ColumnHeader>().Sum(column => column.Width) <= list.ClientSize.Width,
+                        "Vocabulary status columns fit the available list width");
                     var search = Descendants(form).OfType<TextBox>().Single();
                     search.Text = "missing";
                     check(list.Items.Count == 0, "Vocabulary search filters unmatched terms");

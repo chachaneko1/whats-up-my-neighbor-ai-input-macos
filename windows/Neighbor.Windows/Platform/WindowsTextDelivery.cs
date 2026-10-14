@@ -45,6 +45,9 @@ namespace Neighbor.Windows.Platform
         private int generation, pollQueued;
         private volatile bool disposed;
         public event EventHandler<CorrectionEventArgs> CorrectionObserved;
+        // No message, stack, field value, or text is emitted. The test harness subscribes
+        // to identify a failing Windows API stage without logging private content.
+        public event Action<string> Diagnostic;
         public WindowsTextDelivery()
         {
             timer = new System.Threading.Timer(_ => QueuePoll(), null, 250, 250);
@@ -55,28 +58,41 @@ namespace Neighbor.Windows.Platform
             return Within(automation.Run(() =>
             {
                 var snapshot = new FocusSnapshot { CapturedAtUtc = DateTime.UtcNow };
+                string stage = "foreground";
                 try
                 {
                     var window = Native.GetForegroundWindow();
                     uint thread = Native.GetWindowThreadProcessId(window, out uint pid);
+                    stage = "focused-element";
                     var element = AutomationElement.FocusedElement;
                     if (window == IntPtr.Zero || element == null || pid == Native.GetCurrentProcessId())
                     { snapshot.Reason = "請先點選要輸入文字的其他程式。"; return snapshot; }
+                    stage = "runtime-id";
                     var target = new Target { Window = window, ProcessId = pid, ThreadId = thread, Element = element, RuntimeId = element.GetRuntimeId() };
+                    stage = "gui-thread-info";
                     var info = new Native.GuiThreadInfo { Size = Marshal.SizeOf(typeof(Native.GuiThreadInfo)) };
                     if (Native.GetGUIThreadInfo(thread, ref info)) target.FocusWindow = info.Focus;
-                    if (!Editable(target) || !Native.HasCompatibleIntegrity(pid))
+                    stage = "editable-properties";
+                    bool editable = Editable(target);
+                    stage = "integrity-level";
+                    if (!editable || !Native.HasCompatibleIntegrity(pid))
                     { snapshot.Reason = "無法確認一般文字欄位或輸入權限；完成後請手動貼上。"; return snapshot; }
+                    stage = "text-pattern";
                     if (element.TryGetCurrentPattern(TextPattern.Pattern, out var pattern))
                     {
                         target.TextPattern = (TextPattern)pattern;
+                        stage = "text-selection";
                         var selections = target.TextPattern.GetSelection();
                         if (selections.Length == 1) target.Selection = selections[0].Clone();
                     }
                     snapshot.Native = target; snapshot.CanPaste = true;
                     snapshot.Reason = "已記住輸入欄位。";
                 }
-                catch { snapshot.Reason = "無法驗證目前的輸入欄位；完成後請手動貼上。"; }
+                catch (Exception error)
+                {
+                    ReportFailure("capture." + stage, error);
+                    snapshot.Reason = "無法驗證目前的輸入欄位；完成後請手動貼上。";
+                }
                 return snapshot;
             }), 2500, new FocusSnapshot { CapturedAtUtc = DateTime.UtcNow, CanPaste = false, Reason = "輸入欄位未及時回應；完成後請手動貼上。" });
         }
@@ -177,7 +193,7 @@ namespace Neighbor.Windows.Platform
                     return result;
                 }
                 catch (OperationCanceledException) { throw; }
-                catch { return result; }
+                catch (Exception error) { ReportFailure("delivery", error); return result; }
             });
             if (await Task.WhenAny(delivery, Task.Delay(3000)).ConfigureAwait(false) == delivery)
                 return await delivery.ConfigureAwait(false);
@@ -328,6 +344,17 @@ namespace Neighbor.Windows.Platform
         }
         private static void ObserveFailure(Task task)
         { task.ContinueWith(t => { var ignored = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted); }
+        private void ReportFailure(string stage, Exception error)
+        {
+            try
+            {
+                string detail = stage;
+                for (int depth = 0; error != null && depth < 3; depth++, error = error.InnerException)
+                    detail += ": " + error.GetType().FullName + " (0x" + error.HResult.ToString("X8", CultureInfo.InvariantCulture) + ")";
+                Diagnostic?.Invoke(detail);
+            }
+            catch { }
+        }
 
         private sealed class Worker : IDisposable
         {
