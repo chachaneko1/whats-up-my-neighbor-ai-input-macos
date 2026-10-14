@@ -19,6 +19,9 @@ $installer = Get-Item "$output/Neighbor-Setup-$Version-x64.exe"
 if ($installer.Length -gt 20000000) { throw "Installer exceeds 20 MB: $($installer.Length) bytes" }
 $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
 "$hash  $($installer.Name)" | Set-Content "$($installer.FullName).sha256" -Encoding ascii
-$manifest = [ordered]@{ version=$Version; installer=$installer.Name; bytes=$installer.Length; sha256=$hash; signed=$false; target='Windows 11 x64; Windows 10 22H2 x64'; files=@(Get-ChildItem $app -File | ForEach-Object { @{name=$_.Name;bytes=$_.Length;sha256=(Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()} }) }
+$sourceCommit = (git -C $root rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0) { throw 'Cannot identify source commit' }
+$signature = (Get-AuthenticodeSignature $installer.FullName).Status.ToString()
+$manifest = [ordered]@{ sourceCommit=$sourceCommit; workflowRun=$env:GITHUB_RUN_ID; signatureStatus=$signature; version=$Version; installer=$installer.Name; bytes=$installer.Length; sha256=$hash; signed=($signature -eq 'Valid'); target='Windows 11 x64; Windows 10 22H2 x64'; files=@(Get-ChildItem $app -File | ForEach-Object { @{name=$_.Name;bytes=$_.Length;sha256=(Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()} }) }
 $manifest | ConvertTo-Json -Depth 5 | Set-Content "$output/build-manifest.json" -Encoding utf8
 Write-Output "Installer size: $($installer.Length) bytes; SHA-256: $hash"

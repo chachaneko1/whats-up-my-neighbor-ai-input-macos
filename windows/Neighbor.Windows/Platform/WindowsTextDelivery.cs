@@ -80,13 +80,26 @@ namespace Neighbor.Windows.Platform
                     stage = "text-pattern";
                     if (element.TryGetCurrentPattern(TextPattern.Pattern, out var pattern))
                     {
-                        target.TextPattern = (TextPattern)pattern;
-                        stage = "text-selection";
-                        var selections = target.TextPattern.GetSelection();
-                        if (selections.Length == 1) target.Selection = selections[0].Clone();
+                        try
+                        {
+                            target.TextPattern = (TextPattern)pattern;
+                            stage = "text-selection";
+                            var selections = target.TextPattern.GetSelection();
+                            if (selections.Length == 1) target.Selection = selections[0].Clone();
+                        }
+                        catch (Exception error)
+                        {
+                            // Some native controls expose TextPattern but cannot supply
+                            // live ranges. Writable ValuePattern is sufficient for paste;
+                            // exact range access is mandatory only for verification/learning.
+                            ReportFailure("capture.optional-selection", error);
+                            target.TextPattern = null; target.Selection = null;
+                        }
                     }
+                    stage = "final-focus-check";
+                    if (!SameFocus(target)) { snapshot.Reason = "輸入欄位已變更；完成後請手動貼上。"; return snapshot; }
                     snapshot.Native = target; snapshot.CanPaste = true;
-                    snapshot.Reason = "已記住輸入欄位。";
+                    snapshot.Reason = target.Selection == null ? "已記住輸入欄位；此程式不提供可靠修字範圍。" : "已記住輸入欄位。";
                 }
                 catch (Exception error)
                 {

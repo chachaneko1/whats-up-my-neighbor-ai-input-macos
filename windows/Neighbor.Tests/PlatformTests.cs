@@ -200,9 +200,11 @@ namespace Neighbor.Tests
                 fixture?.Dispose();
                 try { Directory.Delete(directory, true); } catch { }
             }
+            PlatformRangeTests.Run(check);
         }
         public static bool TryRunTarget(string[] args)
         {
+            if (PlatformRangeTests.TryRunTarget(args)) return true;
             if (args.Length < 2 || args[0] != "--platform-ui-target") return false;
             string directory = args[1];
             Application.EnableVisualStyles();
