@@ -182,8 +182,25 @@ namespace Neighbor.Tests
                 string brokenPath = Path.Combine(directory, "broken.json"); File.WriteAllText(brokenPath, "{broken");
                 var corrupt = new VocabularyStore(brokenPath);
                 check(corrupt.LoadError != null && Throws(() => corrupt.Add("不可覆蓋")) && File.ReadAllText(brokenPath) == "{broken", "Corrupt JSON preserved and all writes blocked");
-                string schemaPath = Path.Combine(directory, "schema.json"); File.WriteAllText(schemaPath, "{}");
-                check(new VocabularyStore(schemaPath).LoadError != null, "Missing schema is corruption, not an empty store");
+                foreach (string invalidSchema in new[] { "{}", "{\"Version\":2,\"Entries\":[],\"Candidates\":[]}", "{\"Version\":1,\"Entries\":null,\"Candidates\":[]}" })
+                {
+                    string schemaPath = Path.Combine(directory, "schema-" + Guid.NewGuid().ToString("N") + ".json"); File.WriteAllText(schemaPath, invalidSchema);
+                    var invalid = new VocabularyStore(schemaPath);
+                    check(invalid.LoadError != null && invalid.Entries.Count == 0 && Throws(() => invalid.Add("不可覆蓋")) && File.ReadAllText(schemaPath) == invalidSchema,
+                        "Invalid schema is preserved and mutations blocked");
+                }
+                string duplicatePath = Path.Combine(directory, "duplicate.json");
+                string duplicateDocument = new JavaScriptSerializer().Serialize(new VocabularyStore.Document { Version = 1,
+                    Entries = new List<VocabularyEntry> { new VocabularyEntry { Id = "same-id", Term = "one" }, new VocabularyEntry { Id = "same-id", Term = "two" } },
+                    Candidates = new List<VocabularyCandidate>() });
+                File.WriteAllText(duplicatePath, duplicateDocument); var duplicateStore = new VocabularyStore(duplicatePath);
+                check(duplicateStore.LoadError != null && Throws(() => duplicateStore.Add("不可覆蓋")) && File.ReadAllText(duplicatePath) == duplicateDocument,
+                    "Duplicate record IDs fail closed without overwriting the document");
+                string oversizedPath = Path.Combine(directory, "oversized.json");
+                using (var oversizedFile = File.Create(oversizedPath)) oversizedFile.SetLength(1024 * 1024 + 1);
+                var oversizedStore = new VocabularyStore(oversizedPath);
+                check(oversizedStore.LoadError != null && Throws(() => oversizedStore.Add("不可覆蓋")) && new FileInfo(oversizedPath).Length == 1024 * 1024 + 1,
+                    "Oversized vocabulary file preserved without parsing or replacing it");
                 string collision = Path.Combine(directory, "collision"); File.WriteAllText(collision, "not a directory");
                 var failed = new VocabularyStore(Path.Combine(collision, "vocabulary.json"));
                 check(Throws(() => failed.Add("valid")) && failed.Entries.Count == 0, "Failed disk write leaves memory unchanged");

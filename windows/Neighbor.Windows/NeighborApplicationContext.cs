@@ -220,7 +220,14 @@ namespace Neighbor.Windows
         {
             try
             {
-                using (var form = new SettingsForm(settings, recorder.GetDevices()))
+                System.Collections.Generic.IReadOnlyList<AudioDevice> availableDevices;
+                try { availableDevices = recorder.GetDevices(); }
+                catch
+                {
+                    availableDevices = new AudioDevice[0];
+                    Notify("目前無法讀取麥克風清單，仍可調整其他設定。請確認 Windows 音訊服務與麥克風連線後重新開啟設定。");
+                }
+                using (var form = new SettingsForm(settings, availableDevices))
                 {
                     if (form.ShowDialog() != DialogResult.OK) return;
                     var updated = form.Settings; SettingsStore.Validate(updated);

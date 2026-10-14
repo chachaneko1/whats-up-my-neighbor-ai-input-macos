@@ -30,23 +30,27 @@ namespace Neighbor.Tests
                     if (interactive)
                     {
                         Application.EnableVisualStyles();
-                        PlatformTests.RunInteractive(Check);
-                        UiTests.Run(Check);
-                        UiTests.SaveScreenshots(Path.Combine(directory, "ui-screenshots"));
+                        RunSuite("Platform integration", () => PlatformTests.RunInteractive(Check));
+                        RunSuite("UI", () => UiTests.Run(Check));
+                        RunSuite("UI screenshots", () => UiTests.SaveScreenshots(Path.Combine(directory, "ui-screenshots")));
                     }
                     else
                     {
-                        TextVocabularyTests.Run(Check);
-                        CoordinatorTests.RunAsync(Check).GetAwaiter().GetResult();
-                        GroqTests.RunAsync(Check).GetAwaiter().GetResult();
-                        PlatformTests.Run(Check);
-                        SettingsChecks();
+                        RunSuite("Text and vocabulary", () => TextVocabularyTests.Run(Check));
+                        RunSuite("Coordinator", () => CoordinatorTests.RunAsync(Check).GetAwaiter().GetResult());
+                        RunSuite("Groq", () => GroqTests.RunAsync(Check).GetAwaiter().GetResult());
+                        RunSuite("Platform", () => PlatformTests.Run(Check));
+                        RunSuite("Settings", SettingsChecks);
                     }
                 }
                 catch (Exception error) { Check(false, error.ToString()); }
                 finally { Console.WriteLine("RESULT: " + passed + " passed; " + failed + " failed."); Console.SetOut(original); }
             }
             return failed == 0 ? 0 : 1;
+        }
+        private static void RunSuite(string name, Action run)
+        {
+            try { run(); } catch (Exception error) { Check(false, name + ": " + error); }
         }
         private static void Check(bool success, string name)
         {

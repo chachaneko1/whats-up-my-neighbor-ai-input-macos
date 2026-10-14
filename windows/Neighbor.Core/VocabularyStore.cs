@@ -37,7 +37,9 @@ namespace Neighbor.Core
                 ValidateDocument(doc);
                 entries = doc.Entries.Select(Clone).ToList(); candidates = doc.Candidates.Select(Clone).ToList();
             }
-            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is ArgumentException || ex is InvalidOperationException)
+            // InvalidDataException derives directly from SystemException on
+            // .NET Framework, so it must not rely on the IOException branch.
+            catch (Exception ex) when (ex is InvalidDataException || ex is IOException || ex is UnauthorizedAccessException || ex is ArgumentException || ex is InvalidOperationException)
             { LoadError = "詞典資料無法讀取，暫停修改以保留原資料。請先備份詞典檔案。"; }
         }
         public VocabularyEntry Add(string term)

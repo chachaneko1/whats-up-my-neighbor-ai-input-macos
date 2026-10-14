@@ -26,11 +26,7 @@ namespace Neighbor.Tests
             using (var icon = Theme.LoadIcon()) check(icon.Width > 1, "Embedded tray icon loads");
             using (var image = Theme.LoadCatImage()) check(image.Width > 1, "Embedded black cat image loads");
             SettingsChecks(check);
-            using (var form = new ApiKeyForm(new TestCredentials()))
-            {
-                var input = Descendants(form).OfType<TextBox>().Single();
-                check(input.UseSystemPasswordChar && input.Text.Length == 0, "Saved credential is never prefilled or displayed");
-            }
+            ApiKeyChecks(check);
             using (var probe = new NonActivationProbe())
             {
                 check((probe.ExtendedStyle & 0x08000080) == 0x08000080, "Floating windows request tool-window and no-activation styles");
@@ -159,6 +155,23 @@ namespace Neighbor.Tests
                 check(form.DialogResult == DialogResult.OK && form.Settings.PrimaryLanguage == "en" && !form.Settings.AdditionalLanguages.Contains("en"), "Saving settings returns a valid deduplicated language selection");
                 check(original.PrimaryLanguage == "zh" && original.AdditionalLanguages.SequenceEqual(new[] { "en" }), "Saving settings never changes the caller's original object");
             }
+            var unplugged = new AppSettings { InputDeviceId = "disconnected-device" };
+            using (var form = new SettingsForm(unplugged, new AudioDevice[0]))
+            {
+                var input = Descendants(form).OfType<ComboBox>().Single(combo => combo.Items.Count > 0 && combo.Items[0] is AudioDevice);
+                check(input.Items.Count == 2 && ((AudioDevice)input.SelectedItem).Id == "disconnected-device", "Settings preserve the selected microphone when no devices can be enumerated");
+                form.Show(); Application.DoEvents();
+                Descendants(form).OfType<Button>().Single(button => button.Text == "儲存").PerformClick();
+                check(form.DialogResult == DialogResult.OK && form.Settings.InputDeviceId == "disconnected-device", "Settings remain saveable when microphones are unavailable");
+            }
+            using (var form = new SettingsForm(new AppSettings(), new[] { new AudioDevice { Id = "selected-mic", Name = "測試麥克風" } }))
+            {
+                var input = Descendants(form).OfType<ComboBox>().Single(combo => combo.Items.Count > 0 && combo.Items[0] is AudioDevice);
+                input.SelectedIndex = 1;
+                form.Show(); Application.DoEvents();
+                Descendants(form).OfType<Button>().Single(button => button.Text == "儲存").PerformClick();
+                check(form.Settings.InputDeviceId == "selected-mic", "Selecting a microphone saves its stable device ID");
+            }
             using (var editor = new ShortcutEditor())
             {
                 editor.Value = new Shortcut { Modifiers = 6, Key = (int)Keys.D };
@@ -171,6 +184,29 @@ namespace Neighbor.Tests
                 check(!editor.IsValid, "Shortcut editor refuses Shift-only shortcuts consistently with registration");
                 editor.Value = new Shortcut { Modifiers = 3, Key = (int)Keys.F12 };
                 check(!editor.IsValid, "Shortcut editor refuses the system-reserved F12 key");
+            }
+        }
+
+        private static void ApiKeyChecks(Action<bool, string> check)
+        {
+            var credentials = new TestCredentials();
+            using (var form = new ApiKeyForm(credentials))
+            {
+                var input = Descendants(form).OfType<TextBox>().Single();
+                check(input.UseSystemPasswordChar && input.Text.Length == 0, "Saved credential is never prefilled or displayed");
+                input.Text = "  fixture-new-key  ";
+                form.Show(); Application.DoEvents();
+                Descendants(form).OfType<Button>().Single(button => button.Text == "儲存金鑰").PerformClick();
+                check(form.DialogResult == DialogResult.OK && credentials.Value == "fixture-new-key" && input.Text.Length == 0,
+                    "Saving a replacement key writes it to the credential store and clears the input");
+            }
+            using (var form = new ApiKeyForm(credentials))
+            {
+                form.Show(); Application.DoEvents();
+                Descendants(form).OfType<Button>().Single(button => button.Text == "移除金鑰").PerformClick();
+                check(credentials.Value == "" && Descendants(form).OfType<Label>().Any(label => label.Text == "尚未設定金鑰"),
+                    "Removing a key deletes the credential and refreshes its visible status");
+                form.Close();
             }
         }
 
@@ -214,9 +250,10 @@ namespace Neighbor.Tests
         }
         private sealed class TestCredentials : ICredentialStore
         {
-            public string Read() { return "test-credential-never-display"; }
-            public void Write(string value) { }
-            public void Delete() { }
+            public string Value { get; private set; } = "test-credential-never-display";
+            public string Read() { return Value; }
+            public void Write(string value) { Value = value; }
+            public void Delete() { Value = ""; }
         }
         private sealed class NonActivationProbe : NonActivatingForm
         {

@@ -21,6 +21,7 @@ jobs:
         shell: pwsh
         run: ./windows/scripts/build.ps1
       - name: UI integration tests
+        if: ${{ !cancelled() }}
         shell: pwsh
         run: |
           & ./windows/Neighbor.Tests/bin/Release/net48/Neighbor.Tests.exe --interactive

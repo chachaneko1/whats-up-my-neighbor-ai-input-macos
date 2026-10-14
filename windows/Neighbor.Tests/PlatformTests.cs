@@ -89,24 +89,54 @@ namespace Neighbor.Tests
         /// <summary>Run only in the disposable Windows CI desktop, never against user documents.</summary>
         public static void RunInteractive(Action<bool, string> check)
         {
+            Console.WriteLine("Desktop fixture: interactive=" + Environment.UserInteractive + "; session=" + Process.GetCurrentProcess().SessionId);
+            if (!Environment.UserInteractive)
+                throw new InvalidOperationException("No interactive Windows desktop: native focus and paste tests were not executed.");
             string directory = Path.Combine(Path.GetTempPath(), "Neighbor.UiFixture." + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(directory);
             Process fixture = null;
             try
             {
                 fixture = Process.Start(new ProcessStartInfo(Assembly.GetEntryAssembly().Location, "--platform-ui-target \"" + directory + "\"") { UseShellExecute = false });
-                Wait(() => File.Exists(Path.Combine(directory, "ready")), "fixture startup");
+                Wait(() =>
+                {
+                    if (fixture.HasExited) throw new InvalidOperationException("Isolated UI fixture exited during startup: " + fixture.ExitCode);
+                    fixture.Refresh();
+                    return File.Exists(Path.Combine(directory, "ready")) && fixture.MainWindowHandle != IntPtr.Zero;
+                }, "fixture startup");
+                Action activate = () =>
+                {
+                    fixture.Refresh();
+                    var handle = fixture.MainWindowHandle;
+                    Wait(() =>
+                    {
+                        if (fixture.HasExited) throw new InvalidOperationException("Isolated UI fixture exited unexpectedly.");
+                        if (GetForegroundWindow() == handle) return true;
+                        SetForegroundWindow(handle);
+                        return GetForegroundWindow() == handle;
+                    }, "controlled window activation (Windows desktop/foreground permission required)");
+                };
                 Action<string> command = value =>
                 {
+                    activate();
                     File.WriteAllText(Path.Combine(directory, "command"), value);
                     Wait(() => Read(Path.Combine(directory, "ack")) == value, "fixture command " + value);
-                    fixture.Refresh(); SetForegroundWindow(fixture.MainWindowHandle); Thread.Sleep(150);
+                    activate();
                 };
                 using (var delivery = new WindowsTextDelivery())
                 {
                     command("edit-1");
-                    var target = delivery.CaptureAsync().GetAwaiter().GetResult();
+                    FocusSnapshot target = null;
+                    // The first cross-process UIA request can pay provider startup costs.
+                    // Retry capture only; never repeat an uncertain paste operation.
+                    for (int attempt = 0; attempt < 3; attempt++)
+                    {
+                        target = delivery.CaptureAsync().GetAwaiter().GetResult();
+                        if (target.CanPaste) break;
+                        activate(); Thread.Sleep(150);
+                    }
                     check(target.CanPaste, "controlled editable window captured");
+                    if (!target.CanPaste) throw new InvalidOperationException("Controlled capture rejected: " + target.Reason);
                     target.CapturedAtUtc = DateTime.UtcNow.AddMinutes(-11);
                     var expired = delivery.DeliverAsync("must-not-paste", target, CancellationToken.None).GetAwaiter().GetResult();
                     check(expired.Copied && !expired.PasteSent, "expired target snapshot prevents paste");
@@ -114,8 +144,11 @@ namespace Neighbor.Tests
                     command("password-before-paste");
                     command("return-edit");
                     var inserted = delivery.DeliverAsync("neko", target, CancellationToken.None).GetAwaiter().GetResult();
+                    Console.WriteLine("Controlled delivery: copied=" + inserted.Copied + "; sent=" + inserted.PasteSent + "; verified=" + inserted.PasteVerified + "; " + inserted.Message);
+                    check(inserted.PasteSent, "same field restored before delivery receives paste event");
+                    if (!inserted.PasteSent) throw new InvalidOperationException("Controlled paste rejected: " + inserted.Message);
                     Wait(() => Read(Path.Combine(directory, "text")) == "prefix neko suffix", "controlled paste");
-                    check(inserted.PasteSent, "same field restored before delivery receives text without Enter");
+                    check(true, "controlled text matches exactly without Enter");
                     if (!inserted.PasteVerified)
                     {
                         check(!delivery.RevalidateCorrectionAsync().GetAwaiter().GetResult(), "provider without stable insertion range disables learning");
@@ -123,12 +156,30 @@ namespace Neighbor.Tests
                     }
                     else
                     {
-                        bool observed = false;
-                        delivery.CorrectionObserved += (sender, change) => { if (change.IsValid && change.Corrected == "neighbor") observed = true; };
-                        command("correct");
-                        Thread.Sleep(500);
-                        if (observed) check(delivery.RevalidateCorrectionAsync().GetAwaiter().GetResult(), "observed correction revalidates exact range");
-                        else check(!delivery.RevalidateCorrectionAsync().GetAwaiter().GetResult(), "invalidated correction range fails closed");
+                        int observed = 0;
+                        using (var correction = new ManualResetEventSlim())
+                        {
+                            var signalGate = new object();
+                            bool listening = true;
+                            EventHandler<CorrectionEventArgs> handler = (sender, change) =>
+                            {
+                                lock (signalGate)
+                                {
+                                    if (!listening) return;
+                                    if (change.IsValid && change.Corrected == "neighbor") { Interlocked.Exchange(ref observed, 1); correction.Set(); }
+                                    else if (!change.IsValid) correction.Set();
+                                }
+                            };
+                            delivery.CorrectionObserved += handler;
+                            try
+                            {
+                                command("correct");
+                                correction.Wait(TimeSpan.FromSeconds(3));
+                                if (Volatile.Read(ref observed) == 1) check(delivery.RevalidateCorrectionAsync().GetAwaiter().GetResult(), "observed correction revalidates exact range");
+                                else check(!delivery.RevalidateCorrectionAsync().GetAwaiter().GetResult(), "invalidated correction range fails closed");
+                            }
+                            finally { lock (signalGate) { listening = false; delivery.CorrectionObserved -= handler; } }
+                        }
                     }
                     command("edit-2");
                     var remembered = delivery.CaptureAsync().GetAwaiter().GetResult();
@@ -168,6 +219,7 @@ namespace Neighbor.Tests
                     string command = Read(Path.Combine(directory, "command"));
                     if (string.IsNullOrEmpty(command) || command == previous) return;
                     previous = command;
+                    form.Activate();
                     if (command.StartsWith("edit", StringComparison.Ordinal)) { edit.Text = "prefix  suffix"; edit.Focus(); edit.Select(7, 0); }
                     else if (command.StartsWith("password", StringComparison.Ordinal)) password.Focus();
                     else if (command == "return-edit") edit.Focus();
@@ -178,12 +230,22 @@ namespace Neighbor.Tests
             }
             return true;
         }
-        private static string Read(string path) { try { return File.ReadAllText(path); } catch (IOException) { return null; } }
+        private static string Read(string path)
+        {
+            try
+            {
+                // Sharing avoids a transient reader denying a fixture TextChanged write.
+                using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                using (var reader = new StreamReader(stream)) return reader.ReadToEnd();
+            }
+            catch (IOException) { return null; }
+        }
         private static void Wait(Func<bool> condition, string stage)
         {
             var timeout = Stopwatch.StartNew();
             while (!condition()) { if (timeout.Elapsed > TimeSpan.FromSeconds(8)) throw new Exception("UI fixture timeout: " + stage); Thread.Sleep(50); }
         }
         [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr window);
+        [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
     }
 }
