@@ -29,6 +29,7 @@ namespace Neighbor.Core
         private readonly Func<DateTime> now;
         private readonly SynchronizationContext context;
         private Job job;
+        private Task cancellation;
         public DictationState State { get; private set; } = DictationState.Idle;
         public string Status { get; private set; } = "準備好了";
         public event EventHandler<StatusEventArgs> StatusChanged;
@@ -52,7 +53,7 @@ namespace Neighbor.Core
         }
         public Task StartAsync(AppSettings settings, bool alternate = false)
         {
-            if (State != DictationState.Idle && State != DictationState.RetainedAudio) return Task.CompletedTask;
+            if (cancellation != null || (State != DictationState.Idle && State != DictationState.RetainedAudio)) return Task.CompletedTask;
             SettingsStore.Validate(settings);
             if (job != null) { job.Cancellation.Cancel(); storage.Remove(job.Path); }
             delivery.StopObserving();
@@ -138,17 +139,43 @@ namespace Neighbor.Core
             if (now() >= job.RetainUntilUtc || !storage.IsUsable(job.Path)) { Finish(job, "暫存錄音已過期，請重新錄音。"); return Task.CompletedTask; }
             return RecognizeAsync(job, true);
         }
-        public async Task CancelAsync()
+        public Task CancelAsync()
         {
-            var old = job;
-            delivery.StopObserving();
-            if (old == null) { SetState(DictationState.Idle, "已取消"); return; }
-            job = null; old.Cancellation.Cancel();
-            SetState(DictationState.Finalizing, "正在取消…");
-            try { await old.Startup; } catch { }
-            try { if (old.Finalization != null) await old.Finalization; else await recorder.StopAsync(); } catch { }
-            storage.Remove(old.Path);
-            SetState(DictationState.Idle, "已取消");
+            if (cancellation != null) return cancellation;
+            // Publish the shared operation before notifying listeners: a second
+            // click (or reentrant status callback) must not unlock a new job.
+            var completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            cancellation = completed.Task;
+            _ = CancelCoreAsync(completed);
+            return completed.Task;
+        }
+        private async Task CancelCoreAsync(TaskCompletionSource<bool> completed)
+        {
+            try
+            {
+                var old = job;
+                delivery.StopObserving();
+                if (old != null)
+                {
+                    job = null;
+                    SetState(DictationState.Finalizing, "正在取消…");
+                    // A failing device cancellation callback must not skip the
+                    // remaining stop and temporary-file cleanup.
+                    try { old.Cancellation.Cancel(); } catch { }
+                    try { await old.Startup; } catch { }
+                    try { if (old.Finalization != null) await old.Finalization; else await recorder.StopAsync(); } catch { }
+                    storage.Remove(old.Path);
+                }
+                // Cleanup is complete before Idle listeners may start again.
+                cancellation = null;
+                SetState(DictationState.Idle, "已取消");
+                completed.TrySetResult(true);
+            }
+            catch (Exception error)
+            {
+                if (ReferenceEquals(cancellation, completed.Task)) cancellation = null;
+                completed.TrySetException(error);
+            }
         }
         public Task TickAsync()
         {

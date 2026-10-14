@@ -178,7 +178,64 @@ namespace Neighbor.Tests
                 f.Transcriber.Results.Enqueue(_ => Task.FromResult("嗯")); await f.Coordinator.StartAsync(new AppSettings { Mode = OutputMode.Standard }); await f.Coordinator.StopAsync();
                 check(f.Delivery.Text == "嗯", "Cleanup that removes all content falls back to original utterance");
             }
+            await CancellationReentrancyChecks(check);
             QueuedRecorderChecks(check);
+        }
+
+        private static async Task CancellationReentrancyChecks(Action<bool, string> check)
+        {
+            using (var f = new Fixture())
+            {
+                var opening = new TaskCompletionSource<bool>(); f.Recorder.StartGate = opening.Task;
+                Task start = f.Coordinator.StartAsync(new AppSettings()); string path = f.Recorder.Path;
+                Task first = f.Coordinator.CancelAsync(), second = f.Coordinator.CancelAsync();
+                check(ReferenceEquals(first, second) && !first.IsCompleted && f.Coordinator.State == DictationState.Finalizing,
+                    "Repeated cancellation shares pending microphone startup cleanup and stays busy");
+                Task prematureStart = f.Coordinator.StartAsync(new AppSettings());
+                check(f.Recorder.StartCount == 1, "Repeated cancellation cannot admit a new recording before startup settles");
+                opening.SetResult(true); await start; await prematureStart; await first; await second;
+                check(f.Recorder.StopCount == 1 && !File.Exists(path) && f.Coordinator.State == DictationState.Idle,
+                    "Repeated startup cancellation stops once and deletes audio before returning idle");
+                f.Recorder.StartGate = null; await f.Coordinator.StartAsync(new AppSettings());
+                check(f.Recorder.StartCount == 2 && f.Coordinator.State == DictationState.Recording,
+                    "A new recording starts normally after all cancellation callers complete");
+                await f.Coordinator.CancelAsync();
+            }
+            using (var f = new Fixture())
+            {
+                await f.Coordinator.StartAsync(new AppSettings()); string path = f.Recorder.Path;
+                var closing = new TaskCompletionSource<bool>(); f.Recorder.StopGate = closing.Task;
+                Task stop = f.Coordinator.StopAsync();
+                Task first = f.Coordinator.CancelAsync(), second = f.Coordinator.CancelAsync();
+                Task prematureStart = f.Coordinator.StartAsync(new AppSettings());
+                check(ReferenceEquals(first, second) && !second.IsCompleted && f.Coordinator.State == DictationState.Finalizing && f.Recorder.StartCount == 1,
+                    "Repeated cancellation during finalization cannot release the busy state");
+                closing.SetResult(true); await stop; await prematureStart; await first; await second;
+                check(f.Recorder.StopCount == 1 && f.Transcriber.Calls.Count == 0 && !File.Exists(path),
+                    "Repeated finalization cancellation shares stop and never uploads the canceled recording");
+            }
+            using (var f = new Fixture())
+            {
+                await f.Coordinator.StartAsync(new AppSettings());
+                Task nested = null; int idleEvents = 0;
+                f.Coordinator.StatusChanged += (_, e) =>
+                {
+                    if (e.State == DictationState.Finalizing && nested == null) nested = f.Coordinator.CancelAsync();
+                    if (e.State == DictationState.Idle) idleEvents++;
+                };
+                Task first = f.Coordinator.CancelAsync(); await first;
+                check(ReferenceEquals(first, nested) && idleEvents == 1 && f.Recorder.StopCount == 1,
+                    "Cancellation is already shared when synchronous status listeners reenter it");
+            }
+            using (var f = new Fixture())
+            {
+                f.Recorder.ThrowOnCancellation = true;
+                await f.Coordinator.StartAsync(new AppSettings()); string path = f.Recorder.Path;
+                bool threw = false;
+                try { await f.Coordinator.CancelAsync(); } catch { threw = true; }
+                check(!threw && f.Recorder.StopCount == 1 && !File.Exists(path) && f.Coordinator.State == DictationState.Idle,
+                    "A device cancellation callback error cannot skip stop and temporary-file cleanup");
+            }
         }
 
         private static void QueuedRecorderChecks(Action<bool, string> check)
@@ -309,12 +366,13 @@ namespace Neighbor.Tests
         {
             public event EventHandler<AudioLevelEventArgs> LevelChanged;
             public event EventHandler StoppedUnexpectedly;
-            public string Path, Device; public int StartCount, StopCount; public bool Usable = true;
+            public string Path, Device; public int StartCount, StopCount; public bool Usable = true, ThrowOnCancellation;
             public Task StartGate, StopGate; public Exception StartFailure, StopFailure;
             public IReadOnlyList<AudioDevice> GetDevices() { return new List<AudioDevice>(); }
             public async Task StartAsync(string path, string deviceId, CancellationToken cancellation)
             {
                 Path = path; Device = deviceId; StartCount++;
+                if (ThrowOnCancellation) cancellation.Register(() => { throw new IOException("synthetic device cancellation failure"); });
                 if (StartGate != null) await StartGate;
                 if (StartFailure != null) throw StartFailure;
             }
