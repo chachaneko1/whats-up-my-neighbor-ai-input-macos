@@ -42,12 +42,16 @@ namespace Neighbor.Tests
                 hud.UpdateState(DictationState.Recording, "正在錄音");
                 hud.UpdateLevel(-15, true); hud.UpdateLevel(Double.NaN, true); hud.UpdateLevel(-80, false);
                 check(hud.AccessibleDescription.Contains("正在錄音"), "Recording HUD exposes current status to accessibility");
+                var normalSize = hud.ClientSize;
+                var normalEyes = hud.Controls.Cast<Control>().Select(c => c.Bounds).ToArray();
                 hud.UpdateState(DictationState.Idle, "what's up!", true);
                 Application.DoEvents();
+                check(hud.ClientSize.Width > normalSize.Width && hud.ClientSize.Height > normalSize.Height, "Greeting reserves upper-right transparent margin");
                 check(GetForegroundWindow() == before, "Greeting bubble preserves foreground focus");
                 check(hud.AccessibleDescription.Contains("what's up!"), "Greeting bubble is accessible");
                 hud.UpdateState(DictationState.Starting, "正在準備麥克風…");
                 check(!hud.AccessibleDescription.Contains("what's up!"), "A new recording immediately replaces the greeting");
+                check(hud.ClientSize == normalSize && hud.Controls.Cast<Control>().Select(c => c.Bounds).SequenceEqual(normalEyes), "Leaving greeting restores normal canvas and eye hit targets");
                 hud.UpdateState(DictationState.Idle, "已取消");
                 check(hud.AccessibleDescription.Contains("已取消"), "Cancellation restores ordinary HUD state");
                 hud.Hide();

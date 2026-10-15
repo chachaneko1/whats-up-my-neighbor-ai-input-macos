@@ -208,7 +208,7 @@ namespace Neighbor.Tests
                 }
                 check(f.Transcriber.Calls.Count == 3, "Greeting adds no AI calls or language retries");
                 f.Transcriber.Results.Enqueue(_ => Task.FromResult("translate what's up"));
-                await f.Coordinator.StartAsync(new AppSettings { PrimaryLanguage = "en" }); await f.Coordinator.StopAsync();
+                await f.Coordinator.StartAsync(new AppSettings { PrimaryLanguage = "en", AdditionalLanguages = new List<string>() }); await f.Coordinator.StopAsync();
                 check(f.Delivery.Count == 1 && f.Delivery.Text == "translate what's up" && greetings == 2, "Embedded greeting follows ordinary dictation during cooldown");
             }
             using (var f = new Fixture())
