@@ -45,14 +45,11 @@ jobs:
         run: ./scripts/fetch-sparkle.sh
       - name: Offline regression tests
         run: ./scripts/test-all.sh
-      - name: Sign, notarize and package
+      - name: Sign and package free release
         env:
           MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-          MACOS_TEAM_ID: ${{ vars.MACOS_TEAM_ID }}
-          APPLE_NOTARY_KEY_P8_BASE64: ${{ secrets.APPLE_NOTARY_KEY_P8_BASE64 }}
-          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
-          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+          MACOS_SIGNING_SHA1: ${{ vars.MACOS_SIGNING_SHA1 }}
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: ./scripts/release-macos.sh
       - name: Publish complete release

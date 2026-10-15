@@ -4,13 +4,12 @@ umask 077
 ROOT="${0:A:h:h}"
 cd "$ROOT"
 
-[[ "${GITHUB_ACTIONS:-}" == true ]] || { print -u2 'Release credentials are only imported on an ephemeral Actions runner'; exit 1; }
-for required in RELEASE_VERSION RELEASE_BUILD MACOS_CERTIFICATE_P12_BASE64 MACOS_CERTIFICATE_PASSWORD MACOS_TEAM_ID APPLE_NOTARY_KEY_P8_BASE64 APPLE_NOTARY_KEY_ID APPLE_NOTARY_ISSUER_ID SPARKLE_PRIVATE_KEY; do
+for required in RELEASE_VERSION RELEASE_BUILD MACOS_CERTIFICATE_P12_BASE64 MACOS_CERTIFICATE_PASSWORD MACOS_SIGNING_SHA1 SPARKLE_PRIVATE_KEY; do
   [[ -n "${(P)required:-}" ]] || { print -u2 "Missing release credential/config: $required"; exit 1; }
 done
 python3 "$ROOT/scripts/release_metadata.py" "v$RELEASE_VERSION" 1 >/dev/null
 [[ "$RELEASE_BUILD" =~ '^[1-9][0-9]{0,3}$' ]] || { print -u2 'Invalid release build'; exit 1; }
-[[ "$MACOS_TEAM_ID" =~ '^[A-Z0-9]{10}$' ]] || { print -u2 'Invalid Team ID'; exit 1; }
+[[ "$MACOS_SIGNING_SHA1" =~ '^[A-F0-9]{40}$' ]] || { print -u2 'Invalid signing fingerprint'; exit 1; }
 
 RELEASE_TEMP="$(mktemp -d)"
 KEYCHAIN="$RELEASE_TEMP/release.keychain-db"
@@ -26,20 +25,15 @@ security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
 print -rn -- "$MACOS_CERTIFICATE_P12_BASE64" | base64 --decode > "$RELEASE_TEMP/certificate.p12"
 security import "$RELEASE_TEMP/certificate.p12" -P "$MACOS_CERTIFICATE_PASSWORD" -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security >/dev/null
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
-security list-keychains -d user -s "$KEYCHAIN" "$HOME/Library/Keychains/login.keychain-db"
-MAC_CODESIGN_IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN" | sed -n 's/.*"\(Developer ID Application: .*\)"/\1/p' | head -1)"
-[[ -n "$MAC_CODESIGN_IDENTITY" && "$MAC_CODESIGN_IDENTITY" == *"($MACOS_TEAM_ID)" ]] || { print -u2 'Matching Developer ID Application identity not found'; exit 1; }
-export MAC_CODESIGN_IDENTITY RELEASE_SIGNING=1
+# Select by certificate fingerprint, not by a paid Apple certificate category.
+# --keychain confines signing to this temporary keychain; the user's global
+# search list, trust settings and installed application are never changed.
+security find-identity -v -p codesigning "$KEYCHAIN" | grep -F "$MACOS_SIGNING_SHA1" >/dev/null || { print -u2 'Pinned signing identity is missing, expired or unavailable'; exit 1; }
+export MAC_CODESIGN_IDENTITY="$MACOS_SIGNING_SHA1" MAC_CODESIGN_KEYCHAIN="$KEYCHAIN" RELEASE_SIGNING=1
 "$ROOT/scripts/build.sh"
 APP="$ROOT/build/AI語音輸入.app"
-print -rn -- "$APPLE_NOTARY_KEY_P8_BASE64" | base64 --decode > "$RELEASE_TEMP/AuthKey.p8"
-ditto -c -k --sequesterRsrc --keepParent "$APP" "$RELEASE_TEMP/notary.zip"
-xcrun notarytool submit "$RELEASE_TEMP/notary.zip" --key "$RELEASE_TEMP/AuthKey.p8" \
-  --key-id "$APPLE_NOTARY_KEY_ID" --issuer "$APPLE_NOTARY_ISSUER_ID" --wait --timeout 30m
-xcrun stapler staple "$APP"
-xcrun stapler validate "$APP"
 codesign --verify --deep --strict --verbose=2 "$APP"
-spctl --assess --type execute --verbose=2 "$APP"
+python3 "$ROOT/scripts/validate-signing.py" "$APP" "$MACOS_SIGNING_SHA1"
 
 # Sparkle updates contain only .app; first installations use a separate archive.
 rm -rf "$ROOT/dist/update"

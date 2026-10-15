@@ -46,17 +46,19 @@ lipo -create "$ROOT/build/FreeVoiceType-arm64" "$ROOT/build/FreeVoiceType-x86_64
   -output "$OUTPUT/Contents/MacOS/FreeVoiceType"
 
 if [[ "${RELEASE_SIGNING:-0}" == 1 ]]; then
-  : "${MAC_CODESIGN_IDENTITY:?Release requires a Developer ID identity}"
-  [[ "$MAC_CODESIGN_IDENTITY" == 'Developer ID Application: '* ]] || { print -u2 'Developer ID Application identity required'; exit 1; }
-  # Sign nested helpers inside-out. Do not use --deep for production signing.
-  FRAMEWORK="$OUTPUT/Contents/Frameworks/Sparkle.framework/Versions/B"
-  for helper in "$FRAMEWORK"/XPCServices/*.xpc(N) "$FRAMEWORK"/Updater.app; do
-    codesign --force --options runtime --timestamp --sign "$MAC_CODESIGN_IDENTITY" "$helper"
-  done
-  codesign --force --options runtime --timestamp --sign "$MAC_CODESIGN_IDENTITY" "$FRAMEWORK/Autoupdate"
-  codesign --force --options runtime --timestamp --sign "$MAC_CODESIGN_IDENTITY" "$OUTPUT/Contents/Frameworks/Sparkle.framework"
-  codesign --force --options runtime --timestamp --entitlements "$ROOT/Resources/Release.entitlements" \
-    --sign "$MAC_CODESIGN_IDENTITY" "$OUTPUT"
+  : "${MAC_CODESIGN_IDENTITY:?Release requires a stable signing certificate}"
+  : "${MACOS_SIGNING_SHA1:?Release requires a pinned signing fingerprint}"
+  [[ "$MAC_CODESIGN_IDENTITY" == "$MACOS_SIGNING_SHA1" && "$MACOS_SIGNING_SHA1" =~ '^[A-F0-9]{40}$' ]] || { print -u2 'Release signing identity must match the pinned certificate'; exit 1; }
+  SIGNING_OPTIONS=()
+  if [[ -n "${MAC_CODESIGN_KEYCHAIN:-}" ]]; then
+    SIGNING_OPTIONS+=(--keychain "$MAC_CODESIGN_KEYCHAIN")
+  fi
+  # Free distribution uses an existing stable certificate, without notarization
+  # or Hardened Runtime. Retain Sparkle's vendor-signed nested code and the
+  # installed app's designated requirement. Never fall back to ad-hoc releases.
+  codesign --force --timestamp=none --sign "$MAC_CODESIGN_IDENTITY" "${SIGNING_OPTIONS[@]}" \
+    --requirements '=designated => identifier "tw.panh.FreeVoiceType"' "$OUTPUT"
+  python3 "$ROOT/scripts/validate-signing.py" "$OUTPUT" "$MACOS_SIGNING_SHA1"
 else
   # Preserve the established designated requirement for local installs.
   codesign --force --timestamp=none --sign "${MAC_CODESIGN_IDENTITY:--}" \

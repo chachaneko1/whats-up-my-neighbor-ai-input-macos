@@ -41,3 +41,25 @@ jobs:
           name: macos-cat-native-renders
           path: build/cat-render/
           if-no-files-found: warn
+
+  free-release-check:
+    # Never expose publisher credentials to PR/fork code. This job only runs
+    # after a trusted push to main or this implementation branch and publishes
+    # no release/tag/feed. The PR job above remains entirely secret-free.
+    if: github.event_name == 'push' && github.repository == 'yuipan0611/groq-ai-voice-input-macos' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/neko-cicd-updates')
+    runs-on: macos-14
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Validate free release without any Apple paid credentials
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SIGNING_SHA1: ${{ vars.MACOS_SIGNING_SHA1 }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          export RELEASE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)"
+          export RELEASE_BUILD="$((GITHUB_RUN_NUMBER + 1000))"
+          ./scripts/release-macos.sh

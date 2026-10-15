@@ -1,69 +1,74 @@
-# macOS CI/CD 與使用者選擇更新
+# 免費 macOS CI/CD 與使用者選擇更新
 
 ## 使用者看到的行為
 
-安裝第一個含 Sparkle 的版本後，App 每天在背景檢查正式版。選單提供「檢查更新…」與可關閉的「自動偵測新版本」。偵測新版只會通知，不會自動下載、安裝或重新啟動。
+安裝第一個含 Sparkle 的版本後，App 每天在背景檢查新版。選單提供「檢查更新…」與可關閉的「自動偵測新版本」。偵測新版只會通知，不自動下載、安裝或重新啟動。
 
-有新版時，等錄音、檔案結束寫入、辨識、等待重試與其他對話框完成，再發出通知。第一次發出更新通知前才詢問 macOS 通知權限。點選通知或選單中的新版項目，會開啟 Sparkle 的版本資訊與安裝／稍後提醒／略過選項。若拒絕通知，使用 App 內更新視窗提示；選單入口始終存在。勿把通知送達視為保證：macOS 專注模式可能隱藏橫幅。
+有新版時，等錄音、檔案結束寫入、辨識、等待重試與其他對話框完成，再發出通知。第一次有新版才詢問 macOS 通知權限。點通知或選單中的新版項目，會開啟 Sparkle 的版本資訊與安裝／稍後提醒／略過選項。拒絕通知則使用 App 內提示；選單入口保留。macOS 專注模式可能隱藏通知，不能保證橫幅送達。
 
-每次都需使用者同意安裝。`SUAllowsAutomaticUpdates=false` 禁止改成背景自動安裝；`SUAutomaticallyUpdate=false` 是預設值。即使使用者同意更新後又開始錄音，也會延後重新啟動。沒有新版本、離線、更新服務故障時，背景檢查不彈出錯誤；手動檢查會由 Sparkle 說明結果。Sparkle 管理稍後提醒及略過版本狀態。
+`SUAllowsAutomaticUpdates=false` 禁止背景自動安裝；`SUAutomaticallyUpdate=false` 是預設值。使用者同意更新後若又開始錄音，仍會延後重新啟動。離線及背景檢查錯誤不彈出錯誤；手動檢查由 Sparkle 顯示結果。Sparkle 保存稍後提醒及略過狀態。
+
+## 免費方案與簽章
+
+**不需要付費 Apple Developer、Developer ID、公證 API 或 App Store。** 發佈者沿用一份既有有效程式碼簽章憑證，以指紋固定選取，不限定為 Developer ID。現有安裝使用 Apple Development 憑證時可沿用它；沒有既有憑證的維護者需先建立一份固定本機簽章憑證，設定發佈機信任及相符的 p12／指紋。這不代表終端使用者需要 Apple 帳號。
+
+兩種驗證各自負責不同工作：固定程式碼簽章及 designated requirement 維持 App 身分；Sparkle Ed25519 金鑰驗證版本清單與更新包的來源及完整性。兩者都要成功，不使用隨每次 build 更換的 ad-hoc 身分發佈。PR 的開發包可使用 ad-hoc，但不送進更新清單。
+
+免費發佈不啟用 Hardened Runtime，也不送 Apple 公證；Sparkle 內嵌 framework/helpers 保留官方原始簽章。不做 Apple Library Validation 的繞過設定。首次開啟可能出現 macOS 安全確認，使用者可依系統支援的「打開／仍要打開」方式允許。不清除 quarantine、不停用 Gatekeeper、不安裝憑證到終端使用者的信任儲存區。
 
 ## 保存資料與權限
 
-更新封裝只有 `AI語音輸入.app`，替換現有 App 本體，不執行移除程式。保留以下位置／識別值：
-
 | 項目 | 保留方式 |
 | --- | --- |
-| Groq API Key | Keychain service `tw.panh.FreeVoiceType.groq`、account `api-key` 不變；不進入發佈流程。 |
-| 快捷鍵與偏好 | `tw.panh.FreeVoiceType` 的既有 UserDefaults keys 不變，更新器不清除偏好。 |
-| 貓咪設定／圖片 | `~/Library/Application Support/tw.panh.FreeVoiceType/cat.config.json` 與同資料夾 PNG 不寫入、不刪除；App 中的 JSON 只是新使用者範本。 |
-| macOS 身分 | Bundle ID `tw.panh.FreeVoiceType` 不變；Sparkle 在原安裝位置更新，固定沿用同一 Developer ID。 |
-| 麥克風／輔助使用權限 | 不呼叫 TCC reset、不刪除權限資料庫，也不重新要求重設權限。 |
+| Groq API Key | Keychain service `tw.panh.FreeVoiceType.groq`、account `api-key` 不變；不進入 CI 或發佈包。 |
+| 快捷鍵與偏好 | `tw.panh.FreeVoiceType` 的既有 UserDefaults keys 不變，不刪除或重建偏好。 |
+| 貓咪設定／圖片 | `~/Library/Application Support/tw.panh.FreeVoiceType/cat.config.json` 與同資料夾 PNG 不寫入、不刪除；App 內 JSON 只是新使用者範本。 |
+| App 身分 | Bundle ID、固定簽章憑證，以及既有 `identifier "tw.panh.FreeVoiceType"` designated requirement 保持相容。 |
+| 安裝位置 | Sparkle 在原位置替換 App。首次手動安裝也會讀取既有 LaunchAgent 的 App 位置，支援舊的 Application Support 安裝。 |
+| 登入啟動 | 更新保留既有 LaunchAgent，包括使用者原有的 `RunAtLoad` 設定；僅新安裝才建立登入項目。 |
+| 權限 | 不呼叫 TCC reset、不清除或修改麥克風／輔助使用權限資料庫。 |
 
-**首次遷移限制：** 舊版沒有更新器，仍須手動安裝一次。既有本機版使用 Apple Development 或 ad-hoc 簽章；改為 Developer ID 是簽章身分遷移，macOS 可能重新要求麥克風／輔助使用或 Keychain 授權。資料仍保留，但不能承諾 macOS 權限跨憑證自動沿用。之後每次使用相同 Developer ID、Bundle ID 與安裝位置。不要用新憑證偷偷覆蓋既有本機簽章，也不要透過清除 TCC 處理問題。
+更新 ZIP 只有 `.app`，不執行移除程式、不搬動使用者資料。手動安裝先暫存並驗證新 App，確認新版本符合舊版 designated requirement 後再替換，保存舊 App 備份；替換途中失敗可回復。不要為了升級先執行移除程式。
 
-同機若有尚未合併的自行修改版本，正式升級前應先整合其功能；不能只依版本號就覆蓋成較少功能的版本。
-
-## CI
-
-`.github/workflows/build.yml` 在 push／PR 編譯 Universal 2（arm64 + x86_64）App、檢查簽章，執行七組離線測試，並產出保留七天的開發安裝包與貓咪 AppKit 圖像。開發包沒有 Developer ID 公證，不會進入自動更新清單。PR 工作只有讀取權限、沒有發佈憑證。
-
-Sparkle 2.10.0 來自官方 release；`scripts/fetch-sparkle.sh` 固定版本與 SHA-256，每次從驗證過的壓縮檔重新解開，不信任殘留的 framework。程式使用 macOS 13 deployment target。`./scripts/build.sh`、`./scripts/test-all.sh` 可重現 CI。
+舊版沒有更新器，仍須手動安裝一次。沿用同一憑證、身分與路徑可以維持相容性；跨舊簽章身分遷移、憑證到期／替換，或 macOS 政策改變仍可能重新要求授權。不能把簽章測試當成實機 TCC 授權保證。同機若有尚未合併的自行修改功能，先整合後再升級，避免較少功能的版本覆蓋現用 App。
 
 ## 一次性發佈設定
 
-在 GitHub repository 或 `macos-release` environment 設定：
+GitHub repository 或 `macos-release` environment 只需要：
 
 | 名稱 | 類型 | 用途 |
 | --- | --- | --- |
-| `SPARKLE_PRIVATE_KEY` | Secret | Sparkle Ed25519 私鑰，與 Info.plist 的 `SUPublicEDKey` 配對。 |
-| `MACOS_CERTIFICATE_P12_BASE64` | Secret | **Developer ID Application** 憑證與私鑰的 p12，以 base64 編碼。Apple Development 不適用。 |
+| `SPARKLE_PRIVATE_KEY` | Secret | 與 Info.plist `SUPublicEDKey` 配對的 Sparkle Ed25519 私鑰。 |
+| `MACOS_CERTIFICATE_P12_BASE64` | Secret | 固定既有程式碼簽章憑證及其私鑰的加密 p12，以 base64 編碼；不要求 Developer ID。 |
 | `MACOS_CERTIFICATE_PASSWORD` | Secret | p12 匯出密碼。 |
-| `MACOS_TEAM_ID` | Variable | 與 Developer ID 憑證相符的 10 字元 Team ID。 |
-| `APPLE_NOTARY_KEY_P8_BASE64` | Secret | App Store Connect team API key 的 p8，以 base64 編碼。 |
-| `APPLE_NOTARY_KEY_ID` | Secret | 公證 API key ID。 |
-| `APPLE_NOTARY_ISSUER_ID` | Secret | 公證 API key issuer UUID。 |
+| `MACOS_SIGNING_SHA1` | Variable | 上述憑證的 40 字元大寫指紋。SHA-1 只用作憑證選擇識別值，更新驗證使用 Ed25519。 |
 
-私鑰不要貼入聊天、Issue、source、命令列參數或日誌。Sparkle 私鑰可由 `generate_keys --account tw.panh.FreeVoiceType` 保存在本機 Keychain，再經臨時限制權限檔案傳入 GitHub Secret；傳完刪除臨時檔。保留離線備份，不要每次 release 重新產生金鑰。
+不需要 `MACOS_TEAM_ID` 或任何 `APPLE_NOTARY_*` 設定。憑證缺少、過期、私鑰無法使用、指紋不符或更新簽章不符時停止，不退回 ad-hoc 發佈。到期前需更新有效憑證並驗證舊版相容性，不能默默換身分。
 
-建議 repository ruleset 要求 PR 與 Build 檢查通過再合併；`macos-release` environment 可限制 main／版本 tags。憑證與公證資料缺少時，release 腳本在匯入任何 keychain 前停止，不發佈空包或無簽章更新。
+只匯出所選的單一簽章身分，不要把整個 Keychain、其他開發憑證或 Groq API Key 傳給 CI。私鑰與密碼經限制權限的臨時檔或標準輸入設為 GitHub Secrets，不貼到聊天、Issue、source、命令列參數或日誌。Sparkle 原私鑰保存在本機 Keychain，備份後持續沿用，不要每次發佈重新產生。
 
-## 發佈版本
+發佈腳本只匯入臨時 keychain，以 `codesign --keychain` 限定簽署，不改發佈機全域 keychain 搜尋清單或信任設定。退出時刪除臨時 keychain、p12 及私鑰檔案。對自簽憑證的發佈環境信任設定應由維護者明確預先配置；此腳本不修改任何全域信任。
 
-1. 合併通過 CI 的 PR，更新 `RELEASE_NOTES.md`。
-2. 在 main 上建立尚未使用過、且高於既有正式版的版本 tag，例如 `v1.3.0`，推送該 tag。也可在 Actions 的 Release macOS 手動指定已存在且位於 main 歷史中的 tag。
-3. 流程再次測試，匯入臨時 keychain，以 Developer ID 逐層簽署 helpers/framework/App、啟用 hardened runtime 與 audio-input entitlement，送 Apple 公證並 staple。驗證 `codesign`、`stapler`、`spctl`。
-4. 產生 app-only 更新 ZIP、首次安裝 ZIP、SHA-256 清單與含更新說明的簽署 appcast。以嵌入 App 的公鑰驗證 ZIP 與 appcast 的真實 Ed25519 簽章。
-5. 先建立 draft Release，全部資產上傳成功後才轉為正式 latest。上傳失敗保留 draft，既有版本清單不變。已存在版本不覆蓋，修復後清理未發佈的 draft 再重跑，或發新版本。
+## CI 與發佈
 
-版本號由合法 `v主版.次版.修訂` tag 寫入**輸出** Info.plist。build 使用此 workflow 的 run number + 1000，重跑同一 run 不增加，9999 前要求明確遷移。憑證臨時檔與 keychain 由退出處理移除；不改發佈機以外的 keychain。
+`.github/workflows/build.yml` 的一般 push／PR 工作不讀發佈 Secrets：編譯 Universal 2（arm64 + x86_64）、驗證簽章、執行七組離線測試，產出保留七天的開發安裝包與原生貓咪圖像。另有 `free-release-check`，只允許此 repository 的 main 或指定實作分支可信 push，實際匯入固定憑證、產生免費簽章安裝包及真實簽署 appcast，完全不提供付費 Apple／公證資料。該工作沒有發佈權限，不建立 tag、Release 或更新公開清單；PR／fork 不取得發佈憑證。
 
-清單固定網址為 `https://github.com/yuipan0611/groq-ai-voice-input-macos/releases/latest/download/appcast.xml`。repository 目前公開，使用者不需要 GitHub token。**每個標記 latest 的正式 Release 都必須包含這份 macOS appcast**；Windows 或其他獨立產品 release 不可搶佔 latest。首次正式 release 成功前，該網址可能 404，不能當作已上線的更新服務。
+正式發佈：
+
+1. 合併通過 CI 的 PR，維護 `RELEASE_NOTES.md`。
+2. 在 main 上建立尚未使用且高於既有正式版的 tag，例如 `v1.3.0`。或從 main 的 Release macOS workflow 指定已存在、且位於 main 歷史中的版本 tag。
+3. 再次執行測試，以固定憑證及既有 requirement 簽署；驗證真實憑證指紋、Bundle ID、requirement 與 strict code signature。無公證步驟或付費憑證分類要求。
+4. 產生 app-only 更新 ZIP、首次安裝 ZIP、SHA-256 清單與包含更新說明的簽署 appcast；以 App 內嵌公鑰驗證 ZIP 與 appcast 的 Ed25519 簽章。
+5. 建立 draft Release，上傳全部資產後才標記正式 latest。上傳失敗維持 draft，原版本清單不變。既有公開版本不覆蓋；有問題時發更高版本修正。
+
+固定使用官方 Sparkle 2.10.0，版本及下載 SHA-256 固定，每次從驗證過的 archive 解開。版本號寫入輸出 Info.plist，不修改 source；release build 為該 workflow run number + 1000，9999 前需明確遷移。
+
+清單網址為 `https://github.com/yuipan0611/groq-ai-voice-input-macos/releases/latest/download/appcast.xml`。公開 repository 的使用者不需 GitHub token。每個標記 latest 的正式 Release 都必須含 macOS appcast；Windows 或其他產品不可搶佔 latest。PR／CI 通過並不等於公開清單已上線，首次發佈前該網址可能 404。
 
 ## 驗證範圍
 
-離線測試涵蓋忙碌延後、拒絕通知的替代提示、不重複通知、手動檢查、略過後清理；也使用暫存測試金鑰產生真實 Sparkle appcast／ZIP，確認正確簽章通過、篡改 ZIP 或清單失敗，檢查原有 Keychain／快捷鍵識別值。原有貓咪設定的 317 項政策檢查與 59 項原生 AppKit 檢查仍執行。
+離線測試涵蓋提醒延後、通知拒絕、去除重複提醒、手動檢查、結束清理；真實 Sparkle 簽章及篡改拒絕；版本倒退／輸入與憑證缺少；固定 Keychain／快捷鍵識別值。安裝測試在可拋棄資料夾驗證舊位置、備份、損壞包拒絕及設定／圖片／登入資訊位元保存。測試中的 Keychain／TCC 檔是合成標記，不能稱為實機授權驗證。
 
-編譯、離線測試及 ad-hoc 開發包不等於正式更新已交付。首次正式發佈還需 Developer ID／公證設定，並用兩份可犧牲的正式簽章 App 做實際舊版→新版測試：同意更新、稍後／略過、通知拒絕、錄音中延後、更新後設定與實機權限。對失敗版本的復原應保留已發佈安裝檔；自動修復可發更高 build 的修正版，不能只把舊二進位標記 latest。
+原有貓咪 317 項設定與 59 項原生 AppKit 檢查保留。免費發佈 CI 另外驗證現有憑證的真實簽署與更新清單產製。實際系統通知、使用者允許／略過更新、錄音時延後，以及實機 Keychain／麥克風／輔助使用權限，仍須在含更新器的版本正式採用時驗證。不會為了測試去重設現用 App 權限或替換含未合併功能的 App。
 
-參考：[Sparkle 設定](https://sparkle-project.org/documentation/customization/)、[背景 App 更新提醒](https://sparkle-project.org/documentation/gentle-reminders/)、[Apple 公證](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution)。
+參考：[Sparkle](https://sparkle-project.org/documentation/)、[更新提醒](https://sparkle-project.org/documentation/gentle-reminders/)、[更新設定](https://sparkle-project.org/documentation/customization/)。

@@ -22,6 +22,7 @@ def load_module(name, path):
 
 metadata = load_module("release_metadata", ROOT / "scripts/release_metadata.py")
 validator = load_module("release_validator", ROOT / "scripts/validate-release.py")
+signing = load_module("signing_validator", ROOT / "scripts/validate-signing.py")
 
 
 class ReleaseContractTests(unittest.TestCase):
@@ -67,6 +68,61 @@ class ReleaseContractTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Missing release credential/config: RELEASE_VERSION", result.stderr)
 
+    def test_free_release_requires_stable_certificate_not_paid_membership(self):
+        environment = {"PATH": os.environ["PATH"], "RELEASE_VERSION": "1.3.0", "RELEASE_BUILD": "1001"}
+        result = subprocess.run([str(ROOT / "scripts/release-macos.sh")], env=environment, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Missing release credential/config: MACOS_CERTIFICATE_P12_BASE64", result.stderr)
+        self.assertNotIn("Developer ID", result.stderr)
+        self.assertNotIn("APPLE_NOTARY", result.stderr)
+
+    def test_installer_reuses_location_and_preserves_profile(self):
+        with tempfile.TemporaryDirectory(prefix="neko-install-test-") as directory:
+            base = Path(directory)
+            profile = base / "profile"
+            package = base / "package"
+            package.mkdir()
+            installer = package / "安裝.command"
+            shutil.copy(ROOT / "Packaging/安裝.command", installer)
+            old_app = profile / "Library/Application Support/AI語音輸入/AI語音輸入.app"
+            source_app = package / "AI語音輸入.app"
+            for app, marker in [(old_app, b"old"), (source_app, b"new")]:
+                (app / "Contents/MacOS").mkdir(parents=True)
+                (app / "Contents/Resources").mkdir()
+                shutil.copy("/usr/bin/true", app / "Contents/MacOS/FreeVoiceType")
+                (app / "Contents/Info.plist").write_bytes((ROOT / "Resources/Info.plist").read_bytes())
+                (app / "Contents/Resources/version-marker").write_bytes(marker)
+                subprocess.run(["codesign", "--force", "--sign", "-", "--requirements", '=designated => identifier "tw.panh.FreeVoiceType"', str(app)], check=True, capture_output=True)
+            preserved = {
+                "Library/Application Support/tw.panh.FreeVoiceType/cat.config.json": '{"version":1,"reply":"保留我的貓🐈"}'.encode(),
+                "Library/Application Support/tw.panh.FreeVoiceType/custom-cat.png": b"test-image-snapshot",
+                "Library/Preferences/tw.panh.FreeVoiceType.plist": plistlib.dumps({"recordingHotKeyCode": 97, "recordingHotKeyModifiers": 768}),
+                "Library/Keychains/login.keychain-db": b"synthetic-keychain-sentinel-not-a-real-keychain",
+                "Library/Application Support/com.apple.TCC/TCC.db": b"synthetic-permission-sentinel-not-a-real-TCC-db",
+                "Library/LaunchAgents/tw.panh.FreeVoiceType.plist": plistlib.dumps({"Label": "tw.panh.FreeVoiceType", "ProgramArguments": ["/usr/bin/open", "-gj", str(old_app)], "RunAtLoad": False}),
+            }
+            for relative, data in preserved.items():
+                path = profile / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+            environment = dict(os.environ, NEKO_INSTALL_TEST_PROFILE=str(profile))
+            result = subprocess.run(["zsh", str(installer)], env=environment, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((old_app / "Contents/Resources/version-marker").read_bytes(), b"new")
+            self.assertFalse((profile / "Applications/AI語音輸入.app").exists())
+            backups = list(old_app.parent.glob(".neighbor-update.*/Previous.app/Contents/Resources/version-marker"))
+            self.assertEqual(len(backups), 1)
+            self.assertEqual(backups[0].read_bytes(), b"old")
+            for relative, data in preserved.items():
+                self.assertEqual((profile / relative).read_bytes(), data, relative)
+            # A corrupted replacement must fail before touching the working app.
+            (source_app / "Contents/Resources/version-marker").write_bytes(b"tampered")
+            result = subprocess.run(["zsh", str(installer)], env=environment, capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual((old_app / "Contents/Resources/version-marker").read_bytes(), b"new")
+            for relative, data in preserved.items():
+                self.assertEqual((profile / relative).read_bytes(), data, relative)
+
     def test_real_signed_feed_archive_tampering_and_layout(self):
         tools = ROOT / "build/Sparkle-2.10.0/bin"
         self.assertTrue(tools.is_dir(), "Build/fetch Sparkle before the offline suite")
@@ -95,7 +151,11 @@ try k.publicKey.rawRepresentation.base64EncodedString().write(toFile: CommandLin
             info = plistlib.loads((ROOT / "Resources/Info.plist").read_bytes())
             info["SUPublicEDKey"] = public.read_text()
             (contents / "Info.plist").write_bytes(plistlib.dumps(info))
-            subprocess.run(["codesign", "--force", "--sign", "-", str(app)], check=True, stdout=subprocess.DEVNULL)
+            subprocess.run(["codesign", "--force", "--sign", "-", "--requirements", '=designated => identifier "tw.panh.FreeVoiceType"', str(app)], check=True, stdout=subprocess.DEVNULL)
+            # An ad-hoc CI bundle is not eligible to masquerade as a stable
+            # certificate-signed release, even with a matching requirement.
+            with self.assertRaises((ValueError, FileNotFoundError, subprocess.CalledProcessError)):
+                signing.validate_signing(app, "0" * 40)
             update_dir = base / "archives"
             update_dir.mkdir()
             archive = update_dir / f'Neighbor-macOS-{info["CFBundleShortVersionString"]}.zip'

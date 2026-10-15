@@ -8,7 +8,7 @@ Windows 測試版的功能、安裝與驗證請見 [Windows 說明](windows/READ
 
 macOS 版加入 Sparkle：每日偵測新版並通知，由使用者自行選擇是否下載安裝。錄音、辨識或等待重試時延後提示與重新啟動；選單提供「檢查更新…」與「自動偵測新版本」。既有 API Key、快捷鍵及使用者資料夾的 `cat.config.json`／圖片不覆寫。
 
-舊版需先手動安裝一次包含更新器的版本。正式更新服務須先設定 Developer ID 與 Apple 公證並成功發佈；目前完成程式與 CI，不代表正式更新已上線。首次從開發簽章遷移時 macOS 可能重新要求授權。[完整發佈設定與驗證範圍](docs/UPDATES.md)。
+舊版需先手動安裝一次包含更新器的版本。發佈採用免費方案：固定的既有程式碼簽章憑證，加上 Sparkle 更新驗證金鑰，不需要付費 Apple Developer、Developer ID 或 Apple 公證。安裝工具沿用既有安裝位置，保留個人設定；macOS 首次開啟仍可能要求安全確認。首次發佈成功前，不代表更新服務已上線。[完整發佈設定與驗證範圍](docs/UPDATES.md)。
 
 ## 非工程師技術教學
 
@@ -303,7 +303,7 @@ Mac 在執行前與貼上後都會重新確認焦點。若 App、視窗或輸入
 
 ## 免費簽章限制
 
-Release 使用 ad-hoc 簽章與固定 Bundle ID，沒有 Apple Developer ID 公證。macOS 第一次開啟時會顯示安全確認；這不等於程式通過 Apple 審查。正式無警告分發需要 Apple Developer ID 簽署及 notarization。
+發佈版本沿用固定程式碼簽章憑證、Bundle ID 與既有 designated requirement；更新清單與 ZIP 另外使用 Sparkle Ed25519 驗證，不使用變動的 ad-hoc 身分發佈。一般 CI 開發包仍採 ad-hoc 簽章，不會自動送入更新清單。免費方案沒有 Apple 公證，首次開啟可能出現 macOS 安全確認；不會清除 quarantine、停用 Gatekeeper 或重設權限。
 
 ## 移除
 

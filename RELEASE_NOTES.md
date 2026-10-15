@@ -4,4 +4,4 @@ What's up my neighbor 新增更新通知
 - 新版先通知，查看更新內容後自行決定安裝、稍後提醒或略過。
 - 錄音、辨識或等待重試期間延後更新提示與重新啟動。
 - 保留既有 API Key、快捷鍵、貓咪設定及自訂圖片。
-- 正式更新驗證簽章與 Apple 公證；支援 Apple Silicon 與 Intel Mac。
+- 更新採免費簽章方案，不需要付費 Apple Developer；驗證固定程式碼簽章與 Sparkle 更新簽章，支援 Apple Silicon 與 Intel Mac。
