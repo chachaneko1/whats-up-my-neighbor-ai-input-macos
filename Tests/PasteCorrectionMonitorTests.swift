@@ -320,11 +320,15 @@ private final class SyntheticEditor {
         check(!missing.observing, "An expired verification window must not restart silently")
 
         let moved = SyntheticEditor(text: "NekoAI")
-        moved.unavailableRangeReads = 1
+        // Move focus as part of the failed read so a busy run loop cannot
+        // complete the retry before the fixture changes the target.
+        moved.rangeOverride = { _, _ in
+            moved.focused = false
+            return nil
+        }
         let movedMonitor = moved.monitor()
         defer { movedMonitor.stop() }
         begin(movedMonitor, moved, original: "NekoAI")
-        moved.focused = false
         settle()
         moved.focused = true
         settle()
