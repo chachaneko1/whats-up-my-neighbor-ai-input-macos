@@ -25,7 +25,8 @@ Windows 版支援固定的 `cat.config.json` 設定檔，不需要改程式碼�
   "bubblePosition": "upperRight",
   "tiltDegrees": -10,
   "cooldownSeconds": 5,
-  "displaySeconds": 3
+  "displaySeconds": 3,
+  "animateMouth": true
 }
 ```
 
@@ -42,6 +43,7 @@ Windows 版支援固定的 `cat.config.json` 設定檔，不需要改程式碼�
 | `tiltDegrees` | -15 至 15 度，可用小數。負數逆時針、正數順時針。 |
 | `cooldownSeconds` | 兩次彩蛋間的冷卻時間，1–60 秒，可用小數。冷卻期間的完整觸發句仍不會輸入到其他 App。 |
 | `displaySeconds` | 氣泡顯示時間，1–10 秒，可用小數。開始新錄音會立即收起氣泡。 |
+| `animateMouth` | 預設 `true`，內建貓咪在問候氣泡顯示時有無聲的小嘴動畫；設為 `false` 可關閉動畫、保留原本靜止嘴型，適合偏好減少動態效果的人。 |
 
 省略的欄位會採用上表預設值；欄位名稱區分大小寫。請勿新增未列出的欄位。數字及布林值不要加引號。
 
@@ -53,6 +55,13 @@ Windows 版支援固定的 `cat.config.json` 設定檔，不需要改程式碼�
 - 不會刪除詞語內部的標點：`what-s up` 不等於 `what's up`。`whats up` 是另一個明確列出的預設句。
 - 不能包含換行、控制字元、空白句、純標點句，或正規化後重複的觸發句。
 - 這些設定只決定貓咪彩蛋，不會改變辨識服務、語言設定、詞彙或其他聽寫處理。
+
+### 嘴型動畫與減少動態效果
+
+- 預設只在內建貓咪的問候氣泡顯示期間，播放小幅度的貓咪 `ω` 嘴型／張嘴露舌動畫，沒有聲音。一般待機及錄音時不播放。
+- 將 `"animateMouth": false` 後重新啟動，可完全關閉嘴型動畫，維持原圖的靜止嘴型；氣泡問候仍可使用。
+- 舊版設定若沒有這個欄位，預設為 `true`，不必更換整份設定檔。
+- 只要 `image` 指定自訂圖片，就不會加上嘴型動畫；即使自訂圖片無法載入而改用內建貓咪，也保持關閉，避免在別人的圖畫上疊加嘴巴。
 
 ### 換成自己的貓咪
 
@@ -73,3 +82,5 @@ Windows 版支援固定的 `cat.config.json` 設定檔，不需要改程式碼�
 ## English quick start
 
 Open the cat configuration folder from the tray menu, then exit the app. The packaged app automatically copies the template to your configuration folder at startup if no config exists and never overwrites an existing file. The release package includes this guide. If necessary, manually copy the supplied `cat.config.json` into `%LOCALAPPDATA%\WhatsUpMyNeighbor`, edit it as UTF-8 JSON, then restart. Omitted fields use the defaults above. Unknown fields, invalid types, unsupported versions and out-of-range values invalidate the whole configuration without overwriting the file. Use a same-folder PNG filename for `image`, or `null` for the built-in cat. PNGs are limited to 4 MiB and 2048 × 2048 pixels; keep the original cat's eye positions because its click targets remain fixed. Triggers match whole utterances only. The file contains no credentials, remote URLs or executable actions.
+
+Set `"animateMouth": false` to disable mouth motion and keep the original neutral mouth, while retaining the greeting bubble. The default is `true`, including older version-one configs that omit this field. This silent, subtle feline mouth animation only runs during greetings on the built-in cat. Any explicit custom `image` selection disables mouth overlays, even if that image fails to load and the app falls back to the built-in cat.

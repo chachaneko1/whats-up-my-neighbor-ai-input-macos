@@ -78,8 +78,90 @@ namespace Neighbor.Tests
                 Descendants(toast).OfType<Button>().Single(button => button.Text == "不加入").PerformClick();
                 check(rejected && !toast.Visible, "Rejecting the learning toast cancels the candidate and hides it");
             }
+            MouthAnimationChecks(check);
             CatCustomizationChecks(check);
             VocabularyChecks(check);
+        }
+
+        private static void MouthAnimationChecks(Action<bool, string> check)
+        {
+            using (var hud = new RecordingHud())
+            {
+                hud.Show(); Application.DoEvents();
+                check(!hud.IsMouthAnimating, "Idle cat has no running mouth timer");
+                var foreground = GetForegroundWindow();
+                hud.UpdateState(DictationState.Idle, "what's up!", true); PumpFor(240);
+                check(hud.IsMouthAnimating && GetForegroundWindow() == foreground, "Greeting animates feline mouth without changing focus");
+                hud.UpdateState(DictationState.Recording, "Recording");
+                check(!hud.IsMouthAnimating, "New recording stops mouth animation");
+                hud.UpdateState(DictationState.Idle, "what's up!", true); hud.UpdateState(DictationState.Idle, "已取消");
+                check(!hud.IsMouthAnimating, "Cancel status stops mouth animation");
+                hud.UpdateState(DictationState.Idle, "what's up!", true); hud.Hide();
+                check(!hud.IsMouthAnimating, "Hiding greeting stops mouth timer");
+                hud.Show(); Application.DoEvents();
+                check(!hud.IsMouthAnimating, "Reshowing an interrupted greeting does not restart its timer");
+                hud.UpdateState(DictationState.Idle, "ready"); hud.UpdateState(DictationState.Idle, "what's up!", true);
+                hud.Dispose();
+                check(!hud.IsMouthAnimating, "Disposing HUD stops mouth timer");
+            }
+            string path = Path.GetTempFileName();
+            try
+            {
+                foreach (string json in new[] { "{\"animateMouth\":false}", "{\"image\":\"missing-cat.png\",\"animateMouth\":true}" })
+                {
+                    File.WriteAllText(path, json);
+                    using (var hud = new RecordingHud(CatConfiguration.Load(path)))
+                    {
+                        hud.Show(); hud.UpdateState(DictationState.Idle, "hello", true); Application.DoEvents();
+                        check(!hud.IsMouthAnimating, "Disabled motion or custom image never starts generic mouth animation");
+                    }
+                }
+                File.WriteAllText(path, "{\"displaySeconds\":1}");
+                using (var hud = new RecordingHud(CatConfiguration.Load(path)))
+                {
+                    hud.Show(); hud.UpdateState(DictationState.Idle, "hello", true); PumpFor(1200);
+                    check(!hud.IsMouthAnimating, "Mouth timer self-stops at bounded greeting duration");
+                }
+            }
+            finally { File.Delete(path); }
+        }
+
+        private static void PumpFor(int milliseconds)
+        {
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            while (clock.ElapsedMilliseconds < milliseconds) { Application.DoEvents(); Thread.Sleep(5); }
+            Application.DoEvents();
+        }
+
+        private static void SaveMouthAnimationFrames(string directory)
+        {
+            string frames = Path.Combine(directory, "mouth-animation"); Directory.CreateDirectory(frames);
+            using (var hud = new RecordingHud())
+            {
+                hud.AutoScaleMode = AutoScaleMode.None;
+                hud.UpdateState(DictationState.Idle, "what's up!", true);
+                hud.Scale(new SizeF(2, 2)); hud.Show(); Application.DoEvents();
+                var clock = System.Diagnostics.Stopwatch.StartNew();
+                for (int frame = 0; frame < 32; frame++)
+                {
+                    while (clock.ElapsedMilliseconds < frame * 100 + 20) { Application.DoEvents(); Thread.Sleep(5); }
+                    Application.DoEvents();
+                    using (var raw = new Bitmap(hud.Width, hud.Height))
+                    using (var preview = new Bitmap(hud.Width, hud.Height))
+                    {
+                        hud.DrawToBitmap(raw, new Rectangle(Point.Empty, raw.Size));
+                        raw.MakeTransparent(Color.Magenta);
+                        using (var graphics = Graphics.FromImage(preview))
+                        {
+                            graphics.Clear(Color.FromArgb(245, 244, 240)); graphics.DrawImageUnscaled(raw, 0, 0);
+                        }
+                        preview.Save(Path.Combine(frames, "frame-" + frame.ToString("D3") + ".png"), ImageFormat.Png);
+                        if (frame == 2) preview.Save(Path.Combine(directory, "cat-mouth-open.png"), ImageFormat.Png);
+                    }
+                }
+                hud.Hide();
+            }
+            File.WriteAllText(Path.Combine(frames, "README.txt"), "Actual Windows RecordingHud DrawToBitmap frames, sampled at 10 fps during the real WinForms timer. Transparency is composited over a neutral preview background. Silent feline mouth, no TTS. Last frame returns neutral when the three-second animation expires.");
         }
 
         private static void CatCustomizationChecks(Action<bool, string> check)
@@ -156,6 +238,7 @@ namespace Neighbor.Tests
                         RenderForm(toast, directory, "learning-toast", scale);
                     }
                 }
+                SaveMouthAnimationFrames(directory);
                 using (var graphics = Graphics.FromHwnd(IntPtr.Zero))
                     File.WriteAllText(Path.Combine(directory, "README.txt"),
                         "這些圖片僅使用受控測試資料，未讀取使用者的金鑰、詞典、麥克風或桌面內容。\r\n" +

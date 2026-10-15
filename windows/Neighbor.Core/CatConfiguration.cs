@@ -16,7 +16,7 @@ namespace Neighbor.Core
         private static readonly HashSet<string> KnownFields = new HashSet<string>(StringComparer.Ordinal)
         {
             "version", "image", "triggers", "reply", "fontFamily", "fontSize", "bold",
-            "bubblePosition", "tiltDegrees", "cooldownSeconds", "displaySeconds"
+            "bubblePosition", "tiltDegrees", "cooldownSeconds", "displaySeconds", "animateMouth"
         };
         private HashSet<string> normalizedTriggers;
 
@@ -33,6 +33,7 @@ namespace Neighbor.Core
         public double TiltDegrees { get; private set; }
         public double CooldownSeconds { get; private set; }
         public double DisplaySeconds { get; private set; }
+        public bool AnimateMouth { get; private set; }
         public string LoadError { get; private set; }
 
         private CatConfiguration() { }
@@ -43,7 +44,7 @@ namespace Neighbor.Core
             {
                 Version = 1, Reply = "what's up!", FontFamily = "Comic Sans MS", FontSize = 18,
                 Bold = true, BubblePosition = "upperRight", TiltDegrees = -10,
-                CooldownSeconds = 5, DisplaySeconds = 3
+                CooldownSeconds = 5, DisplaySeconds = 3, AnimateMouth = true
             };
             result.SetTriggers(new[] { "what's up", "whats up", "what is up" });
             return result;
@@ -97,6 +98,11 @@ namespace Neighbor.Core
                 if (document.TryGetValue("tiltDegrees", out value)) result.TiltDegrees = ReadNumber(value, -15, 15);
                 if (document.TryGetValue("cooldownSeconds", out value)) result.CooldownSeconds = ReadNumber(value, 1, 60);
                 if (document.TryGetValue("displaySeconds", out value)) result.DisplaySeconds = ReadNumber(value, 1, 10);
+                if (document.TryGetValue("animateMouth", out value))
+                {
+                    if (!(value is bool)) throw new InvalidDataException();
+                    result.AnimateMouth = (bool)value;
+                }
                 return result;
             }
             catch (FileNotFoundException) { return Defaults; }

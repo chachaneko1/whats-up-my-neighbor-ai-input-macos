@@ -9,6 +9,12 @@ namespace Neighbor.Windows.UI
     public sealed class RecordingHud : NonActivatingForm
     {
         private readonly Image cat;
+        private readonly Image greetingCat;
+        private readonly Timer mouthTimer = new Timer { Interval = 100 };
+        private readonly System.Diagnostics.Stopwatch mouthClock = new System.Diagnostics.Stopwatch();
+        private int mouthFrame;
+        private bool mouthFinished;
+        public bool IsMouthAnimating { get { return mouthTimer.Enabled; } }
         private readonly CatConfiguration configuration;
         private readonly CatActionArea cancel = new CatActionArea(), finish = new CatActionArea();
         private readonly ToolTip tips = new ToolTip();
@@ -26,6 +32,15 @@ namespace Neighbor.Windows.UI
         {
             this.configuration = configuration ?? CatConfiguration.Defaults;
             cat = CatImage.Load(this.configuration);
+            if (this.configuration.AnimateMouth && String.IsNullOrEmpty(this.configuration.Image))
+                greetingCat = CatMouthAnimation.WithoutNeutralMouth(cat);
+            mouthTimer.Tick += (_, e) =>
+            {
+                if (!Visible || !greeting || IsDisposed || mouthClock.Elapsed.TotalSeconds >= this.configuration.DisplaySeconds)
+                { StopMouthAnimation(); return; }
+                mouthFrame = (int)(mouthClock.ElapsedMilliseconds / 100);
+                Invalidate(CatBounds);
+            };
             greetingFont = CreateGreetingFont(this.configuration);
             Font = new Font("Microsoft JhengHei UI", 9F);
             AutoScaleDimensions = new SizeF(96F, 96F);
@@ -72,6 +87,7 @@ namespace Neighbor.Windows.UI
                 if (nextGreeting) normalLocation = Location;
                 float scale = ClientSize.Width / (greeting ? 440F : 340F);
                 greeting = nextGreeting;
+                mouthFinished = false;
                 ClientSize = new Size((int)Math.Round((greeting ? 440 : 340) * scale), (int)Math.Round((greeting ? 260 : 220) * scale));
                 var newCat = CatBounds;
                 Location = greeting ? new Point(Left + oldCat.Left - newCat.Left, Top + oldCat.Top - newCat.Top) : normalLocation;
@@ -84,6 +100,7 @@ namespace Neighbor.Windows.UI
             tips.SetToolTip(finish, value == DictationState.Recording ? "完成錄音" : value == DictationState.RetainedAudio ? "重試辨識" : "開始錄音");
             if (value != DictationState.Recording) { level = 0; levelKnown = false; }
             AccessibleDescription = StateLabel(value) + "，" + message;
+            if (greeting) StartMouthAnimation(); else StopMouthAnimation();
             Invalidate();
         }
 
@@ -94,6 +111,22 @@ namespace Neighbor.Windows.UI
             levelKnown = state == DictationState.Recording && isKnown && !Double.IsNaN(decibels) && !Double.IsInfinity(decibels);
             level = levelKnown ? Math.Max(0, Math.Min(1, (decibels + 60) / 60)) : 0;
             Invalidate();
+        }
+
+        private void StartMouthAnimation()
+        {
+            if (!Visible || !greeting || greetingCat == null || mouthFinished || mouthTimer.Enabled) return;
+            mouthFrame = 0; mouthClock.Restart(); mouthTimer.Start();
+        }
+        private void StopMouthAnimation()
+        {
+            mouthTimer.Stop(); mouthClock.Stop(); mouthFrame = 0; mouthFinished = true;
+            if (!IsDisposed) Invalidate();
+        }
+        protected override void OnVisibleChanged(EventArgs args)
+        {
+            base.OnVisibleChanged(args);
+            if (Visible) StartMouthAnimation(); else StopMouthAnimation();
         }
 
         protected override void OnShown(EventArgs args) { base.OnShown(args); PlaceOnScreen(); }
@@ -180,7 +213,9 @@ namespace Neighbor.Windows.UI
             graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
             var catBounds = CatBounds;
             int catHeight = catBounds.Height;
-            graphics.DrawImage(cat, catBounds);
+            bool animateMouth = greeting && greetingCat != null && !mouthFinished;
+            graphics.DrawImage(animateMouth ? greetingCat : cat, catBounds);
+            if (animateMouth) CatMouthAnimation.Paint(graphics, catBounds, mouthFrame);
             if (greeting) { PaintGreeting(graphics); return; }
             var plate = new Rectangle(18, catHeight + 2, ClientSize.Width - 36, ClientSize.Height - catHeight - 4);
             using (var shape = Rounded(plate, 12))
@@ -224,7 +259,7 @@ namespace Neighbor.Windows.UI
         }
         protected override void Dispose(bool disposing)
         {
-            if (disposing) { cat.Dispose(); tips.Dispose(); greetingFont.Dispose(); }
+            if (disposing) { mouthTimer.Stop(); mouthTimer.Dispose(); mouthClock.Stop(); greetingCat?.Dispose(); cat.Dispose(); tips.Dispose(); greetingFont.Dispose(); }
             base.Dispose(disposing);
         }
     }

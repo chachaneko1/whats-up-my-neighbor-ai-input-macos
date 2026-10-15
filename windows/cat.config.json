@@ -9,5 +9,6 @@
   "bubblePosition": "upperRight",
   "tiltDegrees": -10,
   "cooldownSeconds": 5,
-  "displaySeconds": 3
+  "displaySeconds": 3,
+  "animateMouth": true
 }

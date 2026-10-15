@@ -29,6 +29,7 @@ namespace Neighbor.Tests
                 check(custom.LoadError == null && custom.Version == 1 && custom.Image == "my-cat.PNG" && custom.ResolvedImagePath == Path.Combine(directory, "my-cat.PNG"), "Custom config accepts a same-directory PNG filename and UTF-8 BOM");
                 check(custom.Triggers.Count == 3 && custom.Reply == "喵，今天也加油！" && custom.FontFamily == "Segoe UI" && custom.FontSize == 22.5 && !custom.Bold, "Cat text and font settings load with exact types");
                 check(custom.BubblePosition == "upperLeft" && custom.TiltDegrees == 7.5 && custom.CooldownSeconds == 8.5 && custom.DisplaySeconds == 4.5, "Cat position, tilt, and duration settings load");
+                check(custom.AnimateMouth, "Legacy version one config without animateMouth keeps the true default");
                 check(custom.Matches(" “HELLO\t CAT?” ") && custom.Matches("貓咪你好。") && custom.Matches("what's new") && custom.Matches("WHAT＇S NEW?!"), "Custom trigger normalization handles case, whitespace, apostrophes and surrounding punctuation");
                 check(!custom.Matches("please hello cat") && !custom.Matches("hello cat tomorrow") && !custom.Matches("hello-cat") && !custom.Matches("hello cat🙂") && !custom.Matches("what's up"), "Custom triggers are exact and replace the default trigger set");
                 check(!custom.Matches(null) && !custom.Matches("") && !custom.Matches("?!"), "Null and empty utterances do not trigger the cat");
@@ -36,6 +37,19 @@ namespace Neighbor.Tests
                 try { exposed[0] = "mutated"; } catch (NotSupportedException) { immutable = true; }
                 check(immutable && custom.Matches("hello cat") && !custom.Matches("mutated"), "Caller cannot mutate the cat trigger snapshot");
                 check(IsDefault(CatConfiguration.Defaults), "Loading customized values cannot mutate shared cat defaults");
+
+                File.WriteAllText(path, "{\"animateMouth\":false}");
+                var reducedMotion = CatConfiguration.Load(path);
+                check(reducedMotion.LoadError == null && !reducedMotion.AnimateMouth && reducedMotion.Image == null && reducedMotion.Reply == "what's up!", "Explicit false opts out of mouth animation while preserving greeting defaults");
+                File.WriteAllText(path, "{\"animateMouth\":true}");
+                check(IsDefault(CatConfiguration.Load(path)) && CatConfiguration.Load(path).LoadError == null, "Explicit true enables default built-in cat mouth animation");
+                foreach (bool animate in new[] { true, false })
+                {
+                    File.WriteAllText(path, "{\"image\":\"missing-cat.png\",\"animateMouth\":" + (animate ? "true" : "false") + "}");
+                    var artwork = CatConfiguration.Load(path);
+                    check(artwork.LoadError == null && artwork.AnimateMouth == animate && artwork.Image == "missing-cat.png" && artwork.ResolvedImagePath == Path.Combine(directory, "missing-cat.png"),
+                        "Custom image selection remains explicit so the HUD can suppress mouth overlays even when the image is missing: " + animate);
+                }
 
                 foreach (string utterance in new[] { "what's up", "whats up", "what is up", " WHAT’S UP?! ", "“What's up?”", "WHAT‘S UP", "whatʼs up", "what＇s up", "what\tis\nup", "what's up。" })
                     check(CatConfiguration.Defaults.Matches(utterance), "Default config accepts approved greeting: " + utterance);
@@ -46,6 +60,8 @@ namespace Neighbor.Tests
                     "", "{broken", "null", "[]", "true", "42", "\"text\"", "{\"version\":2}", "{\"version\":\"1\"}", "{\"version\":null}",
                     "{\"reply\":\"custom\",\"fontSize\":11}", "{\"fontSize\":29}", "{\"fontSize\":\"18\"}", "{\"fontSize\":null}", "{\"fontSize\":true}",
                     "{\"bold\":1}", "{\"bold\":\"true\"}", "{\"bold\":null}", "{\"bubblePosition\":\"center\"}", "{\"bubblePosition\":null}",
+                    "{\"animateMouth\":1}", "{\"animateMouth\":0}", "{\"animateMouth\":\"true\"}", "{\"animateMouth\":\"false\"}",
+                    "{\"animateMouth\":null}", "{\"animateMouth\":[]}", "{\"animateMouth\":{}}", "{\"reply\":\"custom\",\"animateMouth\":\"false\"}",
                     "{\"tiltDegrees\":-15.1}", "{\"tiltDegrees\":15.1}", "{\"cooldownSeconds\":0}", "{\"cooldownSeconds\":61}",
                     "{\"displaySeconds\":0}", "{\"displaySeconds\":11}", "{\"reply\":null}", "{\"reply\":\"\"}", "{\"reply\":\"   \"}",
                     "{\"reply\":\"two\\nlines\"}", "{\"reply\":[\"text\"]}", "{\"fontFamily\":false}", "{\"fontFamily\":\"\"}",
@@ -100,7 +116,7 @@ namespace Neighbor.Tests
                 config.Triggers.SequenceEqual(new[] { "what's up", "whats up", "what is up" }) &&
                 config.Reply == "what's up!" && config.FontFamily == "Comic Sans MS" && config.FontSize == 18 &&
                 config.Bold && config.BubblePosition == "upperRight" && config.TiltDegrees == -10 &&
-                config.CooldownSeconds == 5 && config.DisplaySeconds == 3;
+                config.CooldownSeconds == 5 && config.DisplaySeconds == 3 && config.AnimateMouth;
         }
     }
 }
