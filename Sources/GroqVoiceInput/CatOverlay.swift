@@ -54,7 +54,7 @@ final class CatOverlay {
         precondition(Thread.isMainThread)
         guard !disposed else { return }
         stopTimers()
-        artwork.appearance = .recording
+        artwork.catAppearance = .recording
         positionAndShow()
     }
 
@@ -62,13 +62,13 @@ final class CatOverlay {
         precondition(Thread.isMainThread)
         guard !disposed else { return }
         stopTimers()
-        artwork.appearance = .greeting
+        artwork.catAppearance = .greeting
         artwork.animatesGreeting = artwork.canReplaceMouth && configuration.animateMouth &&
             !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         greetingStarted = ProcessInfo.processInfo.systemUptime
         positionAndShow()
         let expiry = Timer(timeInterval: configuration.displaySeconds, repeats: false) { [weak self] _ in
-            guard let self = self, !self.disposed, self.artwork.appearance == .greeting else { return }
+            guard let self = self, !self.disposed, self.artwork.catAppearance == .greeting else { return }
             self.hide()
             self.onGreetingFinished?()
         }
@@ -78,7 +78,7 @@ final class CatOverlay {
             let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
                 guard let self = self else { return }
                 let elapsed = ProcessInfo.processInfo.systemUptime - self.greetingStarted
-                guard !self.disposed, self.panel.isVisible, self.artwork.appearance == .greeting,
+                guard !self.disposed, self.panel.isVisible, self.artwork.catAppearance == .greeting,
                       elapsed < self.configuration.displaySeconds else {
                     self.stopMouthAnimation()
                     return
@@ -175,7 +175,7 @@ private final class CatArtworkView: NSView {
     private let originalImage: NSImage?
     private let mouthlessImage: NSImage?
     var canReplaceMouth: Bool { mouthlessImage != nil }
-    var appearance: CatAppearance = .recording {
+    var catAppearance: CatAppearance = .recording {
         didSet { layoutTargets(); needsDisplay = true }
     }
     var animatesGreeting = false { didSet { needsDisplay = true } }
@@ -186,11 +186,11 @@ private final class CatArtworkView: NSView {
     override var mouseDownCanMoveWindow: Bool { false }
 
     var canvasSize: NSSize {
-        appearance == .greeting ? NSSize(width: 440, height: 260) : NSSize(width: 340, height: 220)
+        catAppearance == .greeting ? NSSize(width: 440, height: 260) : NSSize(width: 340, height: 220)
     }
     var catBounds: NSRect {
-        NSRect(x: appearance == .greeting && configuration.bubblePosition == "upperLeft" ? 100 : 0,
-               y: appearance == .greeting ? 80 : 0, width: 340, height: 340 * 0.4978)
+        NSRect(x: catAppearance == .greeting && configuration.bubblePosition == "upperLeft" ? 100 : 0,
+               y: catAppearance == .greeting ? 80 : 0, width: 340, height: 340 * 0.4978)
     }
 
     init(configuration: CatConfiguration, bundledImageURL: URL?) {
@@ -223,9 +223,9 @@ private final class CatArtworkView: NSView {
                               width: cat.width * 0.18, height: cat.height * 0.29)
         finish.frame = NSRect(x: cat.minX + cat.width * 0.67, y: cat.minY + cat.height * 0.53,
                               width: cat.width * 0.19, height: cat.height * 0.29)
-        cancel.isEnabled = appearance == .recording
-        finish.isEnabled = appearance == .recording
-        setAccessibilityLabel(appearance == .greeting ? "小黑貓說：\(configuration.reply)" : "小黑貓語音輸入：正在錄音")
+        cancel.isEnabled = catAppearance == .recording
+        finish.isEnabled = catAppearance == .recording
+        setAccessibilityLabel(catAppearance == .greeting ? "小黑貓說：\(configuration.reply)" : "小黑貓語音輸入：正在錄音")
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -234,9 +234,9 @@ private final class CatArtworkView: NSView {
         image?.draw(in: catBounds, from: .zero, operation: .sourceOver, fraction: 1,
                     respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high])
         if canReplaceMouth {
-            drawMouth(frame: appearance == .greeting && animatesGreeting ? mouthFrame : 0)
+            drawMouth(frame: catAppearance == .greeting && animatesGreeting ? mouthFrame : 0)
         }
-        if appearance == .greeting { drawBubble() } else { drawRecordingLabel() }
+        if catAppearance == .greeting { drawBubble() } else { drawRecordingLabel() }
     }
 
     private func drawMouth(frame: Int) {
@@ -447,17 +447,17 @@ extension CatOverlay {
 
     func testPNG(greeting: Bool, frame: Int = 0) throws -> Data {
         // Exercise exactly the AppKit view drawing path used by the live panel.
-        let oldAppearance = artwork.appearance
+        let oldAppearance = artwork.catAppearance
         let oldFrame = artwork.frame
         let oldAnimation = artwork.animatesGreeting
         let oldMouthFrame = artwork.mouthFrame
         defer {
-            artwork.appearance = oldAppearance
+            artwork.catAppearance = oldAppearance
             artwork.frame = oldFrame
             artwork.animatesGreeting = oldAnimation
             artwork.mouthFrame = oldMouthFrame
         }
-        artwork.appearance = greeting ? .greeting : .recording
+        artwork.catAppearance = greeting ? .greeting : .recording
         artwork.frame = NSRect(origin: .zero, size: artwork.canvasSize)
         artwork.animatesGreeting = greeting && configuration.animateMouth && artwork.canReplaceMouth
         artwork.mouthFrame = frame
