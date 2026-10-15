@@ -5,3 +5,5 @@ What's up my neighbor 新增更新通知
 - 錄音、辨識或等待重試期間延後更新提示與重新啟動。
 - 保留既有 API Key、快捷鍵、貓咪設定及自訂圖片。
 - 更新採免費簽章方案，不需要付費 Apple Developer；驗證固定程式碼簽章與 Sparkle 更新簽章，支援 Apple Silicon 與 Intel Mac。
+
+- 保留現用黑貓介面、剪貼簿快捷視窗、詞庫學習及目標驗證貼上功能。

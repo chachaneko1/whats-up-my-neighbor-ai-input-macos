@@ -36,6 +36,7 @@ final class AppUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardUserDr
     func start() {
         UNUserNotificationCenter.current().delegate = self
         controller.startUpdater()
+        UpdateDiagnostics.shared.record(.updaterStarted)
         automaticCheckItem?.state = controller.updater.automaticallyChecksForUpdates ? .on : .off
         // A launch check is asynchronous, quiet on network errors, and still
         // respects Sparkle's last-check scheduling and the user's preference.
@@ -47,6 +48,7 @@ final class AppUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardUserDr
     }
 
     @objc func checkForUpdates(_ sender: Any? = nil) {
+        UpdateDiagnostics.shared.record(.manualCheck)
         reminder.requestPresentation()
         if isBusy() {
             menuItem?.title = "工作完成後檢查更新…"
@@ -72,6 +74,7 @@ final class AppUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardUserDr
     func standardUserDriverWillHandleShowingUpdate(_ handleShowingUpdate: Bool, forUpdate update: SUAppcastItem, state: SPUUserUpdateState) {
         guard !handleShowingUpdate else { return }
         reminder.receive(version: update.displayVersionString)
+        UpdateDiagnostics.shared.record(.updateDetected, version: update.displayVersionString)
         menuItem?.title = "有新版本 \(update.displayVersionString)…"
         scheduleReminder()
     }
@@ -80,11 +83,15 @@ final class AppUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardUserDr
         clearReminder()
     }
 
-    func standardUserDriverWillFinishUpdateSession() { clearReminder() }
+    func standardUserDriverWillFinishUpdateSession() {
+        UpdateDiagnostics.shared.record(.sessionFinished)
+        clearReminder()
+    }
 
     func updater(_ updater: SPUUpdater, shouldPostponeRelaunchForUpdate item: SUAppcastItem, untilInvokingBlock installHandler: @escaping () -> Void) -> Bool {
         guard isBusy() else { return false }
         relaunchHandler = installHandler
+        UpdateDiagnostics.shared.record(.relaunchDeferred)
         menuItem?.title = "工作完成後重新啟動以更新…"
         scheduleReminder()
         return true
@@ -98,6 +105,7 @@ final class AppUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardUserDr
     private func tick() {
         guard !isBusy() else { return }
         if let handler = relaunchHandler {
+            UpdateDiagnostics.shared.record(.relaunchStarted)
             relaunchHandler = nil
             stopTimer()
             handler()
@@ -110,6 +118,7 @@ final class AppUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardUserDr
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.notificationQueryInFlight = false
+                UpdateDiagnostics.shared.record(.notificationPermission, authorization: settings.authorizationStatus.rawValue)
                 guard !self.isBusy() else { return }
                 // Ask only when there is an actual update, after voice work is
                 // done. Denial has an in-app prompt and menu fallback.
@@ -140,6 +149,7 @@ final class AppUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardUserDr
             content.body = "點選查看更新內容，再決定是否下載安裝。也可從選單列選擇檢查更新。"
             let request = UNNotificationRequest(identifier: Self.notificationID, content: content, trigger: nil)
             UNUserNotificationCenter.current().add(request) { [weak self] error in
+                UpdateDiagnostics.shared.record(.notificationQueued, succeeded: error == nil)
                 guard error != nil else { return }
                 DispatchQueue.main.async {
                     guard let self, self.reminder.version != nil else { return }

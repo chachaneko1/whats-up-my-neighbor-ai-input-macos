@@ -2,13 +2,13 @@
 set -euo pipefail
 ROOT="${0:A:h:h}"
 export LC_ALL=C
+integer test_count=0
 mkdir -p "$ROOT/build"
-for suite in audio-input-policy legacy-parity text-pipeline transcription-client cat updates; do
-  "$ROOT/scripts/test-$suite.sh"
+for test_script in "$ROOT"/scripts/test-*.sh(N); do
+  [[ "$test_script" == "${0:A}" ]] && continue
+  print -r -- "Running ${test_script:t}"
+  "$test_script"
+  (( test_count += 1 ))
 done
-# The separate remote parity wrapper needs a sibling iOS repo.
-swiftc -swift-version 5 "$ROOT/Sources/GroqVoiceInput/RemoteMessages.swift" \
-  "$ROOT/Sources/GroqVoiceInput/RemoteTargetValidationPolicy.swift" \
-  "$ROOT/Tests/RemoteProtocolTests.swift" -o "$ROOT/build/RemoteProtocolTests"
-"$ROOT/build/RemoteProtocolTests"
-print 'All 7 offline suites passed.'
+(( test_count > 0 )) || exit 1
+print -- "All $test_count offline test suites passed."

@@ -51,7 +51,7 @@ GitHub repository 或 `macos-release` environment 只需要：
 
 ## CI 與發佈
 
-`.github/workflows/build.yml` 的一般 push／PR 工作不讀發佈 Secrets：編譯 Universal 2（arm64 + x86_64）、驗證簽章、執行七組離線測試，產出保留七天的開發安裝包與原生貓咪圖像。另有 `free-release-check`，只允許此 repository 的 main 或指定實作分支可信 push，實際匯入固定憑證、產生免費簽章安裝包及真實簽署 appcast，完全不提供付費 Apple／公證資料。該工作沒有發佈權限，不建立 tag、Release 或更新公開清單；PR／fork 不取得發佈憑證。
+`.github/workflows/build.yml` 的一般 push／PR 工作不讀發佈 Secrets：編譯 Universal 2（arm64 + x86_64）、驗證簽章、執行20 組離線測試，產出保留七天的開發安裝包與原生貓咪圖像。另有 `free-release-check`，只允許此 repository 的 main 或指定實作分支可信 push，實際匯入固定憑證、產生免費簽章安裝包及真實簽署 appcast，完全不提供付費 Apple／公證資料。該工作沒有發佈權限，不建立 tag、Release 或更新公開清單；PR／fork 不取得發佈憑證。
 
 正式發佈：
 
@@ -72,3 +72,9 @@ GitHub repository 或 `macos-release` environment 只需要：
 原有貓咪 317 項設定與 59 項原生 AppKit 檢查保留。免費發佈 CI 另外驗證現有憑證的真實簽署與更新清單產製。實際系統通知、使用者允許／略過更新、錄音時延後，以及實機 Keychain／麥克風／輔助使用權限，仍須在含更新器的版本正式採用時驗證。不會為了測試去重設現用 App 權限或替換含未合併功能的 App。
 
 參考：[Sparkle](https://sparkle-project.org/documentation/)、[更新提醒](https://sparkle-project.org/documentation/gentle-reminders/)、[更新設定](https://sparkle-project.org/documentation/customization/)。
+
+## 現用功能整合
+
+發佈包含現用 build 24 的剪貼簿快捷視窗、十筆文字歷史、固定黑貓圖示與錄音 HUD、詞庫及修正學習、輸入目標驗證、快捷鍵設定與遠端模式。既有生產模組保留，控制器只新增更新器及貓咪指令接線；未納入本機會議研究、個人資料或未驗證模型。
+
+可透過 `NEIGHBOR_UPDATE_DIAGNOSTICS_PATH` 明確啟用最多 128 筆本機更新驗證事件，檔案權限 0600；只記錄版本、通知狀態及功能可用布林值，不接受 API Key、轉錄或剪貼簿內容，預設不建立檔案。實機驗證期間使用此紀錄與原生 UI，完成後以一般啟動方式停用。

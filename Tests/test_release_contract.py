@@ -44,18 +44,12 @@ class ReleaseContractTests(unittest.TestCase):
         self.assertFalse(info["SUAutomaticallyUpdate"])
         self.assertFalse(info["SUAllowsAutomaticUpdates"])
         self.assertFalse(info["SUEnableSystemProfiling"])
-        main = (ROOT / "Sources/GroqVoiceInput/main.swift").read_text()
-        for constant in [
-            'keychainService = "tw.panh.FreeVoiceType.groq"',
-            'keychainAccount = "api-key"',
-            'hotKeyCodeDefaultsKey = "recordingHotKeyCode"',
-            'hotKeyModifiersDefaultsKey = "recordingHotKeyModifiers"',
-            'alternateHotKeyCodeDefaultsKey = "alternateHotKeyCode"',
-            'alternateHotKeyModifiersDefaultsKey = "alternateHotKeyModifiers"',
-            'relayHotKeyCodeDefaultsKey = "relayHotKeyCode"',
-            'relayHotKeyModifiersDefaultsKey = "relayHotKeyModifiers"',
-        ]:
-            self.assertIn(constant, main)
+        credentials = (ROOT / "Sources/GroqVoiceInput/KeychainStore.swift").read_text()
+        settings = (ROOT / "Sources/GroqVoiceInput/SettingsStore.swift").read_text()
+        for value in ["tw.panh.FreeVoiceType.groq", "api-key"]:
+            self.assertIn('"' + value + '"', credentials)
+        for value in ["recordingHotKeyCode", "recordingHotKeyModifiers", "alternateHotKeyCode", "alternateHotKeyModifiers", "relayHotKeyCode", "relayHotKeyModifiers", "clipboardHotKeyCode", "clipboardHotKeyModifiers"]:
+            self.assertIn('"' + value + '"', settings)
 
     def test_release_cannot_downgrade_published_versions(self):
         metadata.validate_progression("v1.3.0", ["v1.2.9", "windows-preview"])

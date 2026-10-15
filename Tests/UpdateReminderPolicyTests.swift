@@ -3,6 +3,16 @@ import Foundation
 @main
 struct UpdateReminderPolicyTests {
     static func main() {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let output = directory.appendingPathComponent("update.json")
+        let diagnostics = UpdateDiagnostics(url: output)
+        for _ in 0..<140 { diagnostics.record(.notificationQueued, succeeded: true) }
+        let entries = try! JSONDecoder().decode([UpdateDiagnostics.Entry].self, from: Data(contentsOf: output))
+        precondition(entries.count == 128 && entries.allSatisfy { $0.succeeded == true })
+        let attributes = try! FileManager.default.attributesOfItem(atPath: output.path)
+        precondition((attributes[.posixPermissions] as! NSNumber).intValue == 0o600)
+
         var policy = UpdateReminderPolicy()
         precondition(policy.nextAction(isBusy: false, notificationsAllowed: true) == .none)
         policy.receive(version: "1.2.0")
