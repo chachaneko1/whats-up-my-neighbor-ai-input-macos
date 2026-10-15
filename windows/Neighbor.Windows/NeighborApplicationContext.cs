@@ -22,6 +22,8 @@ namespace Neighbor.Windows
         private readonly Timer hideHud = new Timer { Interval = 3000 };
         private readonly SettingsStore settingsStore;
         private AppSettings settings;
+        private readonly CatConfiguration catConfiguration;
+        private readonly string configurationDirectory;
         private readonly VocabularyStore vocabulary;
         private readonly TemporaryAudioStore audioStore;
         private readonly WindowsCredentialStore credentials;
@@ -51,6 +53,12 @@ namespace Neighbor.Windows
             var unused = dispatcher.Handle;
             string directory = smoke ? Path.Combine(Path.GetTempPath(), "Neighbor-smoke-" + Guid.NewGuid().ToString("N")) : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WhatsUpMyNeighbor");
             Directory.CreateDirectory(directory);
+            configurationDirectory = directory;
+            string catConfigPath = Path.Combine(directory, "cat.config.json");
+            string template = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cat.config.json");
+            if (!smoke && !File.Exists(catConfigPath) && File.Exists(template))
+            { try { File.Copy(template, catConfigPath, false); } catch (IOException) { } catch (UnauthorizedAccessException) { } }
+            catConfiguration = smoke ? CatConfiguration.Defaults : CatConfiguration.Load(catConfigPath);
             settingsStore = new SettingsStore(Path.Combine(directory, "settings.json"));
             settings = settingsStore.Load();
             vocabulary = new VocabularyStore(Path.Combine(directory, "vocabulary.json"));
@@ -61,9 +69,9 @@ namespace Neighbor.Windows
             delivery = new WindowsTextDelivery();
             hotkeys = new HotKeyService();
             transcriber = new GroqTranscriber(credentials);
-            coordinator = new DictationCoordinator(recorder, transcriber, delivery, new WindowsTextNormalizer(), audioStore, vocabulary);
+            coordinator = new DictationCoordinator(recorder, transcriber, delivery, new WindowsTextNormalizer(), audioStore, vocabulary, catConfiguration: catConfiguration);
             learning = new LearningEngine(new WindowsWordSegmenter());
-            hud = new RecordingHud(); hud.ApplySettings(settings);
+            hud = new RecordingHud(catConfiguration); hud.ApplySettings(settings);
             toast = new LearningToast();
             tray = new NotifyIcon { Icon = Theme.LoadIcon(), Text = ProductName, ContextMenuStrip = menu, Visible = true };
             BuildMenu();
@@ -103,6 +111,7 @@ namespace Neighbor.Windows
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("文字、語言與錄音設定…", null, (_, e) => OpenSettings());
             menu.Items.Add("詞典與學習狀態…", null, (_, e) => OpenVocabulary());
+            menu.Items.Add("開啟貓咪設定資料夾（修改後重啟）", null, (_, e) => { try { System.Diagnostics.Process.Start(configurationDirectory); } catch { Notify("無法開啟設定資料夾。"); } });
             menu.Items.Add("設定／更換 Groq 金鑰…", null, (_, e) => OpenKey());
             menu.Items.Add("Windows 麥克風隱私設定", null, (_, e) => { try { System.Diagnostics.Process.Start("ms-settings:privacy-microphone"); } catch { Notify("請開啟 Windows 設定 → 隱私權與安全性 → 麥克風。"); } });
             menu.Items.Add("使用說明", null, (_, e) => OpenHelp());
@@ -112,6 +121,7 @@ namespace Neighbor.Windows
         }
         private void FirstRun()
         {
+            if (catConfiguration.LoadError != null) Notify("貓咪設定無效，已使用預設貓咪與問候。請檢查 cat.config.json 後重新啟動。");
             if (settingsStore.LoadError != null) Notify(settingsStore.LoadError);
             else if (!settings.IntroductionShown)
             {
@@ -144,7 +154,7 @@ namespace Neighbor.Windows
             hideHud.Stop(); hud.UpdateState(e.State, e.Message, e.IsGreeting); hud.Show();
             if (e.State == DictationState.Recording) SystemSounds.Asterisk.Play();
             if (e.State == DictationState.Transcribing) SystemSounds.Beep.Play();
-            if (e.State == DictationState.Idle) hideHud.Start();
+            if (e.State == DictationState.Idle) { hideHud.Interval = e.IsGreeting ? (int)(catConfiguration.DisplaySeconds * 1000) : 3000; hideHud.Start(); }
             if (e.State == DictationState.RetainedAudio) Notify(e.Message);
         }
         private async Task TickAsync()

@@ -32,6 +32,7 @@ namespace Neighbor.Core
         private Task cancellation;
         private TimeSpan? lastGreeting;
         private readonly Func<TimeSpan> greetingNow;
+        private readonly CatConfiguration catConfiguration;
         public DictationState State { get; private set; } = DictationState.Idle;
         public string Status { get; private set; } = "準備好了";
         public event EventHandler<StatusEventArgs> StatusChanged;
@@ -39,10 +40,11 @@ namespace Neighbor.Core
         public event Action<VocabularyPrompt> PromptChanged;
         public event Action<InsertionResult> Delivered;
         public DictationCoordinator(IAudioRecorder recorder, ITranscriber transcriber, ITextDelivery delivery,
-            ITextNormalizer normalizer, TemporaryAudioStore storage, VocabularyStore vocabulary, Func<DateTime> now = null, Func<TimeSpan> greetingNow = null)
+            ITextNormalizer normalizer, TemporaryAudioStore storage, VocabularyStore vocabulary, Func<DateTime> now = null, Func<TimeSpan> greetingNow = null, CatConfiguration catConfiguration = null)
         {
             this.recorder = recorder; this.transcriber = transcriber; this.delivery = delivery;
             this.normalizer = normalizer; this.storage = storage; this.vocabulary = vocabulary;
+            this.catConfiguration = catConfiguration ?? CatConfiguration.Defaults;
             var greetingClock = System.Diagnostics.Stopwatch.StartNew();
             this.greetingNow = greetingNow ?? (() => greetingClock.Elapsed);
             this.now = now ?? (() => DateTime.UtcNow); context = SynchronizationContext.Current;
@@ -118,12 +120,12 @@ namespace Neighbor.Core
                     if (string.IsNullOrWhiteSpace(text)) { Retain(current, "未清楚辨識到語音。可重試或重新錄音。"); return; }
                     // Handle only the completed, current utterance. Consume it even
                     // during cooldown so it never reaches clipboard/paste/learning.
-                    if (CatGreeting.IsMatch(text))
+                    if (catConfiguration.Matches(text))
                     {
                         var received = greetingNow();
-                        bool showGreeting = !lastGreeting.HasValue || (received - lastGreeting.Value).TotalSeconds >= 5;
+                        bool showGreeting = !lastGreeting.HasValue || (received - lastGreeting.Value).TotalSeconds >= catConfiguration.CooldownSeconds;
                         if (showGreeting) lastGreeting = received;
-                        Finish(current, showGreeting ? "what's up!" : "準備好了", showGreeting);
+                        Finish(current, showGreeting ? catConfiguration.Reply : "準備好了", showGreeting);
                         return;
                     }
                     if (LanguagePolicy.ShouldIntercept(text, current.Settings))

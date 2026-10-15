@@ -54,6 +54,17 @@ namespace Neighbor.Tests
                 check(hud.ClientSize == normalSize && hud.Controls.Cast<Control>().Select(c => c.Bounds).SequenceEqual(normalEyes), "Leaving greeting restores normal canvas and eye hit targets");
                 hud.UpdateState(DictationState.Idle, "已取消");
                 check(hud.AccessibleDescription.Contains("已取消"), "Cancellation restores ordinary HUD state");
+                hud.ApplySettings(new AppSettings { HudAtTop = true });
+                var normalLocation = hud.Location;
+                hud.UpdateState(DictationState.Idle, "what's up!", true);
+                hud.UpdateState(DictationState.Recording, "Recording");
+                check(hud.Location == normalLocation, "Clamped top greeting restores the configured normal HUD location");
+                hud.UpdateState(DictationState.Idle, "what's up!", true);
+                hud.ApplySettings(new AppSettings { HudAtTop = false });
+                hud.UpdateState(DictationState.Recording, "Recording");
+                var restoredLocation = hud.Location;
+                hud.ApplySettings(new AppSettings { HudAtTop = false });
+                check(hud.Location == restoredLocation, "Settings changed during greeting update the restored normal anchor");
                 hud.Hide();
             }
             using (var toast = new LearningToast())
@@ -67,7 +78,40 @@ namespace Neighbor.Tests
                 Descendants(toast).OfType<Button>().Single(button => button.Text == "不加入").PerformClick();
                 check(rejected && !toast.Visible, "Rejecting the learning toast cancels the candidate and hides it");
             }
+            CatCustomizationChecks(check);
             VocabularyChecks(check);
+        }
+
+        private static void CatCustomizationChecks(Action<bool, string> check)
+        {
+            string directory = Path.Combine(Path.GetTempPath(), "neighbor-cat-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+            try
+            {
+                string path = Path.Combine(directory, "cat.config.json");
+                File.WriteAllText(path, "{\"version\":1,\"image\":\"cat.png\",\"bubblePosition\":\"upperLeft\",\"tiltDegrees\":15,\"fontFamily\":\"MissingTestFont-123\",\"fontSize\":28,\"bold\":false}");
+                var config = CatConfiguration.Load(path);
+                using (var fallback = CatImage.Load(config)) check(fallback.Width > 1, "Missing custom PNG safely uses embedded cat");
+                using (var source = new Bitmap(40, 20)) source.Save(Path.Combine(directory, "cat.png"), ImageFormat.Png);
+                using (var image = CatImage.Load(config)) check(image.Width == 40 && image.Height == 20, "Valid local custom PNG loads as detached image");
+                var oversized = File.ReadAllBytes(Path.Combine(directory, "cat.png"));
+                oversized[16] = 0; oversized[17] = 0; oversized[18] = 16; oversized[19] = 0;
+                File.WriteAllBytes(Path.Combine(directory, "cat.png"), oversized);
+                using (var fallback = CatImage.Load(config)) check(fallback.Width != 40, "Oversized PNG dimensions are rejected before decoding");
+                File.WriteAllBytes(Path.Combine(directory, "cat.png"), new byte[4 * 1024 * 1024 + 1]);
+                using (var fallback = CatImage.Load(config)) check(fallback.Width != 40, "Oversized PNG file safely uses embedded cat");
+                File.WriteAllText(Path.Combine(directory, "cat.png"), "not a png");
+                using (var fallback = CatImage.Load(config)) check(fallback.Width != 40, "Corrupt custom image safely uses embedded cat");
+                using (var hud = new RecordingHud(config))
+                {
+                    hud.UpdateState(DictationState.Idle, "A longer friendly greeting for my own cat", true);
+                    using (var bitmap = new Bitmap(hud.Width, hud.Height)) hud.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
+                    check(hud.ClientSize.Width == 440, "Custom left bubble, positive tilt and unavailable font render with safe fallback");
+                    hud.UpdateState(DictationState.Recording, "Recording");
+                    check(hud.ClientSize.Width == 340, "Custom greeting restores ordinary recording layout");
+                }
+            }
+            finally { Directory.Delete(directory, true); }
         }
 
         public static void SaveScreenshots(string directory)

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "image": null,
+  "triggers": ["what's up", "whats up", "what is up"],
+  "reply": "what's up!",
+  "fontFamily": "Comic Sans MS",
+  "fontSize": 18,
+  "bold": true,
+  "bubblePosition": "upperRight",
+  "tiltDegrees": -10,
+  "cooldownSeconds": 5,
+  "displaySeconds": 3
+}

@@ -13,7 +13,7 @@ foreach ($name in $runtimeFiles) {
     if (!(Test-Path $source -PathType Leaf)) { throw "Missing runtime payload: $name" }
     Copy-Item $source $app
 }
-Copy-Item "$root/使用說明.txt", "$root/THIRD-PARTY-NOTICES.txt", "$root/../LICENSE" $app
+Copy-Item "$root/cat.config.json", "$root/CAT-CONFIG.md", "$root/使用說明.txt", "$root/THIRD-PARTY-NOTICES.txt", "$root/../LICENSE" $app
 $forbidden = Get-ChildItem $app -File | Where-Object { $_.Name -match 'Tests|\.pdb$|\.winmd$|\.wav$|\.m4a$|whisper|ffmpeg|python|torch' }
 if ($forbidden) { throw 'Unexpected files in installer payload' }
 $compiler = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6/ISCC.exe'

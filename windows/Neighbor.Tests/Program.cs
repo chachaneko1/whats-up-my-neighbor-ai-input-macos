@@ -37,6 +37,7 @@ namespace Neighbor.Tests
                     else
                     {
                         RunSuite("Text and vocabulary", () => TextVocabularyTests.Run(Check));
+                        RunSuite("Cat configuration", () => CatConfigurationTests.Run(Check));
                         RunSuite("Coordinator", () => CoordinatorTests.RunAsync(Check).GetAwaiter().GetResult());
                         RunSuite("Groq", () => GroqTests.RunAsync(Check).GetAwaiter().GetResult());
                         RunSuite("Platform", () => PlatformTests.Run(Check));

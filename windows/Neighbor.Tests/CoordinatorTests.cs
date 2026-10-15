@@ -179,6 +179,7 @@ namespace Neighbor.Tests
                 check(f.Delivery.Text == "嗯", "Cleanup that removes all content falls back to original utterance");
             }
             await GreetingChecks(check);
+            await CustomGreetingChecks(check);
             await CancellationReentrancyChecks(check);
             QueuedRecorderChecks(check);
         }
@@ -231,6 +232,30 @@ namespace Neighbor.Tests
                 f.Transcriber.Results.Enqueue(_ => Task.FromResult("what is up")); await f.Coordinator.RetryAsync();
                 check(greetings == 1 && f.Delivery.Count == 0 && !File.Exists(f.Recorder.Path), "Manual retry can consume greeting and clean retained audio");
             }
+        }
+
+        private static async Task CustomGreetingChecks(Action<bool, string> check)
+        {
+            string path = Path.GetTempFileName();
+            try
+            {
+                File.WriteAllText(path, "{\"version\":1,\"triggers\":[\"hello kitty\"],\"reply\":\"Meow!\",\"cooldownSeconds\":2}");
+                using (var f = new Fixture(CatConfiguration.Load(path)))
+                {
+                    int greetings = 0; string reply = null;
+                    f.Coordinator.StatusChanged += (_, e) => { if (e.IsGreeting) { greetings++; reply = e.Message; } };
+                    foreach (double advance in new[] { 0.0, 1.999, 0.001 })
+                    {
+                        f.Advance(advance); f.Transcriber.Results.Enqueue(_ => Task.FromResult("HELLO KITTY!"));
+                        await f.Coordinator.StartAsync(new AppSettings()); await f.Coordinator.StopAsync();
+                    }
+                    check(greetings == 2 && reply == "Meow!" && f.Delivery.Count == 0, "Custom trigger, reply and cooldown drive coordinator without delivery");
+                    f.Transcriber.Results.Enqueue(_ => Task.FromResult("what's up"));
+                    await f.Coordinator.StartAsync(new AppSettings()); await f.Coordinator.StopAsync();
+                    check(f.Delivery.Text == "what's up", "Replacing trigger list restores default phrase to ordinary dictation");
+                }
+            }
+            finally { File.Delete(path); }
         }
 
         private static async Task CancellationReentrancyChecks(Action<bool, string> check)
@@ -403,10 +428,10 @@ namespace Neighbor.Tests
             public readonly Recorder Recorder = new Recorder(); public readonly Transcriber Transcriber = new Transcriber(); public readonly Delivery Delivery = new Delivery();
             public readonly DictationCoordinator Coordinator; public readonly List<DictationState> States = new List<DictationState>();
             private DateTime now = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-            public Fixture()
+            public Fixture(CatConfiguration configuration = null)
             {
                 Directory.CreateDirectory(directory);
-                Coordinator = new DictationCoordinator(Recorder, Transcriber, Delivery, new Normalizer(), new TemporaryAudioStore(System.IO.Path.Combine(directory, "audio")), new VocabularyStore(System.IO.Path.Combine(directory, "vocabulary.json")), () => now, () => TimeSpan.FromTicks(now.Ticks));
+                Coordinator = new DictationCoordinator(Recorder, Transcriber, Delivery, new Normalizer(), new TemporaryAudioStore(System.IO.Path.Combine(directory, "audio")), new VocabularyStore(System.IO.Path.Combine(directory, "vocabulary.json")), () => now, () => TimeSpan.FromTicks(now.Ticks), configuration);
                 Coordinator.StatusChanged += (_, e) => States.Add(e.State);
             }
             public void Advance(double seconds) { now = now.AddSeconds(seconds); }

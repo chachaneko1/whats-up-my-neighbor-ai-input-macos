@@ -8,20 +8,25 @@ namespace Neighbor.Windows.UI
 {
     public sealed class RecordingHud : NonActivatingForm
     {
-        private readonly Image cat = Theme.LoadCatImage();
+        private readonly Image cat;
+        private readonly CatConfiguration configuration;
         private readonly CatActionArea cancel = new CatActionArea(), finish = new CatActionArea();
         private readonly ToolTip tips = new ToolTip();
-        private readonly Font greetingFont = CreateGreetingFont();
+        private readonly Font greetingFont;
         private DictationState state;
         private string message = "按快捷鍵開始說話";
         private double level;
         private bool levelKnown, atTop, greeting;
+        private Point normalLocation;
         public event Action StartRequested;
         public event Action FinishRequested;
         public event Action CancelRequested;
 
-        public RecordingHud()
+        public RecordingHud(CatConfiguration configuration = null)
         {
+            this.configuration = configuration ?? CatConfiguration.Defaults;
+            cat = CatImage.Load(this.configuration);
+            greetingFont = CreateGreetingFont(this.configuration);
             Font = new Font("Microsoft JhengHei UI", 9F);
             AutoScaleDimensions = new SizeF(96F, 96F);
             AutoScaleMode = AutoScaleMode.Dpi;
@@ -64,11 +69,12 @@ namespace Neighbor.Windows.UI
                 // Keep the cat and its eye targets in place while reserving room
                 // above/right for the reply. All geometry scales with the canvas.
                 var oldCat = CatBounds;
+                if (nextGreeting) normalLocation = Location;
                 float scale = ClientSize.Width / (greeting ? 440F : 340F);
                 greeting = nextGreeting;
                 ClientSize = new Size((int)Math.Round((greeting ? 440 : 340) * scale), (int)Math.Round((greeting ? 260 : 220) * scale));
                 var newCat = CatBounds;
-                Location = new Point(Left + oldCat.Left - newCat.Left, Top + oldCat.Top - newCat.Top);
+                Location = greeting ? new Point(Left + oldCat.Left - newCat.Left, Top + oldCat.Top - newCat.Top) : normalLocation;
                 LayoutHitAreas();
                 if (Visible) ClampToScreen();
             }
@@ -95,13 +101,16 @@ namespace Neighbor.Windows.UI
         {
             var area = Screen.FromPoint(Cursor.Position).WorkingArea;
             Location = new Point(area.Left + (area.Width - Width) / 2, atTop ? area.Top + 12 : area.Bottom - Height - 12);
+            float scale = ClientSize.Width / (greeting ? 440F : 340F);
+            normalLocation = new Point(area.Left + (area.Width - (int)Math.Round(340 * scale)) / 2,
+                atTop ? area.Top + 12 : area.Bottom - (int)Math.Round(220 * scale) - 12);
         }
         private Rectangle CatBounds
         {
             get
             {
                 float scale = ClientSize.Width / (greeting ? 440F : 340F);
-                return new Rectangle(0, greeting ? (int)(80 * scale) : 0, (int)(340 * scale), (int)(340 * .4978 * scale));
+                return new Rectangle(greeting && configuration.BubblePosition == "upperLeft" ? (int)(100 * scale) : 0, greeting ? (int)(80 * scale) : 0, (int)(340 * scale), (int)(340 * .4978 * scale));
             }
         }
         private void ClampToScreen()
@@ -115,18 +124,18 @@ namespace Neighbor.Windows.UI
             cancel.Bounds = new Rectangle(bounds.Left + (int)(bounds.Width * .14), bounds.Top + (int)(bounds.Height * .53), (int)(bounds.Width * .18), (int)(bounds.Height * .29));
             finish.Bounds = new Rectangle(bounds.Left + (int)(bounds.Width * .67), bounds.Top + (int)(bounds.Height * .53), (int)(bounds.Width * .19), (int)(bounds.Height * .29));
         }
-        private static Font CreateGreetingFont()
+        private static Font CreateGreetingFont(CatConfiguration configuration)
         {
-            foreach (string name in new[] { "Comic Sans MS", "Segoe UI", "Arial" })
+            foreach (string name in new[] { configuration.FontFamily, "Comic Sans MS", "Segoe UI", "Arial" })
             {
                 try
                 {
                     using (var family = new FontFamily(name))
-                        if (family.IsStyleAvailable(FontStyle.Bold)) return new Font(family, 18F, FontStyle.Bold, GraphicsUnit.Pixel);
+                        if (family.IsStyleAvailable(configuration.Bold ? FontStyle.Bold : FontStyle.Regular)) return new Font(family, (float)configuration.FontSize, configuration.Bold ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Pixel);
                 }
                 catch (ArgumentException) { }
             }
-            return new Font(FontFamily.GenericSansSerif, 18F, FontStyle.Bold, GraphicsUnit.Pixel);
+            return new Font(FontFamily.GenericSansSerif, (float)configuration.FontSize, configuration.Bold ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Pixel);
         }
         private void PaintGreeting(Graphics graphics)
         {
@@ -135,8 +144,9 @@ namespace Neighbor.Windows.UI
             {
                 float scale = ClientSize.Width / 440F;
                 graphics.ScaleTransform(scale, scale);
-                graphics.TranslateTransform(320, 54);
-                graphics.RotateTransform(-10);
+                bool left = configuration.BubblePosition == "upperLeft";
+                graphics.TranslateTransform(left ? 120 : 320, 54);
+                graphics.RotateTransform((float)configuration.TiltDegrees);
                 var bubble = new Rectangle(-90, -28, 180, 56);
                 using (var shape = Rounded(bubble, 18))
                 using (var background = new SolidBrush(Color.FromArgb(51, 65, 87)))
@@ -144,9 +154,20 @@ namespace Neighbor.Windows.UI
                 using (var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
                 {
                     graphics.FillPath(background, shape);
-                    graphics.FillPolygon(background, new[] { new Point(-66, 25), new Point(-72, 43), new Point(-42, 25) });
+                    int direction = left ? -1 : 1;
+                    graphics.FillPolygon(background, new[] { new Point(direction * -66, 25), new Point(direction * -72, 43), new Point(direction * -42, 25) });
                     graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-                    graphics.DrawString(message, greetingFont, ink, bubble, format);
+                    var textBounds = new RectangleF(-80, -23, 160, 46);
+                    format.Trimming = StringTrimming.EllipsisCharacter;
+                    float size = greetingFont.Size;
+                    while (size > 10)
+                    {
+                        using (var candidate = new Font(greetingFont.FontFamily, size, greetingFont.Style, GraphicsUnit.Pixel))
+                            if (graphics.MeasureString(message, candidate, (int)textBounds.Width, format).Height <= textBounds.Height) break;
+                        size -= 1;
+                    }
+                    using (var fitted = new Font(greetingFont.FontFamily, size, greetingFont.Style, GraphicsUnit.Pixel))
+                        graphics.DrawString(message, fitted, ink, textBounds, format);
                 }
             }
             finally { graphics.Restore(saved); }
