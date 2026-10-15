@@ -4,6 +4,12 @@
 
 AI 語音輸入本身沒有帳號系統、分析工具、廣告 SDK 或開發者後端。開始錄音後，音訊會直接從使用者的 Mac 傳送至 Groq Speech-to-Text API，以產生文字轉錄。使用者應自行閱讀並同意 Groq 的服務條款與隱私政策。
 
+## 更新檢查與通知
+
+App 使用 Sparkle，每天向 GitHub Releases 讀取公開版本清單。GitHub 及其下載服務會收到一般網路請求資訊（例如 IP、HTTP User-Agent）；不傳送 Groq API Key、錄音、轉錄文字、快捷鍵、貓咪設定或自訂圖片。Sparkle 系統統計功能關閉。可從選單取消「自動偵測新版本」。
+
+發現新版後由使用者決定是否下載安裝，不會背景自動安裝。更新通知使用 macOS 本機通知中心，不使用開發者推播伺服器；拒絕通知時仍可使用 App 內提示與選單。更新偏好及略過版本記錄存在本機 UserDefaults，下載暫存由 Sparkle 管理。更新只替換 App 本體，保留既有 Keychain、快捷鍵與外部 cat.config.json。
+
 ## 本機資料
 
 - Groq API Key：以 generic password 形式儲存在 macOS Keychain，service 為 `tw.panh.FreeVoiceType.groq`。
@@ -19,7 +25,7 @@ AI 語音輸入本身沒有帳號系統、分析工具、廣告 SDK 或開發者
 
 - 麥克風：錄製使用者主動觸發的語音。
 - 輔助使用：本機錄音只模擬 `Command + V`。只有已配對 iPhone 明確送出 `貼上並送出` 動作、且 Mac 再次驗證同一輸入框時，才會額外模擬一次 Enter。
-- 網路：用於呼叫 Groq Speech-to-Text API，以及透過加密的 Multipeer Connectivity 與附近已配對 iPhone 傳送文字、目標名稱與明確動作。遠端資料不經過開發者後端。
+- 網路：用於向 GitHub 檢查／下載使用者選擇的更新、呼叫 Groq Speech-to-Text API，以及透過加密的 Multipeer Connectivity 與附近已配對 iPhone 傳送文字、目標名稱與明確動作。遠端資料不經過開發者後端。
 
 ## 刪除
 

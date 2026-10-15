@@ -7,26 +7,36 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: macos-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: macos-14
+    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
       - name: Build and verify app
         run: ./scripts/build.sh
       - name: Existing offline regression tests
-        run: |
-          ./scripts/test-audio-input-policy.sh
-          ./scripts/test-legacy-parity.sh
-          ./scripts/test-text-pipeline.sh
-          ./scripts/test-transcription-client.sh
-          swiftc -swift-version 5 Sources/GroqVoiceInput/RemoteMessages.swift Sources/GroqVoiceInput/RemoteTargetValidationPolicy.swift Tests/RemoteProtocolTests.swift -o build/RemoteProtocolTests
-          ./build/RemoteProtocolTests
-      - name: Cat configuration, lifecycle, and native AppKit renders
-        run: ./scripts/test-cat.sh
+        run: ./scripts/test-all.sh
+      - name: Package CI build
+        run: PACKAGE_EXISTING_BUILD=1 ./scripts/package-release.sh
+      - name: Upload development installer
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: macos-development-installer
+          path: |
+            dist/*.zip
+            dist/*.sha256
+          retention-days: 7
+          if-no-files-found: error
       - name: Upload native macOS cat captures
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: macos-cat-native-renders
           path: build/cat-render/

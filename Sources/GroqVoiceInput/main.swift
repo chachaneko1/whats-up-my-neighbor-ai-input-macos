@@ -568,6 +568,11 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     private var pendingRetryURL: URL?
     /// 本段錄音已使用的額外請求次數，上限 `maximumExtraRequestsPerRecording`。
     private var extraRequestCount = 0
+    private lazy var appUpdater = AppUpdateController { [weak self] in
+        guard let self else { return true }
+        return self.micRecorder.isBusy || self.awaitingRecordingFinish || self.isUploading
+            || self.pendingRetryURL != nil || NSApp.modalWindow != nil
+    }
     private let remoteBridge = MacRemoteBridge()
     private let remoteTargetController = RemoteTargetController()
 
@@ -591,6 +596,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         }
         configureRecorder()
         configureRemoteInput()
+        appUpdater.start()
 
         if readAPIKey() == nil {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
@@ -700,6 +706,9 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         let catSettings = NSMenuItem(title: "開啟貓咪設定資料夾…", action: #selector(openCatSettings), keyEquivalent: "")
         catSettings.target = self
         menu.addItem(catSettings)
+        menu.addItem(NSMenuItem.separator())
+        appUpdater.addMenuItems(to: menu)
+        menu.addItem(NSMenuItem.separator())
         let quit = NSMenuItem(title: "結束 AI 語音輸入", action: #selector(quitApp), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
