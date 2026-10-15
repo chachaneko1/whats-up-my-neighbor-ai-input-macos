@@ -2,40 +2,40 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleDevelopmentRegion</key>
-    <string>zh_TW</string>
-    <key>CFBundleDisplayName</key>
-    <string>AI 語音輸入</string>
-    <key>CFBundleExecutable</key>
-    <string>FreeVoiceType</string>
-    <key>CFBundleIdentifier</key>
-    <string>tw.panh.FreeVoiceType</string>
-    <key>CFBundleIconFile</key>
-    <string>AppIcon</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-    <key>CFBundleName</key>
-    <string>AI 語音輸入</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>1.1.0</string>
-    <key>CFBundleVersion</key>
-    <string>3</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>13.0</string>
-    <key>LSUIElement</key>
-    <true/>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>錄下你的語音並送到 Groq Whisper 雲端辨識，再貼到目前游標位置。</string>
-    <key>NSLocalNetworkUsageDescription</key>
-    <string>讓已配對的 iPhone 在附近傳送你確認過的文字與貼上動作到這台 Mac。</string>
-    <key>NSBonjourServices</key>
-    <array>
-        <string>_groq-voice._tcp</string>
-        <string>_groq-voice._udp</string>
-    </array>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>zh_TW</string>
+	<key>CFBundleDisplayName</key>
+	<string>What's up my neighbor</string>
+	<key>CFBundleExecutable</key>
+	<string>FreeVoiceType</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>tw.panh.FreeVoiceType</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>What's up my neighbor</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.2.2</string>
+	<key>CFBundleVersion</key>
+	<string>24</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_groq-voice._tcp</string>
+		<string>_groq-voice._udp</string>
+	</array>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>讓已配對的 iPhone 在附近傳送你確認過的文字與貼上動作到這台 Mac。</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>錄下你的語音並送到 Groq Whisper 雲端辨識，再貼到目前游標位置。</string>
 </dict>
 </plist>

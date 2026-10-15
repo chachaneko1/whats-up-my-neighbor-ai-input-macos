@@ -219,6 +219,7 @@ enum GroqTranscriptionResponse {
 
 enum GroqTranscriptionClient {
     /// 讀檔、發請求、解析。錯誤訊息與重構前完全相同。
+    @discardableResult
     static func transcribe(
         audioURL: URL,
         apiKey: String,
@@ -226,14 +227,15 @@ enum GroqTranscriptionClient {
         prompt: String,
         format: TranscriptionFormat,
         session: URLSession = .shared,
+        startImmediately: Bool = true,
         completion: @escaping (Result<TranscriptionResult, Error>) -> Void
-    ) {
+    ) -> URLSessionDataTask? {
         let audio: Data
         do {
             audio = try Data(contentsOf: audioURL)
         } catch {
             completion(.failure(VoiceTypeError.message("無法讀取錄音：\(error.localizedDescription)")))
-            return
+            return nil
         }
 
         let request = GroqTranscriptionRequest.make(
@@ -245,7 +247,7 @@ enum GroqTranscriptionClient {
             boundary: "Boundary-\(UUID().uuidString)"
         )
 
-        session.dataTask(with: request) { data, response, error in
+        let task = session.dataTask(with: request) { data, response, error in
             if let error {
                 completion(.failure(VoiceTypeError.message("雲端辨識失敗：\(error.localizedDescription)")))
                 return
@@ -263,6 +265,8 @@ enum GroqTranscriptionClient {
             } catch {
                 completion(.failure(error))
             }
-        }.resume()
+        }
+        if startImmediately { task.resume() }
+        return task
     }
 }

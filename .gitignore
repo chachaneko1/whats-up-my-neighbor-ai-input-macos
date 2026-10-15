@@ -7,3 +7,8 @@ dist/
 .build/
 xcuserdata/
 *.xcuserstate
+
+# Python meeting research; audio/transcripts stay in ignored build/.
+__pycache__/
+*.pyc
+.venv/

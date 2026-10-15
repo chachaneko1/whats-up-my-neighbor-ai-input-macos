@@ -1,0 +1,11 @@
+Use case: precise-object-edit / background-extraction
+Asset type: transparent PNG base layer for an interactive speech-input UI.
+Input image 1 is the selected design reference. Isolate and faithfully reproduce ONLY the large central near-black cat head logo from this reference. Do not reproduce the sheet, titles, labels, or small examples.
+
+Keep the existing simple silhouette and graphic identity: broad rounded rectangular bottom, two large integrated triangular cat ears with softly rounded tips, pure white rounded X as left eye, pure white rounded checkmark as right eye, tiny white rounded horizontal dash as mouth, matching source geometry. Preserve the wide, low proportions, broad cheeks, large ears, and sparse symbol placement.
+
+Change only one structural component: remove ALL black equalizer / sound-wave bars between the ears. Replace that entire section with a straight flat horizontal near-black forehead bridge connecting the inner bases of the ears. The space ABOVE this bridge and BETWEEN ears must be empty alpha transparency; it is reserved for a separate dynamic audio-wave layer. No static bars, ridges, scallops, tufts, or waveform.
+
+Composition: requested canvas 1024 x 512, landscape 2:1. Head body around 950 pixels wide, left edge about x=37, right x=987, top of ear tips y=50, flat forehead bridge approximately y=210, bottom y=470. Keep the inner ear gap about x=275 through x=750. Center the white X around x=225,y=325, the check around x=800,y=325, and the small mouth around x=512,y=410, using proportional spacing from the original. A modest even transparent margin, no clipping.
+
+Style: sharp clean flat graphic, solid near-black #171717 silhouette, solid white symbols, antialiased clean edges. No outline, no shadow, no glow, no gradient, no texture, no highlights. All outside pixels fully transparent. This is a faithful production asset of the selected mark, not a new visual direction. Output one head only. No text or frame.

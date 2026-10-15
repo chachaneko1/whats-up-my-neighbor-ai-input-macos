@@ -2,52 +2,37 @@ import AppKit
 import ApplicationServices
 
 final class RemoteTargetController {
-    var onTargetChange: ((String) -> Void)?
+    struct Environment {
+        var schedule: (TimeInterval, @escaping () -> Void) -> Void
+        var postSubmitEvent: () -> Bool
 
-    private struct LockedTarget {
-        let descriptor: RemoteTargetDescriptor
-        let pid: pid_t
-        let bundleIdentifier: String
-        let element: AXUIElement
-    }
-
-    private enum TargetError: Error {
-        case accessibilityDenied
-        case noEditableTarget
-        case targetChanged
-        case targetExpired
-
-        var result: RemoteResultPayload {
-            switch self {
-            case .accessibilityDenied:
-                return .init(
-                    success: false,
-                    code: .accessibilityDenied,
-                    message: "Mac 尚未允許輔助使用，因此不能鎖定或控制輸入框。"
-                )
-            case .noEditableTarget:
-                return .init(
-                    success: false,
-                    code: .noEditableTarget,
-                    message: "Mac 目前沒有可編輯的文字輸入框。請先點一下聊天輸入框。"
-                )
-            case .targetChanged:
-                return .init(
-                    success: false,
-                    code: .targetChanged,
-                    message: "Mac 的 App、視窗或輸入框已改變，為避免誤送已取消操作。"
-                )
-            case .targetExpired:
-                return .init(
-                    success: false,
-                    code: .targetExpired,
-                    message: "Mac 輸入目標已逾時，請重新開始一次錄音。"
-                )
-            }
+        static var system: Environment {
+            Environment(
+                schedule: { delay, action in
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: action)
+                },
+                postSubmitEvent: { RemoteTargetController.postSubmitEvent() }
+            )
         }
     }
 
-    private var lockedTarget: LockedTarget?
+    var onTargetChange: ((String) -> Void)?
+
+    private let focusTargets: FocusTargetService
+    private let textInsertion: TextInsertionService
+    private let environment: Environment
+    private var lockedTarget: FocusTarget?
+
+    init(
+        focusTargets: FocusTargetService = FocusTargetService(),
+        textInsertion: TextInsertionService? = nil,
+        environment: Environment = .system
+    ) {
+        self.focusTargets = focusTargets
+        self.textInsertion = textInsertion ?? TextInsertionService(focusTargets: focusTargets)
+        self.environment = environment
+    }
+
     private var processedRequestIDs = Set<String>()
 
     func handle(_ message: RemoteMessage, send: @escaping (RemoteMessage) -> Bool) {
@@ -91,20 +76,20 @@ final class RemoteTargetController {
 
     private func handleTargetRequest(_ request: RemoteMessage, send: @escaping (RemoteMessage) -> Bool) {
         do {
-            let target = try captureTarget()
+            let target = try focusTargets.captureTarget(ttl: 300)
             lockedTarget = target
-            onTargetChange?("已鎖定：\(target.descriptor.displayName)")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 300) { [weak self] in
-                guard self?.lockedTarget?.descriptor.sessionID == target.descriptor.sessionID else { return }
+            onTargetChange?("已鎖定：\(target.remoteDescriptor.displayName)")
+            environment.schedule(300) { [weak self] in
+                guard self?.lockedTarget?.remoteDescriptor.sessionID == target.remoteDescriptor.sessionID else { return }
                 self?.clearTarget()
             }
             _ = send(RemoteMessage(
                 kind: .targetResponse,
                 replyTo: request.id,
-                target: target.descriptor,
-                targetSessionID: target.descriptor.sessionID
+                target: target.remoteDescriptor,
+                targetSessionID: target.remoteDescriptor.sessionID
             ))
-        } catch let error as TargetError {
+        } catch let error as FocusTargetError {
             clearTarget()
             sendResult(for: request, payload: error.result, send: send)
         } catch {
@@ -132,169 +117,91 @@ final class RemoteTargetController {
             return
         }
 
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(trimmed, forType: .string)
+        let target = lockedTarget.flatMap { $0.sessionID == requestedSessionID ? $0 : nil }
+        let insertion = textInsertion.insert(trimmed, target: target, captureFailure: .targetChanged)
+        guard insertion == .pasteEventPosted, let target else {
+            clearTarget()
+            let payload: RemoteResultPayload
+            switch insertion {
+            case .copiedOnly(let reason):
+                payload = result(for: reason)
+            case .copyFailed:
+                payload = .init(success: false, code: .internalError, message: "無法將文字放入 Mac 剪貼簿，尚未執行貼上。")
+            case .pasteEventPosted:
+                payload = FocusTargetError.targetChanged.result
+            }
+            sendResult(for: request, payload: payload, send: send)
+            return
+        }
 
-        do {
-            let target = try validateTarget(sessionID: requestedSessionID)
-            postKey(virtualKey: 9, flags: .maskCommand)
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) { [weak self] in
-                guard let self else { return }
-                if action.submits {
-                    do {
-                        _ = try self.validateTarget(sessionID: target.descriptor.sessionID)
-                        self.postKey(virtualKey: 36, flags: [])
-                        self.clearTarget()
-                        self.sendResult(
-                            for: request,
-                            payload: .init(success: true, code: .submitted, message: "文字已貼上並送出。"),
-                            send: send
-                        )
-                    } catch let error as TargetError {
-                        self.clearTarget()
-                        self.sendResult(for: request, payload: error.result, send: send)
-                    } catch {
-                        self.clearTarget()
-                        self.sendResult(
-                            for: request,
-                            payload: .init(success: false, code: .internalError, message: "文字已保留在剪貼簿，但無法確認送出。"),
-                            send: send
-                        )
+        environment.schedule(0.28) { [weak self] in
+            guard let self else { return }
+            if action.submits {
+                do {
+                    guard self.lockedTarget?.sessionID == target.sessionID else {
+                        throw FocusTargetError.targetChanged
                     }
-                } else {
-                    self.clearTarget()
+                    try self.focusTargets.validateTarget(target)
+                    guard self.environment.postSubmitEvent() else {
+                        self.clearTarget(ifMatching: target.sessionID)
+                        self.sendResult(
+                            for: request,
+                            payload: .init(success: false, code: .internalError, message: "文字已保留在剪貼簿，但無法發送送出按鍵。"),
+                            send: send
+                        )
+                        return
+                    }
+                    self.clearTarget(ifMatching: target.sessionID)
                     self.sendResult(
                         for: request,
-                        payload: .init(success: true, code: .pasted, message: "文字已貼到 Mac，沒有送出。"),
+                        payload: .init(success: true, code: .submitted, message: "已發送貼上與送出按鍵，請確認 Mac 目標 App 的結果。"),
+                        send: send
+                    )
+                } catch let error as FocusTargetError {
+                    self.clearTarget(ifMatching: target.sessionID)
+                    self.sendResult(for: request, payload: error.result, send: send)
+                } catch {
+                    self.clearTarget(ifMatching: target.sessionID)
+                    self.sendResult(
+                        for: request,
+                        payload: .init(success: false, code: .internalError, message: "文字已保留在剪貼簿，但無法確認送出。"),
                         send: send
                     )
                 }
+            } else {
+                self.clearTarget(ifMatching: target.sessionID)
+                self.sendResult(
+                    for: request,
+                    payload: .init(success: true, code: .pasted, message: "已向 Mac 發送貼上按鍵，沒有送出；請確認目標 App 的結果。"),
+                    send: send
+                )
             }
-        } catch let error as TargetError {
-            clearTarget()
-            sendResult(for: request, payload: error.result, send: send)
-        } catch {
-            clearTarget()
-            sendResult(
-                for: request,
-                payload: .init(success: false, code: .internalError, message: "文字已保留在剪貼簿，但 Mac 無法執行操作。"),
-                send: send
-            )
         }
     }
 
-    private func captureTarget() throws -> LockedTarget {
-        guard AXIsProcessTrusted() else { throw TargetError.accessibilityDenied }
-        guard let frontmost = NSWorkspace.shared.frontmostApplication,
-              frontmost.processIdentifier != ProcessInfo.processInfo.processIdentifier,
-              let element = focusedElement(),
-              isEditable(element) else { throw TargetError.noEditableTarget }
-
-        var elementPID: pid_t = 0
-        guard AXUIElementGetPid(element, &elementPID) == .success,
-              elementPID == frontmost.processIdentifier else { throw TargetError.noEditableTarget }
-
-        let windowTitle = focusedWindowTitle(pid: elementPID) ?? ""
-        let appName = frontmost.localizedName ?? "Mac App"
-        let bundleIdentifier = frontmost.bundleIdentifier ?? ""
-        let descriptor = RemoteTargetDescriptor(
-            sessionID: UUID().uuidString,
-            macName: Host.current().localizedName ?? "Mac",
-            appName: appName,
-            windowTitle: windowTitle,
-            expiresAt: Date().addingTimeInterval(300)
-        )
-        return LockedTarget(
-            descriptor: descriptor,
-            pid: elementPID,
-            bundleIdentifier: bundleIdentifier,
-            element: element
-        )
+    private func clearTarget(ifMatching sessionID: String) {
+        guard lockedTarget?.sessionID == sessionID else { return }
+        clearTarget()
     }
 
-    private func validateTarget(sessionID: String) throws -> LockedTarget {
-        guard AXIsProcessTrusted() else { throw TargetError.accessibilityDenied }
-        guard let lockedTarget,
-              lockedTarget.descriptor.sessionID == sessionID else { throw TargetError.targetChanged }
-        let frontmost = NSWorkspace.shared.frontmostApplication
-        let currentElement = focusedElement()
-        let failure = RemoteTargetValidationPolicy.evaluate(
-            expectedPID: lockedTarget.pid,
-            currentPID: frontmost?.processIdentifier,
-            expectedBundleIdentifier: lockedTarget.bundleIdentifier,
-            currentBundleIdentifier: frontmost?.bundleIdentifier ?? "",
-            expectedWindowTitle: lockedTarget.descriptor.windowTitle,
-            currentWindowTitle: focusedWindowTitle(pid: lockedTarget.pid) ?? "",
-            elementMatches: currentElement.map { CFEqual($0, lockedTarget.element) } ?? false,
-            isEditable: currentElement.map(isEditable) ?? false,
-            expiresAt: lockedTarget.descriptor.expiresAt
-        )
-        switch failure {
-        case .expired: throw TargetError.targetExpired
-        case .changed: throw TargetError.targetChanged
-        case nil: break
+    private func result(for reason: TextInsertionCopyReason) -> RemoteResultPayload {
+        switch reason {
+        case .accessibilityDenied: return FocusTargetError.accessibilityDenied.result
+        case .noEditableTarget: return FocusTargetError.noEditableTarget.result
+        case .targetChanged, .noTarget: return FocusTargetError.targetChanged.result
+        case .targetExpired: return FocusTargetError.targetExpired.result
+        case .eventUnavailable:
+            return .init(success: false, code: .internalError, message: "文字已保留在剪貼簿，但無法發送貼上按鍵。")
         }
-        return lockedTarget
     }
 
-    private func focusedElement() -> AXUIElement? {
-        let systemWide = AXUIElementCreateSystemWide()
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(
-            systemWide,
-            kAXFocusedUIElementAttribute as CFString,
-            &value
-        ) == .success,
-        let value else { return nil }
-        return (value as! AXUIElement)
-    }
-
-    private func focusedWindowTitle(pid: pid_t) -> String? {
-        let app = AXUIElementCreateApplication(pid)
-        var windowValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(
-            app,
-            kAXFocusedWindowAttribute as CFString,
-            &windowValue
-        ) == .success,
-        let windowValue else { return nil }
-        let window = windowValue as! AXUIElement
-        return stringAttribute(kAXTitleAttribute, from: window)
-    }
-
-    private func isEditable(_ element: AXUIElement) -> Bool {
-        let subrole = stringAttribute(kAXSubroleAttribute, from: element)
-        guard subrole != "AXSecureTextField" else { return false }
-
-        var settable = DarwinBoolean(false)
-        let result = AXUIElementIsAttributeSettable(
-            element,
-            kAXValueAttribute as CFString,
-            &settable
-        )
-        guard result == .success, settable.boolValue else { return false }
-
-        let role = stringAttribute(kAXRoleAttribute, from: element) ?? ""
-        return ["AXTextField", "AXTextArea", "AXComboBox"].contains(role)
-            || role.localizedCaseInsensitiveContains("text")
-    }
-
-    private func stringAttribute(_ attribute: String, from element: AXUIElement) -> String? {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else { return nil }
-        return value as? String
-    }
-
-    private func postKey(virtualKey: CGKeyCode, flags: CGEventFlags) {
+    private static func postSubmitEvent() -> Bool {
         let source = CGEventSource(stateID: .combinedSessionState)
-        let keyDown = CGEvent(keyboardEventSource: source, virtualKey: virtualKey, keyDown: true)
-        let keyUp = CGEvent(keyboardEventSource: source, virtualKey: virtualKey, keyDown: false)
-        keyDown?.flags = flags
-        keyUp?.flags = flags
-        keyDown?.post(tap: .cghidEventTap)
-        keyUp?.post(tap: .cghidEventTap)
+        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 36, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 36, keyDown: false) else { return false }
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
+        return true
     }
 
     private func sendResult(
@@ -308,5 +215,48 @@ final class RemoteTargetController {
             targetSessionID: request.targetSessionID,
             result: payload
         ))
+    }
+}
+
+private extension FocusTarget {
+    var remoteDescriptor: RemoteTargetDescriptor {
+        RemoteTargetDescriptor(
+            sessionID: sessionID,
+            macName: macName,
+            appName: appName,
+            windowTitle: windowTitle,
+            expiresAt: expiresAt
+        )
+    }
+}
+
+private extension FocusTargetError {
+    var result: RemoteResultPayload {
+        switch self {
+        case .accessibilityDenied:
+            return .init(
+                success: false,
+                code: .accessibilityDenied,
+                message: "Mac 尚未允許輔助使用，因此不能鎖定或控制輸入框。"
+            )
+        case .noEditableTarget:
+            return .init(
+                success: false,
+                code: .noEditableTarget,
+                message: "Mac 目前沒有可編輯的文字輸入框。請先點一下聊天輸入框。"
+            )
+        case .targetChanged:
+            return .init(
+                success: false,
+                code: .targetChanged,
+                message: "Mac 的 App、視窗或輸入框已改變，為避免誤送已取消操作。"
+            )
+        case .targetExpired:
+            return .init(
+                success: false,
+                code: .targetExpired,
+                message: "Mac 輸入目標已逾時，請重新開始一次錄音。"
+            )
+        }
     }
 }

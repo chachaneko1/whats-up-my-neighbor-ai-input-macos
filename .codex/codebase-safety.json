@@ -1,0 +1,276 @@
+{
+  "$schema": "safely-modify-codebase/v1",
+  "status": "ready",
+  "project": {
+    "name": "groq-ai-voice-input-macos",
+    "purpose": "Native macOS menu-bar Groq dictation with opt-in paired iPhone paste.",
+    "repo_root": ".",
+    "last_reviewed": "2026-10-15"
+  },
+  "instructions": {
+    "files": [
+      "README.md",
+      "PRIVACY.md",
+      "SECURITY.md",
+      "docs/REFACTOR_PLAN.md",
+      "docs/REFACTOR_VALIDATION.md",
+      "docs/LOCAL_BASELINE.md",
+      "PRODUCT_SPEC.md",
+      "docs/VOCABULARY_IMPLEMENTATION.md",
+      "docs/MEETING_PHASE1_VALIDATION.md",
+      "docs/NEKO_NATIVE_PLAN.md",
+      "docs/NEIGHBOR_REPAIR_2026-10-15.md",
+      "docs/design/living-signal/VOCABULARY_BUBBLE.md",
+      "docs/CLIPBOARD_HISTORY.md"
+    ],
+    "precedence_notes": [
+      "Current user requested isolated branch refactoring while preserving the original dirty checkout.",
+      "Sibling local PRODUCT_SPEC and plan describe unmerged vocabulary work; do not claim it exists on this branch.",
+      "Preserve main behavior where historical skill defaults differ (AVCaptureSession, configurable language, bounded retry).",
+      "2026-10-14: user explicitly authorized native Living Signal UI integration and local installation; retain original app backup and existing install path.",
+      "2026-10-15: user named the app What's up my neighbor and authorized black-cat branding, auto-paste repair and opt-out automatic vocabulary learning.",
+      "2026-10-15: user explicitly selected a cream-yellow comic speech bubble with black outlines, compact typography and no green bubble styling; retain the original black cat and six-second hover-paused learning flow.",
+      "2026-10-15: user requested at least five clipboard history slots; implement ten locally retained text items, recoverable from the cat menu, without changing existing dictation paste or relay submission policy.",
+      "2026-10-15: user explicitly chose text-only clipboard history including dictation; do not capture images. Migrate valid build21 history by retaining text and removing image entries."
+    ]
+  },
+  "stack": {
+    "languages": [
+      "Swift",
+      "Shell",
+      "Markdown"
+    ],
+    "frameworks": [
+      "AppKit",
+      "AVFoundation",
+      "Carbon",
+      "Security",
+      "ApplicationServices",
+      "MultipeerConnectivity"
+    ],
+    "package_managers": []
+  },
+  "commands": {
+    "install": [],
+    "test": [
+      "./scripts/test-all.sh"
+    ],
+    "lint": [],
+    "typecheck": [],
+    "build": [
+      "./scripts/build.sh"
+    ],
+    "notes": "Offline suites compile standalone Swift executables. Cross-repo protocol parity requires an explicit iOS file path via scripts/check-remote-protocol-parity.sh. No package manager or linter. Meeting core tests use Python standard library; optional model dependencies live in an isolated ignored build environment."
+  },
+  "architecture": {
+    "entry_points": [
+      "Sources/GroqVoiceInput/main.swift"
+    ],
+    "feature_roots": [
+      "Sources/GroqVoiceInput",
+      "Tests",
+      "Packaging",
+      "experiments/meeting_phase1",
+      "Tests/meeting",
+      "docs/design/living-signal"
+    ],
+    "shared_modules": [
+      "Sources/GroqVoiceInput/LanguagePolicy.swift",
+      "Sources/GroqVoiceInput/TextPostProcessor.swift",
+      "Sources/GroqVoiceInput/RemoteMessages.swift",
+      "Sources/GroqVoiceInput/FocusTargetService.swift",
+      "Sources/GroqVoiceInput/TextInsertionService.swift"
+    ],
+    "state_and_data": [
+      "Sources/GroqVoiceInput/DictationCoordinator.swift",
+      "Sources/GroqVoiceInput/SettingsStore.swift",
+      "Sources/GroqVoiceInput/KeychainStore.swift",
+      "Sources/GroqVoiceInput/TemporaryRecordingStore.swift",
+      "Sources/GroqVoiceInput/MacVocabularyStore.swift",
+      "Sources/GroqVoiceInput/VocabularyLearningStore.swift",
+      "Sources/GroqVoiceInput/NekoRecordingHUD.swift",
+      "Sources/GroqVoiceInput/NekoSignalMeter.swift",
+      "Sources/GroqVoiceInput/VocabularyToastPresentation.swift",
+      "Sources/GroqVoiceInput/VocabularyLearningBubbleView.swift",
+      "Sources/GroqVoiceInput/ClipboardHistoryStore.swift",
+      "Sources/GroqVoiceInput/ClipboardHistoryMonitor.swift",
+      "Sources/GroqVoiceInput/ClipboardHistoryMenuController.swift"
+    ],
+    "external_integrations": [
+      "Groq STT",
+      "Keychain",
+      "Accessibility",
+      "MultipeerConnectivity",
+      "LaunchAgent"
+    ]
+  },
+  "conventions": {
+    "patterns": [
+      "Record using pinned AVCaptureSession; upload only after recording finalizes.",
+      "Main-thread UI and callback state changes.",
+      "Groq whisper-large-v3 plain JSON with language from user settings.",
+      "Copy before paste; local dictation never sends Return.",
+      "Relay disabled on every launch.",
+      "Per-job settings and session/request IDs prevent late completions from changing a later dictation.",
+      "Recorder stays busy through file finalization, including cancellation.",
+      "Local output validates the captured focus target; clipboard fallback is a successful delivery, not confirmed paste.",
+      "Local verified corrections settle before a six-second nonactivating opt-out prompt with pointer-hover pause; only a still-valid unchanged correction is automatically added.",
+      "Only confirmed enabled vocabulary enters bounded transcription prompts. Prompt use does not imply recognition accuracy.",
+      "Neko floating panel never becomes key or main; eye actions call the existing dictation coordinator.",
+      "Visual metering treats unknown/silent audio as zero, separately from conservative silence-auto-stop policy.",
+      "Voice HUD is compact and anchored top-center or bottom-center; desktop companion placement is a separate design.",
+      "Neko introduction is persisted once per user, independent of build versions; ordinary eye hover is color-only with accessibility labels and no tooltips.",
+      "Menu bar uses an 18-point fixed-black vector cat in all dictation states; transparent glyphs and accessibility names preserve status and relay distinctions.",
+      "Automatic learning starts its opt-out countdown only after the nonactivating bubble passes visibility checks; invisible notices cannot commit vocabulary.",
+      "The start-recording guidance button appears only in first-use or explicitly requested onboarding; ordinary HUD previews remain cat-only, and updates preserve the seen flag.",
+      "Clipboard history retains ten local text entries; local and remote output share a direct copy hook, while history recovery only copies and never sends paste/submit."
+    ],
+    "naming": [
+      "Traditional Chinese user-facing strings.",
+      "Stable tw.panh.FreeVoiceType bundle ID and Keychain tw.panh.FreeVoiceType.groq / api-key.",
+      "User-visible product name: What's up my neighbor. Reuse existing black-cat assets."
+    ],
+    "error_handling": [
+      "Report errors via AppKit UI; retain failed audio briefly for explicit retry.",
+      "No provider/model/key fallback."
+    ],
+    "logging": [
+      "Never log keys, recordings, transcripts or clipboard contents."
+    ],
+    "tests": [
+      "Compile offline Swift executable suites using scripts/test-*.sh."
+    ],
+    "notes": ""
+  },
+  "protected_areas": [
+    {
+      "path_or_symbol": "Sources/GroqVoiceInput/GroqTranscriptionClient.swift",
+      "reason": "External request contract",
+      "invariants": [
+        "Preserve request fields, model, endpoint and error semantics."
+      ]
+    },
+    {
+      "path_or_symbol": "Sources/GroqVoiceInput/RemoteMessages.swift",
+      "reason": "Cross-platform protocol",
+      "invariants": [
+        "No wire-format or protocol-version changes."
+      ]
+    },
+    {
+      "path_or_symbol": "Sources/GroqVoiceInput/RemoteTargetController.swift",
+      "reason": "Remote execution",
+      "invariants": [
+        "Keep pairing transport and explicit remote-only submit path; validate before paste and submit."
+      ]
+    },
+    {
+      "path_or_symbol": "Resources/Info.plist",
+      "reason": "Identity",
+      "invariants": [
+        "Keep bundle identifier, installed path and Keychain identity. Version/build may advance for authorized local installations; never reset TCC."
+      ]
+    },
+    {
+      "path_or_symbol": "scripts/build.sh",
+      "reason": "Signing",
+      "invariants": [
+        "Public build remains ad-hoc by default. Local installation pins an existing signing certificate with MAC_CODESIGN_IDENTITY and preserves the established designated requirement.",
+        "Back up the existing installed app before replacement."
+      ]
+    }
+  ],
+  "change_policy": {
+    "prefer_local_changes": true,
+    "require_consumer_search_for_shared_changes": true,
+    "forbid_unrelated_refactors": true,
+    "require_baseline_before_edit": true,
+    "preferred_max_files_per_step": 5
+  },
+  "verification": {
+    "minimum_after_change": [
+      "./scripts/test-all.sh",
+      "./scripts/build.sh",
+      "git diff --check"
+    ],
+    "manual_checks": [
+      "Microphone and global shortcuts in two foreground apps.",
+      "Focus changes and Accessibility-disabled clipboard fallback.",
+      "Paired iPhone paste and explicit submit."
+    ],
+    "notes": "Build/test does not establish real-device validation."
+  },
+  "known_unknowns": [
+    "Remote vocabulary protocol v2 remains in separate uncommitted local work; this app still uses remote protocol v1.",
+    "User verified correction-triggered notifications in ChatGPT on build 17; other editors and recognition improvement remain unverified.",
+    "WeSpeaker controlled short-turn diarization failed; natural Chinese meeting stability and pyannote model integration remain unverified.",
+    "User verified speech-to-paste in TextEdit and ChatGPT, visible dictionary preview, and automatic correction popup on build 17. Initial silent paste failure cause remains unknown. User selected the cream-yellow comic palette; build 20 passed rendered light/dark fixtures and all 15 offline suites, and is signed and installed. Final visual acceptance on the user desktop remains unverified.",
+    "Text-only clipboard history build22 passed all18 offline suites, private named AppKit pasteboard checks and synthetic menu/insertion fixtures; signed installation and single-process launch verified. Real external-app clipboard behavior and user acceptance remain unverified."
+  ],
+  "evidence": [
+    {
+      "fact": "Recorder finalization precedes upload.",
+      "source": "Sources/GroqVoiceInput/PinnedMicrophoneRecorder.swift"
+    },
+    {
+      "fact": "Text/language rules are isolated Foundation modules.",
+      "source": "Sources/GroqVoiceInput/TextPostProcessor.swift"
+    },
+    {
+      "fact": "Remote execution validates identity and target expiry.",
+      "source": "Sources/GroqVoiceInput/RemoteTargetValidationPolicy.swift"
+    },
+    {
+      "fact": "Public build compiles flat Swift directory and ad-hoc signs.",
+      "source": "scripts/build.sh"
+    },
+    {
+      "fact": "AppKit controller composes services; the entry point only launches the application.",
+      "source": "Sources/GroqVoiceInput/VoiceTypeController.swift"
+    },
+    {
+      "fact": "Dictation owns bounded retries, settings snapshot, cancellation and recording retention.",
+      "source": "Sources/GroqVoiceInput/DictationCoordinator.swift"
+    },
+    {
+      "fact": "Local and remote insertion share clipboard-first output; local dictation uses compatible text-role/window identity checks while remote retains strict validation.",
+      "source": "Sources/GroqVoiceInput/TextInsertionService.swift"
+    },
+    {
+      "fact": "CI executes offline suites before building.",
+      "source": ".github/workflows/build.yml"
+    },
+    {
+      "fact": "Vocabulary keeps legacy IDs/revisions/tombstones and uses separate persistent learning records.",
+      "source": "Sources/GroqVoiceInput/VocabularyLearningStore.swift"
+    },
+    {
+      "fact": "Local verified paste starts bounded correction monitoring; copied-only output does not.",
+      "source": "Sources/GroqVoiceInput/VoiceTypeController.swift"
+    },
+    {
+      "fact": "Independent local meeting research exports time-aligned anonymous transcripts and a manual-name editor, without altering the Mac app.",
+      "source": "experiments/meeting_phase1/run.py"
+    },
+    {
+      "fact": "Controlled Chinese experiments reveal short alternating turns collapse two speakers into one.",
+      "source": "docs/MEETING_PHASE1_VALIDATION.md"
+    },
+    {
+      "fact": "Non-activating AppKit HUD uses the selected raster asset and real metering, with fixed cancel/finish eye buttons.",
+      "source": "Sources/GroqVoiceInput/NekoRecordingHUD.swift"
+    },
+    {
+      "fact": "Focused HUD tests cover quiet/missing signal, reduced motion, focus invariants and action gates.",
+      "source": "Tests/NekoHUDTests.swift"
+    },
+    {
+      "fact": "Six-second opt-out vocabulary learning pauses on pointer hover, revalidates the focused bounded range before adding, cancels stale edits, and preserves existing candidates.",
+      "source": "Sources/GroqVoiceInput/VocabularyLearningToastController.swift"
+    },
+    {
+      "fact": "Clipboard history uses bounded local persistence and metadata-first polling; native menu recovery does not activate another app or post keyboard events.",
+      "source": "docs/CLIPBOARD_HISTORY.md"
+    }
+  ]
+}

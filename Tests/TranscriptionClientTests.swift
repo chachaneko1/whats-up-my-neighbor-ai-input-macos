@@ -1,8 +1,62 @@
 import Foundation
 
+/// Used only by explicitly injected ephemeral sessions. Accept every request so
+/// these tests cannot fall through to an actual network transport.
+private final class OfflineTranscriptionProtocol: URLProtocol {
+    private static let lock = NSLock()
+    private static var starts = 0
+
+    static var startCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return starts
+    }
+
+    static func reset() {
+        lock.lock()
+        starts = 0
+        lock.unlock()
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        Self.lock.lock()
+        Self.starts += 1
+        Self.lock.unlock()
+        let response = HTTPURLResponse(url: request.url!, statusCode: 200,
+                                       httpVersion: "HTTP/1.1", headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(#"{"text":"離線測試回應"}"#.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
+private final class ClientCompletionProbe {
+    private let lock = NSLock()
+    private var values: [Result<TranscriptionResult, Error>] = []
+    let completed = DispatchSemaphore(value: 0)
+
+    func receive(_ value: Result<TranscriptionResult, Error>) {
+        lock.lock()
+        values.append(value)
+        lock.unlock()
+        completed.signal()
+    }
+
+    var results: [Result<TranscriptionResult, Error>] {
+        lock.lock()
+        defer { lock.unlock() }
+        return values
+    }
+}
+
 @main
 enum TranscriptionClientTests {
-    static func main() {
+    static func main() throws {
         testPlainResponseParsing()
         testVerboseResponseParsing()
         testMissingAndMalformedFields()
@@ -10,6 +64,10 @@ enum TranscriptionClientTests {
         testRequestFields()
         testRequestBody()
         testRequestHeaders()
+        try testSuspendedTaskWaitsForResume()
+        try testCancelBeforeResumeNeverSends()
+        try testDefaultTaskStartsImmediately()
+        testUnreadableAudioCompletesWithoutATask()
         print("Transcription client tests passed")
     }
 
@@ -181,6 +239,102 @@ enum TranscriptionClientTests {
         )
         precondition(request.timeoutInterval == 90)
         precondition(request.httpBody != nil)
+    }
+
+    // MARK: - 離線 URLSession 生命週期
+
+    static func testSuspendedTaskWaitsForResume() throws {
+        try withOfflineSession { session, audioURL in
+            let probe = ClientCompletionProbe()
+            let task = GroqTranscriptionClient.transcribe(
+                audioURL: audioURL, apiKey: "unit-test-only", language: "zh", prompt: "測試",
+                format: .plain, session: session, startImmediately: false,
+                completion: probe.receive
+            )!
+            precondition(task.state == .suspended)
+            precondition(probe.completed.wait(timeout: .now() + 0.05) == .timedOut)
+            precondition(OfflineTranscriptionProtocol.startCount == 0 && probe.results.isEmpty)
+
+            task.resume()
+            precondition(probe.completed.wait(timeout: .now() + 3) == .success)
+            precondition(OfflineTranscriptionProtocol.startCount == 1 && probe.results.count == 1)
+            expect(try probe.results[0].get().text, "離線測試回應")
+        }
+    }
+
+    static func testCancelBeforeResumeNeverSends() throws {
+        try withOfflineSession { session, audioURL in
+            let probe = ClientCompletionProbe()
+            let task = GroqTranscriptionClient.transcribe(
+                audioURL: audioURL, apiKey: "unit-test-only", language: "zh", prompt: "測試",
+                format: .plain, session: session, startImmediately: false,
+                completion: probe.receive
+            )!
+            precondition(task.state == .suspended && OfflineTranscriptionProtocol.startCount == 0)
+            task.cancel()
+            // A late attach/resume must not revive an already cancelled request.
+            task.resume()
+            precondition(probe.completed.wait(timeout: .now() + 3) == .success)
+            precondition(OfflineTranscriptionProtocol.startCount == 0 && probe.results.count == 1)
+            guard case .failure = probe.results[0] else {
+                preconditionFailure("Cancelling a suspended request must report failure")
+            }
+            task.cancel()
+            task.resume()
+            precondition(probe.completed.wait(timeout: .now() + 0.05) == .timedOut)
+            precondition(OfflineTranscriptionProtocol.startCount == 0 && probe.results.count == 1)
+        }
+    }
+
+    static func testDefaultTaskStartsImmediately() throws {
+        try withOfflineSession { session, audioURL in
+            let probe = ClientCompletionProbe()
+            let task = GroqTranscriptionClient.transcribe(
+                audioURL: audioURL, apiKey: "unit-test-only", language: "zh", prompt: "測試",
+                format: .plain, session: session, completion: probe.receive
+            )
+            precondition(task != nil)
+            precondition(probe.completed.wait(timeout: .now() + 3) == .success)
+            precondition(OfflineTranscriptionProtocol.startCount == 1 && probe.results.count == 1)
+            expect(try probe.results[0].get().text, "離線測試回應")
+        }
+    }
+
+    static func testUnreadableAudioCompletesWithoutATask() {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [OfflineTranscriptionProtocol.self]
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
+        OfflineTranscriptionProtocol.reset()
+        let probe = ClientCompletionProbe()
+        let missingURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MissingAudio-\(UUID().uuidString).m4a")
+        let task = GroqTranscriptionClient.transcribe(
+            audioURL: missingURL, apiKey: "unit-test-only", language: "zh", prompt: "測試",
+            format: .plain, session: session, startImmediately: false, completion: probe.receive
+        )
+        precondition(task == nil && probe.results.count == 1)
+        precondition(OfflineTranscriptionProtocol.startCount == 0)
+        guard case .failure(let error) = probe.results[0] else {
+            preconditionFailure("Missing audio must fail synchronously without a URLSession task")
+        }
+        precondition(error.localizedDescription.hasPrefix("無法讀取錄音："))
+    }
+
+    static func withOfflineSession(_ body: (URLSession, URL) throws -> Void) throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TranscriptionClientTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let audioURL = directory.appendingPathComponent("test.m4a")
+        try Data([0x01, 0x02, 0x03]).write(to: audioURL)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [OfflineTranscriptionProtocol.self]
+        configuration.urlCache = nil
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
+        OfflineTranscriptionProtocol.reset()
+        try body(session, audioURL)
     }
 
     // MARK: - 工具

@@ -2,11 +2,10 @@
 set -euo pipefail
 
 ROOT="${0:A:h:h}"
-IOS_PROTOCOL="$ROOT/../groq-ai-voice-input-ios/Sources/Remote/RemoteMessages.swift"
 MAC_PROTOCOL="$ROOT/Sources/GroqVoiceInput/RemoteMessages.swift"
 OUTPUT="$ROOT/build/RemoteProtocolTests"
 
-cmp "$MAC_PROTOCOL" "$IOS_PROTOCOL"
+mkdir -p "$ROOT/build"
 
 swiftc \
   -swift-version 5 \

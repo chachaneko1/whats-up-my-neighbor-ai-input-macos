@@ -1,0 +1,17 @@
+# Separate research environment; do not install into the Mac app or old research venv.
+faster-whisper==1.2.1
+wespeaker @ git+https://github.com/wenet-e2e/wespeaker.git@9fecd6cb4f47475d01761d87c826298dff4ef18c
+# pyannote.audio is optional; gated model access must be arranged by the user.
+# Current WeSpeaker's optional frontend imports need this compatible stack.
+torch==2.5.1
+torchaudio==2.5.1
+numpy==1.26.4
+transformers==4.45.2
+peft==0.13.2
+huggingface-hub>=0.23.2,<1
+soundfile==0.13.1
+# UMAP 0.5.6 uses the legacy check_array keyword removed by newer sklearn.
+scikit-learn==1.5.2
+hdbscan==0.8.40
+# Evaluation only: compare Chinese scripts separately from raw orthographic CER.
+opencc-python-reimplemented==0.1.7
