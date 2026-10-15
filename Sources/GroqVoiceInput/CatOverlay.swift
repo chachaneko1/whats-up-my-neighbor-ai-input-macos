@@ -259,7 +259,9 @@ private final class CatArtworkView: NSView {
             NSGraphicsContext.saveGraphicsState()
             mouth.addClip()
             NSColor(calibratedRed: 233 / 255, green: 151 / 255, blue: 172 / 255, alpha: 1).setFill()
-            NSBezierPath(ovalIn: NSRect(x: -3.5, y: opening, width: 7, height: 4)).fill()
+            // Keep a small visible tongue inside the lower opening. The cubic
+            // reaches 0.75 * opening + 3.25, below its control points.
+            NSBezierPath(ovalIn: NSRect(x: -3, y: opening * 0.75 + 0.25, width: 6, height: 4)).fill()
             NSGraphicsContext.restoreGraphicsState()
             ink.setStroke()
             mouth.lineWidth = 1.5
@@ -417,15 +419,34 @@ private enum CatPNG {
         let left = Int(Double(bitmap.pixelsWide) * 0.448), right = Int(Double(bitmap.pixelsWide) * 0.552)
         let top = Int(Double(bitmap.pixelsHigh) * 0.755), bottom = Int(Double(bitmap.pixelsHigh) * 0.84)
         guard bottom > top else { return nil }
+        let channels = bitmap.samplesPerPixel
+        var upper = [Int](repeating: 0, count: channels)
+        var lower = upper
+        var original = upper
+        var replacement = upper
         for x in left...right {
-            guard let upper = bitmap.colorAt(x: x, y: top)?.usingColorSpace(.deviceRGB),
-                  let lower = bitmap.colorAt(x: x, y: bottom)?.usingColorSpace(.deviceRGB) else { return nil }
+            bitmap.getPixel(&upper, atX: x, y: top)
+            bitmap.getPixel(&lower, atX: x, y: bottom)
             for y in (top + 1)..<bottom {
-                let fraction = CGFloat(y - top) / CGFloat(bottom - top)
-                bitmap.setColor(NSColor(deviceRed: upper.redComponent + (lower.redComponent - upper.redComponent) * fraction,
-                                        green: upper.greenComponent + (lower.greenComponent - upper.greenComponent) * fraction,
-                                        blue: upper.blueComponent + (lower.blueComponent - upper.blueComponent) * fraction,
-                                        alpha: 1), atX: x, y: y)
+                bitmap.getPixel(&original, atX: x, y: y)
+                let fraction = Double(y - top) / Double(bottom - top)
+                let background = (0..<channels).map {
+                    Double(upper[$0]) + Double(lower[$0] - upper[$0]) * fraction
+                }
+                // Preserve every existing body pixel; only the old white mouth
+                // and its antialiased fringe need reconstruction.
+                let lightExcess = (0..<min(3, channels)).map { Double(original[$0]) - background[$0] }.max() ?? 0
+                if lightExcess <= 3 { continue }
+                // Work in the bitmap's own component space (including alpha).
+                // NSColor device-RGB conversion shifted dark sRGB pixels enough
+                // to expose a rectangle. Feather the bounds as an extra guard.
+                let edge = min(1, min(Double(min(x - left, right - x)) / 12,
+                                      Double(min(y - top, bottom - y)) / 10))
+                let blend = edge * edge * (3 - 2 * edge)
+                for channel in 0..<channels {
+                    replacement[channel] = Int((Double(original[channel]) * (1 - blend) + background[channel] * blend).rounded())
+                }
+                bitmap.setPixel(replacement, atX: x, y: y)
             }
         }
         return image(bitmap)

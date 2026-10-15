@@ -74,6 +74,14 @@ struct CatOverlayTests {
         try recording.write(to: output.appendingPathComponent("recording-static.png"))
         expect(NSBitmapImageRep(data: recording)?.pixelsWide == 680, "native recording fixture is rendered at 2x")
         expect(NSBitmapImageRep(data: recording)?.pixelsHigh == 440, "native recording fixture has expected canvas")
+        if let pixels = NSBitmapImageRep(data: recording) {
+            var patch = [Int](repeating: 0, count: pixels.samplesPerPixel)
+            var neighbor = patch
+            pixels.getPixel(&patch, atX: 310, y: 260)
+            pixels.getPixel(&neighbor, atX: 298, y: 260)
+            expect(zip(patch.prefix(3), neighbor.prefix(3)).allSatisfy { pair in abs(pair.0 - pair.1) <= 3 },
+                   "mouth reconstruction blends into neighboring dark pixels without a rectangle")
+        }
 
         overlay.showGreeting()
         expect(overlay.testPanel.isVisible, "greeting overlay is visible")
@@ -93,6 +101,17 @@ struct CatOverlayTests {
         expect(NSBitmapImageRep(data: open)?.pixelsWide == 880, "greeting expands canvas for the reply bubble")
         try closed.write(to: output.appendingPathComponent("greeting-closed.png"))
         try open.write(to: output.appendingPathComponent("greeting-open.png"))
+        if let pixels = NSBitmapImageRep(data: open) {
+            var sample = [Int](repeating: 0, count: pixels.samplesPerPixel)
+            var pinkPixels = 0
+            for y in 420..<455 {
+                for x in 320..<360 {
+                    pixels.getPixel(&sample, atX: x, y: y)
+                    if sample.count >= 3 && sample[0] > sample[1] + 20 && sample[2] > sample[1] { pinkPixels += 1 }
+                }
+            }
+            expect(pinkPixels >= 20, "open mouth has a tiny visible pink tongue")
+        }
         for frame in 0..<30 {
             let data = try overlay.testPNG(greeting: true, frame: frame)
             try data.write(to: output.appendingPathComponent(String(format: "greeting-frame-%02d.png", frame)))
