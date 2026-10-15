@@ -2,7 +2,7 @@ name: Windows
 on:
   workflow_dispatch:
   push:
-    branches: [codex/windows-desktop]
+    branches: [codex/windows-desktop, feature/cat-whats-up-easter-egg]
     paths: ['windows/**', '.github/workflows/windows.yml']
   pull_request:
     paths: ['windows/**', '.github/workflows/windows.yml']

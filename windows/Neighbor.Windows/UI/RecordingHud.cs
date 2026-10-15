@@ -14,7 +14,7 @@ namespace Neighbor.Windows.UI
         private DictationState state;
         private string message = "按快捷鍵開始說話";
         private double level;
-        private bool levelKnown, atTop;
+        private bool levelKnown, atTop, greeting;
         public event Action StartRequested;
         public event Action FinishRequested;
         public event Action CancelRequested;
@@ -52,11 +52,12 @@ namespace Neighbor.Windows.UI
             PlaceOnScreen();
         }
 
-        public void UpdateState(DictationState value, string text)
+        public void UpdateState(DictationState value, string text, bool isGreeting = false)
         {
             if (IsDisposed) return;
-            if (InvokeRequired) { BeginInvoke(new Action(() => UpdateState(value, text))); return; }
+            if (InvokeRequired) { BeginInvoke(new Action(() => UpdateState(value, text, isGreeting))); return; }
             state = value;
+            greeting = isGreeting && value == DictationState.Idle;
             message = String.IsNullOrWhiteSpace(text) ? StateLabel(value) : text;
             cancel.Enabled = value != DictationState.Idle && value != DictationState.Delivering;
             finish.Enabled = value == DictationState.Idle || value == DictationState.Recording || value == DictationState.RetainedAudio;
@@ -97,7 +98,15 @@ namespace Neighbor.Windows.UI
             graphics.DrawImage(cat, new Rectangle(0, 0, ClientSize.Width, catHeight));
             var plate = new Rectangle(18, catHeight + 2, ClientSize.Width - 36, ClientSize.Height - catHeight - 4);
             using (var shape = Rounded(plate, 12))
-            using (var background = new SolidBrush(Color.FromArgb(30, 31, 35))) graphics.FillPath(background, shape);
+            using (var background = new SolidBrush(greeting ? Color.FromArgb(51, 65, 87) : Color.FromArgb(30, 31, 35)))
+            {
+                graphics.FillPath(background, shape);
+                if (greeting)
+                {
+                    int center = ClientSize.Width / 2;
+                    graphics.FillPolygon(background, new[] { new Point(center - 9, plate.Top + 1), new Point(center, plate.Top - 9), new Point(center + 9, plate.Top + 1) });
+                }
+            }
             var bounds = new Rectangle(plate.Left + 12, plate.Top + 7, plate.Width - 24, plate.Height - 11);
             TextRenderer.DrawText(graphics, message, Font, bounds, Color.FromArgb(241, 242, 245), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
             if (state == DictationState.Recording)

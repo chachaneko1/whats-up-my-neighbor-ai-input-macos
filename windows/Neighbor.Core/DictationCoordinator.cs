@@ -30,6 +30,8 @@ namespace Neighbor.Core
         private readonly SynchronizationContext context;
         private Job job;
         private Task cancellation;
+        private TimeSpan? lastGreeting;
+        private readonly Func<TimeSpan> greetingNow;
         public DictationState State { get; private set; } = DictationState.Idle;
         public string Status { get; private set; } = "準備好了";
         public event EventHandler<StatusEventArgs> StatusChanged;
@@ -37,10 +39,12 @@ namespace Neighbor.Core
         public event Action<VocabularyPrompt> PromptChanged;
         public event Action<InsertionResult> Delivered;
         public DictationCoordinator(IAudioRecorder recorder, ITranscriber transcriber, ITextDelivery delivery,
-            ITextNormalizer normalizer, TemporaryAudioStore storage, VocabularyStore vocabulary, Func<DateTime> now = null)
+            ITextNormalizer normalizer, TemporaryAudioStore storage, VocabularyStore vocabulary, Func<DateTime> now = null, Func<TimeSpan> greetingNow = null)
         {
             this.recorder = recorder; this.transcriber = transcriber; this.delivery = delivery;
             this.normalizer = normalizer; this.storage = storage; this.vocabulary = vocabulary;
+            var greetingClock = System.Diagnostics.Stopwatch.StartNew();
+            this.greetingNow = greetingNow ?? (() => greetingClock.Elapsed);
             this.now = now ?? (() => DateTime.UtcNow); context = SynchronizationContext.Current;
             recorder.LevelChanged += OnLevel;
             recorder.StoppedUnexpectedly += OnRecorderFailure;
@@ -112,6 +116,16 @@ namespace Neighbor.Core
                     var text = await transcriber.TranscribeAsync(current.Path, current.Settings.PrimaryLanguage, prompt.Text, current.Cancellation.Token);
                     if (!IsCurrent(current)) return;
                     if (string.IsNullOrWhiteSpace(text)) { Retain(current, "未清楚辨識到語音。可重試或重新錄音。"); return; }
+                    // Handle only the completed, current utterance. Consume it even
+                    // during cooldown so it never reaches clipboard/paste/learning.
+                    if (CatGreeting.IsMatch(text))
+                    {
+                        var received = greetingNow();
+                        bool showGreeting = !lastGreeting.HasValue || (received - lastGreeting.Value).TotalSeconds >= 5;
+                        if (showGreeting) lastGreeting = received;
+                        Finish(current, showGreeting ? "what's up!" : "準備好了", showGreeting);
+                        return;
+                    }
                     if (LanguagePolicy.ShouldIntercept(text, current.Settings))
                     {
                         if (attempt + 1 < attempts) { SetState(DictationState.Transcribing, "語言不符，正在重試一次…"); continue; }
@@ -224,15 +238,15 @@ namespace Neighbor.Core
             current.RetainUntilUtc = now().AddMinutes(2);
             SetState(DictationState.RetainedAudio, message + "（錄音暫留兩分鐘）");
         }
-        private void Finish(Job current, string message)
+        private void Finish(Job current, string message, bool isGreeting = false)
         {
             if (!ReferenceEquals(job, current)) return;
-            job = null; storage.Remove(current.Path); SetState(DictationState.Idle, message);
+            job = null; storage.Remove(current.Path); SetState(DictationState.Idle, message, isGreeting);
         }
-        private void SetState(DictationState state, string message)
+        private void SetState(DictationState state, string message, bool isGreeting = false)
         {
             State = state; Status = message;
-            StatusChanged?.Invoke(this, new StatusEventArgs { State = state, Message = message });
+            StatusChanged?.Invoke(this, new StatusEventArgs { State = state, Message = message, IsGreeting = isGreeting });
         }
     }
 }

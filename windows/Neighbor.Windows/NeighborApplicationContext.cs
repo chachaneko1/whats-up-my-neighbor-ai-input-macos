@@ -141,7 +141,7 @@ namespace Neighbor.Windows
             recordItem.Enabled = e.State == DictationState.Idle || e.State == DictationState.Recording || e.State == DictationState.RetainedAudio;
             retryItem.Enabled = e.State == DictationState.RetainedAudio;
             cancelItem.Enabled = e.State != DictationState.Idle;
-            hideHud.Stop(); hud.UpdateState(e.State, e.Message); hud.Show();
+            hideHud.Stop(); hud.UpdateState(e.State, e.Message, e.IsGreeting); hud.Show();
             if (e.State == DictationState.Recording) SystemSounds.Asterisk.Play();
             if (e.State == DictationState.Transcribing) SystemSounds.Beep.Play();
             if (e.State == DictationState.Idle) hideHud.Start();

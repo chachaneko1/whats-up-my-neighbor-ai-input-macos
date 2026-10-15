@@ -178,8 +178,59 @@ namespace Neighbor.Tests
                 f.Transcriber.Results.Enqueue(_ => Task.FromResult("嗯")); await f.Coordinator.StartAsync(new AppSettings { Mode = OutputMode.Standard }); await f.Coordinator.StopAsync();
                 check(f.Delivery.Text == "嗯", "Cleanup that removes all content falls back to original utterance");
             }
+            await GreetingChecks(check);
             await CancellationReentrancyChecks(check);
             QueuedRecorderChecks(check);
+        }
+
+        private static async Task GreetingChecks(Action<bool, string> check)
+        {
+            foreach (string text in new[] { "what's up", "whats up", "what is up", " WHAT’S UP?! ", "“What's up?”", "WHAT‘S UP", "whatʼs up", "what＇s up", "what\tis\nup", "what's up。" })
+                check(CatGreeting.IsMatch(text), "Greeting accepts exact normalized utterance: " + text);
+            foreach (string text in new[] { null, "", "?!", "translate what's up", "what's up my neighbor", "say whats up", "what is up today", "whatsup", "what-s up", "w.h.a.t.s up", "what's up 2", "what's up🙂", "what's up what's up" })
+                check(!CatGreeting.IsMatch(text), "Greeting rejects embedded or non-exact utterance: " + text);
+            using (var f = new Fixture())
+            {
+                int greetings = 0, delivered = 0;
+                f.Coordinator.StatusChanged += (_, e) => { if (e.IsGreeting) greetings++; };
+                f.Coordinator.Delivered += _ => delivered++;
+                // Greeting is an app command even with English excluded by the language gate.
+                var settings = new AppSettings { PrimaryLanguage = "zh", AdditionalLanguages = new List<string>() };
+                foreach (double advance in new[] { 0.0, 4.999, 0.001 })
+                {
+                    f.Advance(advance);
+                    f.Transcriber.Results.Enqueue(_ => Task.FromResult("WHAT’S UP?!"));
+                    await f.Coordinator.StartAsync(settings); string path = f.Recorder.Path;
+                    await f.Coordinator.StopAsync();
+                    check(f.Coordinator.State == DictationState.Idle && !File.Exists(path), "Greeting finishes and deletes audio");
+                    check(f.Delivery.Count == 0 && delivered == 0 && !f.States.Contains(DictationState.Delivering), "Greeting never copies, pastes, or starts learning, including cooldown");
+                    check(greetings == (advance == 0.001 ? 2 : 1), "Greeting cooldown boundary does not extend on suppressed repeats");
+                }
+                check(f.Transcriber.Calls.Count == 3, "Greeting adds no AI calls or language retries");
+                f.Transcriber.Results.Enqueue(_ => Task.FromResult("translate what's up"));
+                await f.Coordinator.StartAsync(new AppSettings { PrimaryLanguage = "en" }); await f.Coordinator.StopAsync();
+                check(f.Delivery.Count == 1 && f.Delivery.Text == "translate what's up" && greetings == 2, "Embedded greeting follows ordinary dictation during cooldown");
+            }
+            using (var f = new Fixture())
+            {
+                int greetings = 0; f.Coordinator.StatusChanged += (_, e) => { if (e.IsGreeting) greetings++; };
+                var gate = new TaskCompletionSource<string>(); f.Transcriber.Results.Enqueue(_ => gate.Task);
+                await f.Coordinator.StartAsync(new AppSettings()); Task stop = f.Coordinator.StopAsync();
+                await f.Coordinator.CancelAsync(); await f.Coordinator.StartAsync(new AppSettings());
+                gate.SetResult("what's up"); await stop;
+                check(greetings == 0 && f.Delivery.Count == 0 && f.Coordinator.State == DictationState.Recording, "Late canceled greeting cannot affect a newer recording");
+                f.Transcriber.Results.Enqueue(_ => Task.FromResult("whats up")); await f.Coordinator.StopAsync();
+                check(greetings == 1, "Canceled greeting does not consume cooldown");
+            }
+            using (var f = new Fixture())
+            {
+                int greetings = 0; f.Coordinator.StatusChanged += (_, e) => { if (e.IsGreeting) greetings++; };
+                f.Transcriber.Results.Enqueue(_ => Task.FromException<string>(new InvalidOperationException("test failure")));
+                await f.Coordinator.StartAsync(new AppSettings()); await f.Coordinator.StopAsync();
+                check(greetings == 0 && f.Coordinator.State == DictationState.RetainedAudio, "Errors retain ordinary retry behavior without greeting");
+                f.Transcriber.Results.Enqueue(_ => Task.FromResult("what is up")); await f.Coordinator.RetryAsync();
+                check(greetings == 1 && f.Delivery.Count == 0 && !File.Exists(f.Recorder.Path), "Manual retry can consume greeting and clean retained audio");
+            }
         }
 
         private static async Task CancellationReentrancyChecks(Action<bool, string> check)
@@ -355,7 +406,7 @@ namespace Neighbor.Tests
             public Fixture()
             {
                 Directory.CreateDirectory(directory);
-                Coordinator = new DictationCoordinator(Recorder, Transcriber, Delivery, new Normalizer(), new TemporaryAudioStore(System.IO.Path.Combine(directory, "audio")), new VocabularyStore(System.IO.Path.Combine(directory, "vocabulary.json")), () => now);
+                Coordinator = new DictationCoordinator(Recorder, Transcriber, Delivery, new Normalizer(), new TemporaryAudioStore(System.IO.Path.Combine(directory, "audio")), new VocabularyStore(System.IO.Path.Combine(directory, "vocabulary.json")), () => now, () => TimeSpan.FromTicks(now.Ticks));
                 Coordinator.StatusChanged += (_, e) => States.Add(e.State);
             }
             public void Advance(double seconds) { now = now.AddSeconds(seconds); }

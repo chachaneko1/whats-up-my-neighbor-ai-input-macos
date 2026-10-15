@@ -42,6 +42,14 @@ namespace Neighbor.Tests
                 hud.UpdateState(DictationState.Recording, "正在錄音");
                 hud.UpdateLevel(-15, true); hud.UpdateLevel(Double.NaN, true); hud.UpdateLevel(-80, false);
                 check(hud.AccessibleDescription.Contains("正在錄音"), "Recording HUD exposes current status to accessibility");
+                hud.UpdateState(DictationState.Idle, "what's up!", true);
+                Application.DoEvents();
+                check(GetForegroundWindow() == before, "Greeting bubble preserves foreground focus");
+                check(hud.AccessibleDescription.Contains("what's up!"), "Greeting bubble is accessible");
+                hud.UpdateState(DictationState.Starting, "正在準備麥克風…");
+                check(!hud.AccessibleDescription.Contains("what's up!"), "A new recording immediately replaces the greeting");
+                hud.UpdateState(DictationState.Idle, "已取消");
+                check(hud.AccessibleDescription.Contains("已取消"), "Cancellation restores ordinary HUD state");
                 hud.Hide();
             }
             using (var toast = new LearningToast())
@@ -86,6 +94,11 @@ namespace Neighbor.Tests
                         hud.UpdateState(DictationState.Recording, "示範資料：正在聽你說話…");
                         hud.UpdateLevel(-15, true);
                         RenderForm(hud, directory, "recording-hud", scale);
+                    }
+                    using (var hud = new RecordingHud())
+                    {
+                        hud.UpdateState(DictationState.Idle, "what's up!", true);
+                        RenderForm(hud, directory, "greeting-hud", scale);
                     }
                     using (var key = new ApiKeyForm(new TestCredentials())) RenderForm(key, directory, "api-key", scale);
                     using (var toast = new LearningToast())

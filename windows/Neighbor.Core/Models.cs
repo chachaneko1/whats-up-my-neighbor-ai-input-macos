@@ -114,6 +114,7 @@ namespace Neighbor.Core
     }
     public sealed class StatusEventArgs : EventArgs
     {
+        public bool IsGreeting { get; set; }
         public DictationState State { get; set; }
         public string Message { get; set; }
     }
