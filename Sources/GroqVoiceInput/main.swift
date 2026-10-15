@@ -546,6 +546,11 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     /// 本次錄音實際採用的模式。第二快捷鍵只影響當次，不改變儲存的偏好。
     private var activeOutputMode: TextOutputMode = .verbatim
     private let micRecorder = PinnedMicrophoneRecorder()
+    private let catConfiguration = CatConfiguration.load()
+    private lazy var catOverlay = CatOverlay(configuration: catConfiguration)
+    private lazy var catGreeting = CatGreeting(configuration: catConfiguration)
+    private var recordingCancelled = false
+    private var awaitingRecordingFinish = false
     /// 使用者指定的固定錄音裝置。nil 表示「自動」，由 `AudioInputPolicy` 決定。
     private var preferredInputDeviceUID: String?
     /// 是否允許用 iPhone 的連續互通麥克風錄音。預設不允許，這正是「收不到音」的來源。
@@ -579,6 +584,11 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         configureStatusItem()
         registerHotKey()
         requestPermissions()
+        catOverlay.onCancel = { [weak self] in self?.cancelRecording() }
+        catOverlay.onFinish = { [weak self] in
+            guard let self, self.micRecorder.isRecording else { return }
+            self.stopRecording()
+        }
         configureRecorder()
         configureRemoteInput()
 
@@ -590,6 +600,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        catOverlay.dispose()
         micRecorder.shutdown()
         if let recordingURL { try? FileManager.default.removeItem(at: recordingURL) }
         if let activeUploadURL { try? FileManager.default.removeItem(at: activeUploadURL) }
@@ -686,6 +697,9 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         menu.addItem(forgetPhoneItem)
 
         menu.addItem(NSMenuItem.separator())
+        let catSettings = NSMenuItem(title: "開啟貓咪設定資料夾…", action: #selector(openCatSettings), keyEquivalent: "")
+        catSettings.target = self
+        menu.addItem(catSettings)
         let quit = NSMenuItem(title: "結束 AI 語音輸入", action: #selector(quitApp), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
@@ -723,6 +737,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     private func configureRecorder() {
         micRecorder.onRecordingStarted = { [weak self] in
             guard let self else { return }
+            self.catOverlay.showRecording()
             self.startMetering()
             self.statusItem.button?.image = NSImage(
                 systemSymbolName: "record.circle.fill",
@@ -1185,7 +1200,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     }
 
     func toggleRecording(useAlternateMode: Bool = false) {
-        guard !isUploading else {
+        guard !isUploading, !awaitingRecordingFinish else {
             NSSound.beep()
             return
         }
@@ -1204,6 +1219,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     }
 
     private func startRecording() {
+        catOverlay.hide()
         guard readAPIKey() != nil else {
             showAPIKeyDialog(firstRun: false)
             return
@@ -1229,6 +1245,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
 
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("FreeVoiceType-\(UUID().uuidString).m4a")
+        recordingCancelled = false
         recordingURL = url
         // 開始是非同步的：狀態列圖示與提示音都留到 onRecordingStarted 才更新。
         micRecorder.start(deviceUID: device.uid, url: url)
@@ -1279,6 +1296,8 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     /// 在背景把剩下的資料寫完，此刻的檔案是不完整的，直接上傳會送出半個音檔而讓
     /// Groq 回報「沒有辨識到語音」。實際的上傳在 `handleRecordingFinished(url:error:)`。
     private func stopRecording() {
+        awaitingRecordingFinish = true
+        catOverlay.hide()
         stopMetering()
         statusItem.button?.image = NSImage(systemSymbolName: "ellipsis.circle", accessibilityDescription: "正在辨識")
         statusItem.button?.contentTintColor = .systemOrange
@@ -1286,12 +1305,29 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         micRecorder.stop()
     }
 
+    private func cancelRecording() {
+        guard micRecorder.isRecording else { return }
+        recordingCancelled = true
+        awaitingRecordingFinish = true
+        catOverlay.hide()
+        stopMetering()
+        micRecorder.stop()
+    }
+
     /// 音檔已完整寫入磁碟，這時候才能上傳。
     private func handleRecordingFinished(url: URL, error: Error?) {
+        awaitingRecordingFinish = false
         // 錄音也可能不是由 stopRecording() 結束的（裝置被拔掉、系統中斷等），
         // 那條路徑不會經過 stopMetering()，計時器會一直空轉下去。
         stopMetering()
         recordingURL = nil
+        catOverlay.hide()
+        if recordingCancelled {
+            recordingCancelled = false
+            discardRecording(url)
+            resetStatus()
+            return
+        }
 
         if let error {
             try? FileManager.default.removeItem(at: url)
@@ -1319,7 +1355,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
 
     /// 轉錄結果的統一處理入口。
     ///
-    /// 順序是「語言檢查 → 後處理 → 貼上」。錄音在成功貼上前一律不刪除，
+    /// 順序是「貓咪口令 → 語言檢查 → 後處理 → 貼上」。錄音在成功貼上前一律不刪除，
     /// 讓 API 失敗、網路中斷或語言誤判時都不必重講。
     private func handleTranscription(_ result: Result<String, Error>, url: URL, apiKey: String) {
         isUploading = false
@@ -1336,6 +1372,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
                 showError("沒有辨識到語音，請再試一次。")
                 return
             }
+            if consumeCatGreeting(transcript, url: url) { return }
             guard !LanguagePolicy.shouldIntercept(transcript, settings: languageSettings) else {
                 retryWithChineseHint(url: url, apiKey: apiKey)
                 return
@@ -1366,6 +1403,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
                 self.resetStatus()
 
                 let retried = (try? result.get())?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if self.consumeCatGreeting(retried, url: url) { return }
                 guard !retried.isEmpty, !LanguagePolicy.shouldIntercept(retried, settings: self.languageSettings) else {
                     self.retainRecording(
                         url,
@@ -1378,8 +1416,23 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// 套用後處理並貼上。後處理失敗時降級為原始轉錄，不讓整次語音輸入失敗。
+    /// 完整口令一律消費，冷卻期間也不會流入剪貼簿或觸發額外辨識。
+    private func consumeCatGreeting(_ transcript: String, url: URL) -> Bool {
+        switch catGreeting.consume(transcript) {
+        case .notMatched: return false
+        case .cooldown:
+            discardRecording(url)
+            return true
+        case .greet:
+            discardRecording(url)
+            catOverlay.showGreeting()
+            return true
+        }
+    }
+
     private func deliver(_ transcript: String, url: URL) {
+        // Also covers explicit retries. Matching happens before text cleanup/clipboard.
+        if consumeCatGreeting(transcript, url: url) { return }
         let processed = TextPostProcessor.process(
             transcript,
             mode: activeOutputMode,
@@ -1624,11 +1677,26 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         }
     }
 
+    @objc private func openCatSettings() {
+        do {
+            try FileManager.default.createDirectory(at: CatConfiguration.directoryURL, withIntermediateDirectories: true)
+            let destination = CatConfiguration.directoryURL.appendingPathComponent("cat.config.json")
+            if !FileManager.default.fileExists(atPath: destination.path),
+               let sample = Bundle.main.url(forResource: "cat.config", withExtension: "json") {
+                try FileManager.default.copyItem(at: sample, to: destination)
+            }
+            NSWorkspace.shared.open(CatConfiguration.directoryURL)
+        } catch {
+            showError("無法開啟貓咪設定資料夾：\(error.localizedDescription)")
+        }
+    }
+
     @objc private func quitApp() {
         NSApp.terminate(nil)
     }
 
     private func showError(_ message: String) {
+        catOverlay.hide()
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "AI 語音輸入"
