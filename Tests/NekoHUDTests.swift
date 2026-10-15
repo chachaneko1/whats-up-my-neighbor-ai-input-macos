@@ -39,6 +39,19 @@ struct NekoHUDTests {
         let panel = NekoFloatingPanel(contentRect: NSRect(x: 0, y: 0, width: 340, height: 230),
                                       styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         precondition(!panel.canBecomeKey && !panel.canBecomeMain, "HUD must preserve the original typing target")
+        let hud = NekoRecordingHUD(defaults: preferences)
+        precondition(hud.testPanel.level == .statusBar,
+                     "Recording HUD must remain above fullscreen application windows")
+        precondition(!hud.testPanel.canHide,
+                     "Closing settings must not hide the recording HUD with its app")
+        precondition(hud.testPanel.collectionBehavior.contains(.canJoinAllSpaces)
+                     && hud.testPanel.collectionBehavior.contains(.fullScreenAuxiliary)
+                     && hud.testPanel.collectionBehavior.contains(.canJoinAllApplications),
+                     "Recording HUD must join other applications' fullscreen Spaces")
+        precondition(hud.testPanel.styleMask.contains(.nonactivatingPanel)
+                     && !hud.testPanel.canBecomeKey && !hud.testPanel.canBecomeMain,
+                     "Fullscreen visibility must preserve the original typing focus")
+        hud.hide()
         let asset = NSImage(contentsOfFile: CommandLine.arguments[1])!
         precondition(asset.size.width > 0)
         let view = NekoRecordingView(image: asset)

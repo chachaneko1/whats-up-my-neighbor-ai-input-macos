@@ -251,13 +251,17 @@ final class NekoRecordingHUD {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
-        panel.level = .floating
+        // Match the nonactivating vocabulary toast: fullscreen apps and hiding
+        // the agent after settings must not conceal the recording controls.
+        panel.level = .statusBar
+        panel.canHide = false
         panel.hidesOnDeactivate = false
         panel.acceptsMouseMovedEvents = true
         panel.isMovable = false
         panel.becomesKeyOnlyIfNeeded = true
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .canJoinAllApplications]
         panel.isReleasedWhenClosed = false
+        panel.animationBehavior = .none
         panel.contentView = view
         view.onStart = { [weak self] in self?.onStart?() }
         view.onCancel = { [weak self] in
@@ -336,8 +340,12 @@ final class NekoRecordingHUD {
                 y: position == .topCenter ? visibleFrame.maxY - size.height - 12 : visibleFrame.minY + 12)
     }
 
+    #if NEKO_HUD_TESTING
+    var testPanel: NekoFloatingPanel { panel }
+    #endif
+
     private func positionPanel() {
-        let screen = panel.isVisible ? panel.screen :
+        let screen = panel.isVisible && panel.isOnActiveSpace ? panel.screen :
             (NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main)
         if let frame = screen?.visibleFrame {
             panel.setFrameOrigin(Self.origin(for: position, in: frame, size: panel.frame.size))
@@ -345,9 +353,11 @@ final class NekoRecordingHUD {
     }
 
     private func present() {
+        if NSApp.isHidden { NSApp.unhideWithoutActivation() }
         let resized = panel.contentRect(forFrameRect: panel.frame).size != view.bounds.size
         if resized { panel.setContentSize(view.bounds.size) }
-        if resized || !panel.isVisible { positionPanel() }
+        if resized || !panel.isVisible || !panel.isOnActiveSpace { positionPanel() }
         panel.orderFrontRegardless()
+        panel.displayIfNeeded()
     }
 }

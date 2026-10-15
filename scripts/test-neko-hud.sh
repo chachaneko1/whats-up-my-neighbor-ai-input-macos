@@ -2,7 +2,7 @@
 set -euo pipefail
 ROOT="${0:A:h:h}"
 mkdir -p "$ROOT/build"
-swiftc -swift-version 5 -framework AppKit \
+swiftc -swift-version 5 -D NEKO_HUD_TESTING -framework AppKit \
   "$ROOT/Sources/GroqVoiceInput/LanguagePolicy.swift" \
   "$ROOT/Sources/GroqVoiceInput/TextPostProcessor.swift" \
   "$ROOT/Sources/GroqVoiceInput/DictationCoordinator.swift" \
