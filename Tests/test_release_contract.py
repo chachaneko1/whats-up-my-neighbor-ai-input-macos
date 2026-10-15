@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import unittest
 import sys
+from unittest.mock import patch
 sys.dont_write_bytecode = True
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +24,7 @@ def load_module(name, path):
 metadata = load_module("release_metadata", ROOT / "scripts/release_metadata.py")
 validator = load_module("release_validator", ROOT / "scripts/validate-release.py")
 signing = load_module("signing_validator", ROOT / "scripts/validate-signing.py")
+temporary_keychain = load_module("temporary_keychain", ROOT / "scripts/temporary-keychain.py")
 
 
 class ReleaseContractTests(unittest.TestCase):
@@ -75,6 +77,19 @@ class ReleaseContractTests(unittest.TestCase):
         self.assertIn("Missing release credential/config: MACOS_CERTIFICATE_P12_BASE64", result.stderr)
         self.assertNotIn("Developer ID", result.stderr)
         self.assertNotIn("APPLE_NOTARY", result.stderr)
+
+    def test_temporary_keychain_search_list_is_restored_exactly(self):
+        with tempfile.TemporaryDirectory(prefix="neko-keychain-snapshot-") as directory:
+            snapshot = Path(directory) / "search.json"
+            original = ['/Users/test/Library/Keychains/login.keychain-db', '/private/test with spaces/other.keychain-db']
+            with patch.object(temporary_keychain.subprocess, "check_output", return_value='    "' + original[0] + '"\n    "' + original[1] + '"\n'), patch.object(temporary_keychain.subprocess, "run") as run:
+                temporary_keychain.add("/private/release.keychain-db", snapshot)
+                self.assertEqual(snapshot.stat().st_mode & 0o777, 0o600)
+                self.assertEqual(run.call_args.args[0][-3:], ["/private/release.keychain-db", *original])
+                temporary_keychain.restore(snapshot)
+                self.assertEqual(run.call_args.args[0], ["security", "list-keychains", "-d", "user", "-s", *original])
+                self.assertFalse(snapshot.exists())
+                temporary_keychain.restore(snapshot)  # Cleanup is idempotent.
 
     def test_installer_reuses_location_and_preserves_profile(self):
         with tempfile.TemporaryDirectory(prefix="neko-install-test-") as directory:

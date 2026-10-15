@@ -47,7 +47,7 @@ GitHub repository 或 `macos-release` environment 只需要：
 
 只匯出所選的單一簽章身分，不要把整個 Keychain、其他開發憑證或 Groq API Key 傳給 CI。私鑰與密碼經限制權限的臨時檔或標準輸入設為 GitHub Secrets，不貼到聊天、Issue、source、命令列參數或日誌。Sparkle 原私鑰保存在本機 Keychain，備份後持續沿用，不要每次發佈重新產生。
 
-發佈腳本只匯入臨時 keychain，以 `codesign --keychain` 限定簽署，不改發佈機全域 keychain 搜尋清單或信任設定。退出時刪除臨時 keychain、p12 及私鑰檔案。對自簽憑證的發佈環境信任設定應由維護者明確預先配置；此腳本不修改任何全域信任。
+發佈腳本只匯入臨時 keychain，以 `codesign --keychain` 選擇固定憑證。因 codesign 仍需從使用者搜尋清單查找私鑰，打包期間暫時加入該 keychain；先保存原始清單，退出時完整恢復，再刪除臨時 keychain、p12 及私鑰檔案。不改全域信任設定。對自簽憑證的發佈環境信任設定應由維護者明確預先配置；此腳本不修改任何全域信任。
 
 ## CI 與發佈
 

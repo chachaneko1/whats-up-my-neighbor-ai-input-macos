@@ -17,7 +17,7 @@ def validate_signing(app: Path, expected_fingerprint: str, bundle_id="tw.panh.Fr
     requirement = f'identifier "{bundle_id}"'
     subprocess.run(["codesign", "--verify", "--deep", "--strict", "--test-requirement", "=" + requirement, str(app)], check=True)
     result = subprocess.run(["codesign", "-d", "-r-", str(app)], check=True, capture_output=True, text=True)
-    if "designated => " + requirement not in result.stdout + result.stderr:
+    if "designated => " + requirement not in (result.stdout + result.stderr).splitlines():
         raise ValueError("Installed designated requirement changed")
     with tempfile.TemporaryDirectory(prefix="neko-public-cert-") as directory:
         prefix = str(Path(directory) / "cert")

@@ -13,7 +13,9 @@ python3 "$ROOT/scripts/release_metadata.py" "v$RELEASE_VERSION" 1 >/dev/null
 
 RELEASE_TEMP="$(mktemp -d)"
 KEYCHAIN="$RELEASE_TEMP/release.keychain-db"
+RELEASE_SEARCH_SNAPSHOT="$RELEASE_TEMP/keychain-search.json"
 cleanup() {
+  python3 "$ROOT/scripts/temporary-keychain.py" restore "$RELEASE_SEARCH_SNAPSHOT" || print -u2 'Warning: keychain search-list restoration failed'
   security delete-keychain "$KEYCHAIN" 2>/dev/null || true
   rm -rf "$RELEASE_TEMP"
 }
@@ -26,8 +28,9 @@ print -rn -- "$MACOS_CERTIFICATE_P12_BASE64" | base64 --decode > "$RELEASE_TEMP/
 security import "$RELEASE_TEMP/certificate.p12" -P "$MACOS_CERTIFICATE_PASSWORD" -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security >/dev/null
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
 # Select by certificate fingerprint, not by a paid Apple certificate category.
-# --keychain confines signing to this temporary keychain; the user's global
-# search list, trust settings and installed application are never changed.
+# codesign also consults the user search list for the identity's private key.
+# Add this keychain only for packaging, then restore the exact list on exit.
+python3 "$ROOT/scripts/temporary-keychain.py" add "$KEYCHAIN" "$RELEASE_SEARCH_SNAPSHOT"
 security find-identity -v -p codesigning "$KEYCHAIN" | grep -F "$MACOS_SIGNING_SHA1" >/dev/null || { print -u2 'Pinned signing identity is missing, expired or unavailable'; exit 1; }
 export MAC_CODESIGN_IDENTITY="$MACOS_SIGNING_SHA1" MAC_CODESIGN_KEYCHAIN="$KEYCHAIN" RELEASE_SIGNING=1
 "$ROOT/scripts/build.sh"
