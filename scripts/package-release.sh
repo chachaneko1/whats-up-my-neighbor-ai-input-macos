@@ -10,7 +10,10 @@ fi
 STAGE="$ROOT/dist/Groq-AI語音輸入-v$VERSION"
 ZIP="$ROOT/dist/Groq-AI-Voice-Input-macOS-v$VERSION.zip"
 
-"$ROOT/scripts/build.sh"
+if [[ "${PACKAGE_EXISTING_BUILD:-0}" != 1 ]]; then
+  "$ROOT/scripts/build.sh"
+fi
+codesign --verify --deep --strict "$ROOT/build/AI語音輸入.app"
 rm -rf "$STAGE" "$ZIP" "$ZIP.sha256"
 mkdir -p "$STAGE"
 ditto "$ROOT/build/AI語音輸入.app" "$STAGE/AI語音輸入.app"

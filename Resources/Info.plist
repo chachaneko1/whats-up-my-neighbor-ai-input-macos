@@ -5,7 +5,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>zh_TW</string>
     <key>CFBundleDisplayName</key>
-    <string>AI 語音輸入</string>
+    <string>What's up my neighbor</string>
     <key>CFBundleExecutable</key>
     <string>FreeVoiceType</string>
     <key>CFBundleIdentifier</key>
@@ -15,13 +15,13 @@
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>AI 語音輸入</string>
+    <string>What's up my neighbor</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.1.0</string>
+    <string>1.3.0</string>
     <key>CFBundleVersion</key>
-    <string>3</string>
+    <string>25</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
     <key>LSUIElement</key>
@@ -37,5 +37,23 @@
         <string>_groq-voice._tcp</string>
         <string>_groq-voice._udp</string>
     </array>
+    <key>SUFeedURL</key>
+    <string>https://github.com/yuipan0611/groq-ai-voice-input-macos/releases/latest/download/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>qqjBV8qq10EF94BiTXsYjHq3tpg5cJLZS6AY6V6vYYk=</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+    <key>SUScheduledCheckInterval</key>
+    <integer>86400</integer>
+    <key>SUAutomaticallyUpdate</key>
+    <false/>
+    <key>SUAllowsAutomaticUpdates</key>
+    <false/>
+    <key>SUEnableSystemProfiling</key>
+    <false/>
+    <key>SUVerifyUpdateBeforeExtraction</key>
+    <true/>
+    <key>SURequireSignedFeed</key>
+    <true/>
 </dict>
 </plist>

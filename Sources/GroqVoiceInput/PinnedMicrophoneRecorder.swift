@@ -16,20 +16,21 @@ import Foundation
 ///    播提示音，否則使用者聽到聲音就開講，第一個字會被吃掉。
 /// 2. **結束也是非同步的。**`stopRecording()` 之後檔案還在背景收尾，必須等
 ///    `onRecordingFinished` 才能上傳，否則會傳出一個不完整的檔案。
-final class PinnedMicrophoneRecorder: NSObject {
+final class PinnedMicrophoneRecorder: NSObject, DictationRecording {
     /// 檔案真的開始寫入時觸發。主執行緒。
-    var onRecordingStarted: (() -> Void)?
+    var onRecordingStarted: ((URL) -> Void)?
     /// 檔案完全寫完時觸發。主執行緒。error 非 nil 表示這段錄音不可用。
     var onRecordingFinished: ((URL, Error?) -> Void)?
     /// 還沒開始錄就失敗時觸發（裝置不見了、權限被撤銷等）。主執行緒。
-    var onStartFailed: ((Error) -> Void)?
+    var onStartFailed: ((URL, Error) -> Void)?
 
     private let session = AVCaptureSession()
     private let output = AVCaptureAudioFileOutput()
     /// 設定與啟停一律在這條序列佇列上做，避免卡住主執行緒，也避免競態。
     private let sessionQueue = DispatchQueue(label: "tw.panh.FreeVoiceType.capture")
     private var configuredDeviceUID: String?
-    private var isStarting = false
+    /// Main-thread ownership lasts through didFinish, including file finalization.
+    private var activeRecordingURL: URL?
 
     /// 錄音採用的編碼設定，與改用 `AVCaptureSession` 之前完全相同，
     /// 上傳給 Groq 的音檔格式因此不變。
@@ -46,8 +47,8 @@ final class PinnedMicrophoneRecorder: NSObject {
         output.audioSettings = Self.audioSettings
     }
 
-    /// 啟動中或錄音中。呼叫端用它擋掉連按快捷鍵造成的重複啟動。
-    var isBusy: Bool { isStarting || output.isRecording }
+    /// 啟動、錄音及檔案收尾期間都忙碌；取消也必須等原錄音完成收尾。
+    var isBusy: Bool { activeRecordingURL != nil || output.isRecording }
 
     var isRecording: Bool { output.isRecording }
 
@@ -60,9 +61,16 @@ final class PinnedMicrophoneRecorder: NSObject {
         output.connection(with: .audio)?.audioChannels.first?.averagePowerLevel ?? 0
     }
 
+    /// Presentation must distinguish missing measurements from maximum volume.
+    /// Keep the conservative silence-auto-stop fallback above unchanged.
+    var visualPowerLevel: Float? {
+        guard isRecording else { return nil }
+        return output.connection(with: .audio)?.audioChannels.first?.averagePowerLevel
+    }
+
     func start(deviceUID: String, url: URL) {
         guard !isBusy else { return }
-        isStarting = true
+        activeRecordingURL = url
 
         sessionQueue.async { [weak self] in
             guard let self else { return }
@@ -70,8 +78,9 @@ final class PinnedMicrophoneRecorder: NSObject {
                 try self.configureIfNeeded(deviceUID: deviceUID)
             } catch {
                 DispatchQueue.main.async {
-                    self.isStarting = false
-                    self.onStartFailed?(error)
+                    guard self.activeRecordingURL == url else { return }
+                    self.activeRecordingURL = nil
+                    self.onStartFailed?(url, error)
                 }
                 return
             }
@@ -80,14 +89,15 @@ final class PinnedMicrophoneRecorder: NSObject {
 
             guard self.session.isRunning else {
                 DispatchQueue.main.async {
-                    self.isStarting = false
-                    self.onStartFailed?(VoiceTypeError.message("無法啟動錄音裝置。"))
+                    guard self.activeRecordingURL == url else { return }
+                    self.activeRecordingURL = nil
+                    self.onStartFailed?(url, VoiceTypeError.message("無法啟動錄音裝置。"))
                 }
                 return
             }
 
-            // 這裡不再檢查 isStarting：stop() 只會在 isRecording 時作用，
-            // 而此刻還沒開始錄，所以不存在「已被取消」的狀態要處理。
+            // A concurrent cancellation queues shutdown after this block. Keep the
+            // URL busy until the matching finish callback has released the file.
             self.output.startRecording(to: url, outputFileType: .m4a, recordingDelegate: self)
         }
     }
@@ -97,12 +107,12 @@ final class PinnedMicrophoneRecorder: NSObject {
         output.stopRecording()
     }
 
-    /// App 結束時呼叫，確保麥克風確實被釋放。
+    /// 取消或 App 結束時呼叫；排在啟動後停止，避免尚未開始就漏掉取消。
     func shutdown() {
-        if output.isRecording { output.stopRecording() }
         sessionQueue.async { [weak self] in
-            guard let self, self.session.isRunning else { return }
-            self.session.stopRunning()
+            guard let self else { return }
+            if self.output.isRecording { self.output.stopRecording() }
+            if self.session.isRunning { self.session.stopRunning() }
         }
     }
 
@@ -161,9 +171,8 @@ extension PinnedMicrophoneRecorder: AVCaptureFileOutputRecordingDelegate {
         from connections: [AVCaptureConnection]
     ) {
         DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.isStarting = false
-            self.onRecordingStarted?()
+            guard let self, self.activeRecordingURL == fileURL else { return }
+            self.onRecordingStarted?(fileURL)
         }
     }
 
@@ -173,8 +182,6 @@ extension PinnedMicrophoneRecorder: AVCaptureFileOutputRecordingDelegate {
         from connections: [AVCaptureConnection],
         error: Error?
     ) {
-        stopSessionAfterRecording()
-
         // 錄音正常結束時 error 仍可能非 nil（例如達到長度上限）。
         // AVFoundation 用 AVErrorRecordingSuccessfullyFinishedKey 告訴我們
         // 檔案到底能不能用，不看這個旗標會把可用的錄音誤丟掉。
@@ -187,7 +194,12 @@ extension PinnedMicrophoneRecorder: AVCaptureFileOutputRecordingDelegate {
 
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            self.isStarting = false
+            if self.activeRecordingURL == outputFileURL {
+                // Enqueue the old session's stop before accepting another start.
+                // A delayed callback for another URL must never stop a new job.
+                self.stopSessionAfterRecording()
+                self.activeRecordingURL = nil
+            }
             self.onRecordingFinished?(outputFileURL, recordingIsUsable ? nil : error)
         }
     }

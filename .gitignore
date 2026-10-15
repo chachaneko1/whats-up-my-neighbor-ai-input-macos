@@ -12,3 +12,5 @@ xcuserdata/
 **/bin/
 **/obj/
 .codex/
+__pycache__/
+*.pyc
