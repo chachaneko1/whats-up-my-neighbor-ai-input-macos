@@ -446,7 +446,7 @@ private enum CatPNG {
                 for channel in 0..<channels {
                     replacement[channel] = Int((Double(original[channel]) * (1 - blend) + background[channel] * blend).rounded())
                 }
-                bitmap.setPixel(replacement, atX: x, y: y)
+                bitmap.setPixel(&replacement, atX: x, y: y)
             }
         }
         return image(bitmap)
