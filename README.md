@@ -1,5 +1,7 @@
 # Groq AI 語音輸入 for macOS
 
+Windows 測試版的功能、安裝與驗證請見 [Windows 說明](windows/README.md)。
+
 一個輕量的原生 macOS 選單列語音輸入 App。按下自訂全域快捷鍵開始錄音，再按一次停止；音訊會送到 Groq `whisper-large-v3`，轉成繁體中文後貼到原本游標位置。也可與配套 iPhone App 在附近直接連線，從手機修改轉錄文字並明確選擇「只貼上」或「貼上並送出」。
 
 ## 非工程師技術教學

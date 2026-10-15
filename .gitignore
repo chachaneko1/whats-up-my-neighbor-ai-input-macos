@@ -7,3 +7,8 @@ dist/
 .build/
 xcuserdata/
 *.xcuserstate
+
+# Windows build outputs and local agent context
+**/bin/
+**/obj/
+.codex/
