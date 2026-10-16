@@ -40,6 +40,7 @@ struct DesktopPetModel {
     private(set) var origin = CGPoint.zero
     private(set) var facingLeft = false
     private(set) var phase: Double = 0
+    private(set) var walkDistance: CGFloat = 0
     private(set) var perchID: String?
     private var nextAction: TimeInterval = 0
     private var poseStarted: TimeInterval = 0
@@ -133,6 +134,7 @@ struct DesktopPetModel {
                 origin.y += sin(progress * .pi) * min(45, area.height * 0.08)
             }
             origin = Self.clamp(origin, to: area)
+            walkDistance = abs(origin.x - move.from.x)
             if progress >= 1 {
                 origin = move.to
                 perchID = move.perch
@@ -167,6 +169,7 @@ struct DesktopPetModel {
             ?? CGPoint(x: area.minX + CGFloat(random()) * (area.width - Self.size.width), y: area.minY)
         let destination = Self.clamp(target, to: area)
         facingLeft = destination.x < origin.x
+        walkDistance = 0
         let duration = max(2, min(9, Double(distance(origin, destination)) / 70))
         journey = Journey(from: origin, to: destination, started: now, duration: duration, perch: selected?.id)
         perchID = nil

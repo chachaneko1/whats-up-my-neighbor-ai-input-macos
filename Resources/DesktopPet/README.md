@@ -8,5 +8,11 @@ https://www.figma.com/design/9GCLMgCKB0DnkDUDCrN7eN?node-id=3-39
 - `reply.svg`: Sit / Reply, node 3:37
 - `body.svg`: sitting body, node 3:8
 - `tail.svg`: sitting tail, node 3:7
+- `walk-body.svg`: unchanged tail/body paths extracted from `walk.svg`
+- `walk-paws.svg`: unchanged four-paw path extracted from `walk.svg`
 
 SVG exports are kept unchanged. The native view composes the original parts for loafing/sleeping and adds small native expression marks. Black fur remains #101114. All artwork is bundled locally; no temporary Figma asset URLs are used at runtime. Custom cat.config.json PNGs retain their existing recording/greeting behavior.
+
+Locomotion composes the original body and diagonal paw groups with a native three-quarter head facing travel. Only the walking silhouette reflects; its X/check glyphs retain their handedness. Front/rest poses always use the original orientation, regardless of the previous walk direction.
+
+Paw stance follows the model's actual horizontal distance, including acceleration: planted paws stay fixed on the desktop, while each diagonal pair takes its turn lifting and swinging forward. This does not increase the existing 12 fps walking limit.

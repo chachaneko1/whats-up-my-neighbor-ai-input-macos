@@ -20,11 +20,24 @@ struct DesktopPetTests {
         model.setReleased(true, now: 0, world: world)
         var poses = Set<DesktopPetPose>()
         var perched = false, moving = false
+        var travelDirections = Set<Bool>()
         for step in 0...4000 {
+            let previous = model.origin
+            let previousDistance = model.walkDistance
+            let previousPose = model.pose
             model.tick(now: Double(step) / 4, world: world)
             expect(area.insetBy(dx: -0.01, dy: -0.01).contains(model.frame), "entire pet stays on its display")
             poses.insert(model.pose)
             moving = moving || model.isTravelling
+            let dx = model.origin.x - previous.x
+            if model.pose == .walking && abs(dx) > 0.01 {
+                expect(model.facingLeft == (dx < 0), "walking faces its actual horizontal travel")
+                travelDirections.insert(model.facingLeft)
+                if previousPose == .walking {
+                    expect(abs(model.walkDistance - previousDistance - abs(dx)) < 0.001,
+                           "gait distance follows actual movement including acceleration")
+                }
+            }
             if model.perchID == folder.id {
                 perched = true
                 expect(abs(model.frame.minY + DesktopPetModel.feetInset - folder.frame.maxY) < 0.01,
@@ -33,6 +46,7 @@ struct DesktopPetTests {
         }
         expect(poses == Set(DesktopPetPose.allCases), "idle cycle reaches all seven poses")
         expect(perched && moving, "walks to a folder as well as the screen edge")
+        expect(travelDirections == [true, false], "fixture exercises leftward and rightward travel")
 
         // Removed/moved/occluded folder IDs must never strand the pet in mid-air.
         model = DesktopPetModel(seed: 42)
@@ -123,12 +137,92 @@ struct DesktopPetTests {
         expect(!controller.testPanel.isVisible && !controller.testTimerActive, "disposed window cannot restart")
 
         let view = DesktopPetView(resources: resources)
+        // Ground contact is a spatial contract, including the model's eased
+        // acceleration: planted paws must not drift as the panel moves.
+        for left in [false, true] {
+            let initial = DesktopPetView.pawOffset(distance: 0, pair: 0)
+            for distance: CGFloat in [4, 8, 12, 16, 20] {
+                let foot = DesktopPetView.pawOffset(distance: distance, pair: 0)
+                let panelX = left ? -distance : distance
+                let worldX = panelX + (left ? foot.x : -foot.x) * 0.28
+                expect(abs(worldX - (left ? initial.x : -initial.x) * 0.28) < 0.001 && foot.y == 0,
+                       "planted paw stays fixed on the desktop while the body advances")
+            }
+        }
+        let lifted = DesktopPetView.pawOffset(distance: DesktopPetView.strideDistance * 0.8, pair: 0)
+        expect(lifted.y <= -27, "swing lifts a paw visibly above the ground")
+        let landed = DesktopPetView.pawOffset(distance: DesktopPetView.strideDistance, pair: 0)
+        expect(landed.y == 0 && abs(landed.x + 43) < 0.001, "swing returns to a planted leading paw")
+        let partner = DesktopPetView.pawOffset(distance: DesktopPetView.strideDistance * 0.3, pair: 1)
+        expect(partner.y <= -27, "diagonal pairs alternate stance and swing")
         expect(view.loadedAssets.contains("sit") && view.loadedAssets.contains("walk") && view.loadedAssets.contains("reply"), "original artwork bundled")
+        expect(view.loadedAssets.contains("walk-body") && view.loadedAssets.contains("walk-paws"), "directional walking components bundled")
         for pose in DesktopPetPose.allCases {
             let data = view.renderPNG(pose: pose, phase: pose == .yawning ? 1.6 : 0.55)
             expect(data.count > 1500, "native pose renders nonempty")
             try data.write(to: output.appendingPathComponent(pose.rawValue + ".png"))
+            if pose != .walking {
+                expect(data == view.renderPNG(pose: pose, phase: pose == .yawning ? 1.6 : 0.55, facingLeft: true),
+                       "resting face never reflects its eyes after a leftward walk: \(pose)")
+            }
         }
+        func bitmap(_ data: Data) -> NSBitmapImageRep { NSBitmapImageRep(data: data)! }
+        func color(_ bitmap: NSBitmapImageRep, artX: CGFloat, artY: CGFloat) -> NSColor {
+            let px = (8 + artX * 0.28) / 128 * CGFloat(bitmap.pixelsWide)
+            let py = (128 - 2 - 367 * 0.28 + artY * 0.28) / 128 * CGFloat(bitmap.pixelsHigh)
+            return bitmap.colorAt(x: Int(px), y: Int(py))!.usingColorSpace(.deviceRGB)!
+        }
+        func isInk(_ bitmap: NSBitmapImageRep, _ x: CGFloat, _ y: CGFloat) -> Bool {
+            let pixel = color(bitmap, artX: x, artY: y)
+            return pixel.alphaComponent > 0.8 && pixel.redComponent > 0.8
+        }
+        for left in [false, true] {
+            let data = view.renderPNG(pose: .walking, facingLeft: left)
+            let frame = bitmap(data)
+            // Head above the body must lead travel, rather than looking front-on
+            // while a mirrored still image slides to either side.
+            var mass: CGFloat = 0, xMass: CGFloat = 0
+            for y in 50..<200 {
+                for x in 20..<380 {
+                    let pixel = color(frame, artX: CGFloat(x), artY: CGFloat(y))
+                    if pixel.alphaComponent > 0.8 && pixel.redComponent < 0.2 {
+                        mass += 1; xMass += CGFloat(x)
+                    }
+                }
+            }
+            expect(mass > 1000 && (left ? xMass / mass < 180 : xMass / mass > 220),
+                   "turned head leads the body in the direction of travel")
+            let start: CGFloat = left ? 135 : 301, tip: CGFloat = left ? 159 : 336
+            let top: CGFloat = left ? 139 : 144, bottom: CGFloat = left ? 157 : 170
+            expect(isInk(frame, tip, top) && !isInk(frame, start, top) &&
+                   isInk(frame, left ? 142 : 312, bottom), "check rises to the right in either walking direction")
+            expect(isInk(frame, left ? 69 : 240, left ? 145 : 140) &&
+                   isInk(frame, left ? 94 : 257, left ? 145 : 140), "X remains to the left of check")
+            try data.write(to: output.appendingPathComponent(left ? "walk-left.png" : "walk-right.png"))
+            let step = view.renderPNG(pose: .walking, phase: 0.18, facingLeft: left, walkDistance: 12.6)
+            expect(data != step, "walking paws articulate in both directions")
+            expect(data == view.renderPNG(pose: .walking, phase: 5, facingLeft: left),
+                   "elapsed time alone cannot slide paws when the cat has not moved")
+            try step.write(to: output.appendingPathComponent(left ? "walk-left-step.png" : "walk-right-step.png"))
+        }
+        let directions: [(String, DesktopPetPose, Bool, Double)] = [
+            ("向左走 ←", .walking, true, 0), ("向左邁步 ←", .walking, true, 0.18),
+            ("向右走 →", .walking, false, 0), ("向右邁步 →", .walking, false, 0.18),
+            ("走完向前看", .sitting, true, 0), ("趴下休息", .loafing, true, 0)]
+        let directionSheet = NSImage(size: CGSize(width: 768, height: 190), flipped: true) { _ in
+            NSColor(srgbRed: 0.90, green: 0.91, blue: 0.89, alpha: 1).setFill()
+            CGRect(x: 0, y: 0, width: 768, height: 190).fill()
+            for (index, item) in directions.enumerated() {
+                let data = view.renderPNG(pose: item.1, phase: item.3, facingLeft: item.2, walkDistance: CGFloat(item.3 * 70))
+                NSImage(data: data)!.draw(in: CGRect(x: index * 128, y: 10, width: 128, height: 128),
+                    from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+                (item.0 as NSString).draw(at: CGPoint(x: index * 128 + 20, y: 155), withAttributes: [
+                    .font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.black])
+            }
+            return true
+        }
+        try NSBitmapImageRep(data: directionSheet.tiffRepresentation!)!.representation(using: .png, properties: [:])!
+            .write(to: output.appendingPathComponent("directions.png"))
         let sheet = NSImage(size: CGSize(width: 896, height: 210), flipped: true) { _ in
             NSColor(srgbRed: 0.90, green: 0.91, blue: 0.89, alpha: 1).setFill()
             CGRect(x: 0, y: 0, width: 896, height: 210).fill()
