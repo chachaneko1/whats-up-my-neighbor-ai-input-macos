@@ -177,6 +177,40 @@ struct DesktopPetTests {
             let pixel = color(bitmap, artX: x, artY: y)
             return pixel.alphaComponent > 0.8 && pixel.redComponent > 0.8
         }
+        func renderedEyeCenters(_ pixels: NSBitmapImageRep, left: Bool) -> [CGPoint] {
+            let width = pixels.pixelsWide, height = pixels.pixelsHigh
+            var mask = [Bool](repeating: false, count: width * height)
+            for y in 0..<height {
+                let artY = (CGFloat(y) * 128 / CGFloat(height) - (128 - 2 - 367 * 0.28)) / 0.28
+                guard artY > 125 && artY < 180 else { continue }
+                for x in 0..<width {
+                    let artX = (CGFloat(x) * 128 / CGFloat(width) - 8) / 0.28
+                    guard left ? (55...180).contains(artX) : (225...355).contains(artX) else { continue }
+                    let pixel = pixels.colorAt(x: x, y: y)!.usingColorSpace(.deviceRGB)!
+                    mask[y * width + x] = pixel.alphaComponent > 0.5 && pixel.redComponent > 0.6
+                }
+            }
+            var centers: [CGPoint] = []
+            for seed in mask.indices where mask[seed] {
+                var queue = [seed], next = 0
+                mask[seed] = false
+                var minX = seed % width, maxX = minX, minY = seed / width, maxY = minY
+                while next < queue.count {
+                    let point = queue[next], x = point % width, y = point / width
+                    next += 1
+                    minX = min(minX, x); maxX = max(maxX, x); minY = min(minY, y); maxY = max(maxY, y)
+                    for dy in -1...1 {
+                        for dx in -1...1 where (dx != 0 || dy != 0) &&
+                            x + dx >= 0 && x + dx < width && y + dy >= 0 && y + dy < height {
+                            let neighbor = (y + dy) * width + x + dx
+                            if mask[neighbor] { mask[neighbor] = false; queue.append(neighbor) }
+                        }
+                    }
+                }
+                if queue.count > 2 { centers.append(CGPoint(x: CGFloat(minX + maxX) / 2, y: CGFloat(minY + maxY) / 2)) }
+            }
+            return centers.sorted { $0.x < $1.x }
+        }
         for left in [false, true] {
             let data = view.renderPNG(pose: .walking, facingLeft: left)
             let frame = bitmap(data)
@@ -193,14 +227,14 @@ struct DesktopPetTests {
             }
             expect(mass > 1000 && (left ? xMass / mass < 180 : xMass / mass > 220),
                    "turned head leads the body in the direction of travel")
-            let start: CGFloat = left ? 135 : 301, tip: CGFloat = left ? 159 : 336
-            let top: CGFloat = left ? 139 : 144, bottom: CGFloat = left ? 157 : 170
+            let start: CGFloat = left ? 136 : 298, tip: CGFloat = left ? 160 : 334
+            let top: CGFloat = left ? 147 : 143, bottom: CGFloat = left ? 165 : 169
             expect(isInk(frame, tip, top) && !isInk(frame, start, top) &&
-                   isInk(frame, left ? 142 : 312, bottom), "check rises to the right in either walking direction")
-            expect(isInk(frame, left ? 69 : 240, left ? 145 : 140) &&
-                   isInk(frame, left ? 94 : 257, left ? 145 : 140), "X remains to the left of check")
-            expect(isInk(frame, left ? 114 : 283, 192) &&
-                   isInk(frame, left ? 107 : 276, 198) && isInk(frame, left ? 121 : 290, 198) &&
+                   isInk(frame, left ? 143 : 309, bottom), "check rises to the right in either walking direction")
+            expect(isInk(frame, left ? 72 : 244, left ? 144 : 148) &&
+                   isInk(frame, left ? 96 : 260, left ? 144 : 148), "X remains to the left of check")
+            expect(isInk(frame, left ? 116 : 284, 192) &&
+                   isInk(frame, left ? 109 : 277, 198) && isInk(frame, left ? 123 : 291, 198) &&
                    !isInk(frame, left ? 57 : 341, 200),
                    "original omega mouth sits beneath the eyes, away from the silhouette edge")
             func leadingEdge(at y: CGFloat) -> Int {
@@ -227,6 +261,11 @@ struct DesktopPetTests {
                 let distance = DesktopPetView.strideDistance * CGFloat(index) / 16
                 let data = view.renderPNG(pose: .walking, facingLeft: left, walkDistance: distance)
                 let pixels = bitmap(data), width = pixels.pixelsWide, height = pixels.pixelsHigh
+                let eyes = renderedEyeCenters(pixels, left: left)
+                expect(eyes.count == 2 && abs(eyes[0].y - eyes[1].y) <= 1,
+                       "walking eyes share one rendered horizontal line in frame \(left)/\(index): \(eyes)")
+                expect(eyes.count == 2 && abs(eyes[1].x - eyes[0].x - 64 * 0.28 * CGFloat(width) / 128) <= 1,
+                       "walking eye spacing stays consistent in either direction")
                 var solid = [Bool](repeating: false, count: width * height)
                 var clips = false
                 for y in 0..<height {

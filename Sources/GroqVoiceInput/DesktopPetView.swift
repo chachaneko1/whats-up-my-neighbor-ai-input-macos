@@ -123,8 +123,8 @@ final class DesktopPetView: NSView {
         drawTurnedHead()
         NSGraphicsContext.restoreGraphicsState()
 
-        // A three-quarter face: the far eye is smaller. Both glyphs retain
-        // their original handedness and X-left / check-right reading order.
+        // A turned face: the far eye is smaller. Both glyphs share one eye
+        // line and retain their handedness and X-left / check-right order.
         NSGraphicsContext.saveGraphicsState()
         let faceLift = NSAffineTransform()
         faceLift.translateX(by: 0, yBy: bob)
@@ -158,10 +158,13 @@ final class DesktopPetView: NSView {
 
     private func drawWalkingFace() {
         ink.setStroke()
+        let eyeLine: CGFloat = 156
+        let crossCenter: CGFloat = facingLeft ? 84 : 252
+        let checkCenter: CGFloat = facingLeft ? 148 : 316
         let cross = NSBezierPath()
-        let x: CGFloat = facingLeft ? 69 : 240
-        let y: CGFloat = facingLeft ? 145 : 140
         let size: CGFloat = facingLeft ? 25 : 17
+        let x = crossCenter - size / 2
+        let y = eyeLine - size / 2
         cross.move(to: CGPoint(x: x, y: y))
         cross.line(to: CGPoint(x: x + size, y: y + size))
         cross.move(to: CGPoint(x: x + size, y: y))
@@ -171,9 +174,11 @@ final class DesktopPetView: NSView {
         cross.stroke()
 
         let check = NSBezierPath()
-        let checkX: CGFloat = facingLeft ? 135 : 301
-        let checkY: CGFloat = facingLeft ? 150 : 159
         let scale: CGFloat = facingLeft ? 0.62 : 0.9
+        // Original check bounds: x=0...39, y=-17...12. Position by its
+        // center, not its first point (which puts the far eye too high).
+        let checkX = checkCenter - 19.5 * scale
+        let checkY = eyeLine + 2.5 * scale
         check.move(to: CGPoint(x: checkX, y: checkY))
         check.line(to: CGPoint(x: checkX + 12 * scale, y: checkY + 12 * scale))
         check.line(to: CGPoint(x: checkX + 39 * scale, y: checkY - 17 * scale))
@@ -186,7 +191,7 @@ final class DesktopPetView: NSView {
         // leading silhouette edge makes it look detached from the face.
         NSGraphicsContext.saveGraphicsState()
         let mouthPosition = NSAffineTransform()
-        mouthPosition.translateX(by: facingLeft ? 101 : 270, yBy: 192)
+        mouthPosition.translateX(by: (crossCenter + checkCenter) / 2 - 13.5, yBy: 192)
         mouthPosition.scale(by: 0.75)
         mouthPosition.concat()
         let mouth = NSBezierPath()
