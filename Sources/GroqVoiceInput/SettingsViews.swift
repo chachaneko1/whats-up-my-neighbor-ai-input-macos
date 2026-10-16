@@ -270,32 +270,24 @@ final class TextSettingsView: NSView {
 
 /// iPhone 接力與錄音麥克風的設定。
 ///
-/// 這兩件事放在同一個面板，是因為使用者感受到的是同一個症狀（「它自己連到手機」），
-/// 但底下其實是兩個獨立機制：接力模式管的是手機能不能連上來貼字；錄音麥克風管的是
-/// macOS 的連續互通麥克風會不會把 Mac 的錄音來源搶走。
+/// Desktop input choices always exclude phone hardware. Phone recording uses
+/// the separate, explicitly enabled relay workflow.
 final class RelaySettingsView: NSView {
     private let shortcutRecorder: ShortcutRecorderView
     private let clearShortcutButton: NSButton
     private var hasShortcut: Bool
-    private let continuityCheckbox: NSButton
     private let devicePopUp = NSPopUpButton(frame: NSRect(x: 110, y: 108, width: 350, height: 26))
     private let devices: [AudioInputDevice]
 
     init(
         relayShortcut: HotKeyShortcut?,
         preferredDeviceUID: String?,
-        allowContinuityMicrophone: Bool,
         devices: [AudioInputDevice]
     ) {
         shortcutRecorder = ShortcutRecorderView(shortcut: relayShortcut ?? defaultRelayHotKey)
         clearShortcutButton = NSButton(title: "清除", target: nil, action: nil)
         hasShortcut = relayShortcut != nil
-        continuityCheckbox = NSButton(
-            checkboxWithTitle: "允許使用 iPhone 連續互通麥克風錄音",
-            target: nil,
-            action: nil
-        )
-        self.devices = devices
+        self.devices = devices.filter { !AudioInputPolicy.isContinuityCapture($0.transportType) }
         super.init(frame: NSRect(x: 0, y: 0, width: 460, height: 316))
 
         addNote(
@@ -321,12 +313,11 @@ final class RelaySettingsView: NSView {
 
         addLabel("錄音麥克風", x: 0, y: 112, width: 105)
         devicePopUp.addItem(withTitle: "自動（排除 iPhone）")
-        for device in devices {
-            let suffix = AudioInputPolicy.isContinuityCapture(device.transportType) ? "（iPhone 連續互通）" : ""
-            devicePopUp.addItem(withTitle: device.name + suffix)
+        for device in self.devices {
+            devicePopUp.addItem(withTitle: device.name)
         }
         if let preferredDeviceUID,
-           let index = devices.firstIndex(where: { $0.uid == preferredDeviceUID }) {
+           let index = self.devices.firstIndex(where: { $0.uid == preferredDeviceUID }) {
             devicePopUp.selectItem(at: index + 1)
         } else {
             devicePopUp.selectItem(at: 0)
@@ -337,13 +328,10 @@ final class RelaySettingsView: NSView {
             x: 110, y: 78, width: 350, height: 26
         )
 
-        continuityCheckbox.state = allowContinuityMicrophone ? .on : .off
-        continuityCheckbox.frame = NSRect(x: 0, y: 52, width: 460, height: 20)
-        addSubview(continuityCheckbox)
         addNote(
-            "連續互通麥克風是 macOS 的功能，手機 App 沒開、手機鎖屏、手機在別的房間都會出現在裝置清單裡。"
-            + "勾選後 Mac 錄音可能會被隔空轉到 iPhone 上，通常只會錄到靜音。",
-            x: 18, y: 0, width: 442, height: 46
+            "電腦錄音只使用電腦或外接麥克風，不會喚醒 iPhone。"
+            + "只有電腦放得較遠、身邊沒有麥克風時，才需要手動開啟接力，從手機錄音。",
+            x: 0, y: 12, width: 460, height: 46
         )
     }
 
@@ -360,8 +348,6 @@ final class RelaySettingsView: NSView {
         guard index > 0, index - 1 < devices.count else { return nil }
         return devices[index - 1].uid
     }
-
-    var allowContinuityMicrophone: Bool { continuityCheckbox.state == .on }
 
     @objc private func clearShortcut() {
         hasShortcut = false

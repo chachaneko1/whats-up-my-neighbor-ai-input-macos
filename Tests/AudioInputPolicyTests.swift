@@ -23,13 +23,11 @@ enum AudioInputPolicyTests {
 
     static func select(
         _ devices: [AudioInputDevice],
-        preferredUID: String? = nil,
-        allowContinuityCapture: Bool = false
+        preferredUID: String? = nil
     ) -> String? {
         AudioInputPolicy.selectDevice(
             from: devices,
-            preferredUID: preferredUID,
-            allowContinuityCapture: allowContinuityCapture
+            preferredUID: preferredUID
         )?.uid
     }
 
@@ -38,7 +36,7 @@ enum AudioInputPolicyTests {
         testContinuityDetection()
         testContinuityDefaultFallsBackToBuiltIn()
         testNonContinuityDefaultIsLeftAlone()
-        testAllowContinuityOptOut()
+        testPinnedPhoneCannotOverrideDesktopIsolation()
         testPreferredDevice()
         testDegenerateDeviceLists()
         print("AudioInputPolicyTests passed")
@@ -127,20 +125,17 @@ enum AudioInputPolicyTests {
         precondition(select(virtualDevice) == "BlackHole2ch_UID")
     }
 
-    /// 使用者明確勾選「允許使用 iPhone 連續互通麥克風」時，完全不介入。
-    static func testAllowContinuityOptOut() {
-        let devices = [
-            device("BuiltInMicrophoneDevice", builtIn),
-            device("iphone", ccwd, isDefault: true)
-        ]
-        precondition(
-            select(devices, allowContinuityCapture: true) == "iphone",
-            "明確允許時必須尊重系統預設"
-        )
-        precondition(
-            select(devices, allowContinuityCapture: false) == "BuiltInMicrophoneDevice",
-            "未允許時必須退回內建麥克風"
-        )
+    static func testPinnedPhoneCannotOverrideDesktopIsolation() {
+        for transport in [ccwd, ccwl, ccap] {
+            let devices = [device("Mac", builtIn), device("phone", transport, isDefault: true)]
+            precondition(select(devices, preferredUID: "phone") == "Mac",
+                         "A phone UID saved by an older version must not open phone hardware")
+            let external = [device("phone", transport, isDefault: true), device("USB", usb)]
+            precondition(select(external, preferredUID: "phone") == "USB",
+                         "A stale phone preference must fall back to an external desktop microphone")
+            precondition(select([device("phone", transport)], preferredUID: "phone") == nil,
+                         "No desktop input means unavailable; never activate the phone as a fallback")
+        }
     }
 
     static func testPreferredDevice() {
@@ -187,10 +182,6 @@ enum AudioInputPolicyTests {
         // 也不要默默錄一段靜音。
         let onlyContinuity = [device("iphone", ccwd, isDefault: true)]
         precondition(select(onlyContinuity) == nil, "只有 iPhone 可用且未允許時必須回傳 nil")
-        precondition(
-            select(onlyContinuity, allowContinuityCapture: true) == "iphone",
-            "只有 iPhone 可用但明確允許時應該可以錄"
-        )
 
         // 沒有任何裝置被標記為系統預設時不可以當掉。
         let noDefault = [

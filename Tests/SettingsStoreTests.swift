@@ -19,7 +19,6 @@ enum SettingsStoreTests {
             ))
             precondition(store.loadRelaySettings() == RelaySettings(
                 preferredInputDeviceUID: nil,
-                allowContinuityMicrophone: false,
                 relayHotKey: defaultRelayHotKey
             ))
             defaults.set("lightCleanup", forKey: "textOutputMode")
@@ -114,18 +113,20 @@ enum SettingsStoreTests {
 
         withStore { store, defaults in
             var settings = RelaySettings(
-                preferredInputDeviceUID: "fixture-microphone", allowContinuityMicrophone: true,
+                preferredInputDeviceUID: "fixture-microphone",
                 relayHotKey: HotKeyShortcut(keyCode: UInt32(kVK_F7), modifiers: UInt32(optionKey))
             )
             store.saveRelaySettings(settings)
+            defaults.set(true, forKey: "allowContinuityMicrophone")
             precondition(SettingsStore(defaults: defaults).loadRelaySettings() == settings)
             settings.preferredInputDeviceUID = nil
             settings.relayHotKey = nil
-            settings.allowContinuityMicrophone = false
             store.saveRelaySettings(settings)
             precondition(SettingsStore(defaults: defaults).loadRelaySettings() == settings,
                          "Explicitly cleared relay hotkey must stay cleared after relaunch")
             precondition(defaults.object(forKey: "preferredInputDeviceUID") == nil)
+            precondition(defaults.bool(forKey: "allowContinuityMicrophone"),
+                         "An obsolete Continuity opt-in is ignored without deleting legacy preferences")
             precondition(defaults.object(forKey: "relayHotKeyModifiers") != nil)
             precondition(defaults.integer(forKey: "relayHotKeyModifiers") == 0)
             precondition(defaults.object(forKey: "isRelayModeEnabled") == nil)

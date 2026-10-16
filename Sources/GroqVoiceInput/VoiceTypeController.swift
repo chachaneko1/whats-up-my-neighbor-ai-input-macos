@@ -71,7 +71,6 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     private var convertChineseNumerals = false
     private var silenceAutoStopSeconds = 0
     private var preferredInputDeviceUID: String?
-    private var allowContinuityMicrophone = false
     private var textOutputMode: TextOutputMode = .verbatim
     private var isRelayModeEnabled = false
     private var meteringTimer: Timer?
@@ -244,7 +243,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
             NSSound(named: "Glass")?.play()
         }
         remoteBridge.onMessage = { [weak self] message in
-            guard let self else { return }
+            guard let self, self.isRelayModeEnabled else { return }
             self.remoteTargetController.handle(message) { [weak self] response in
                 self?.remoteBridge.send(response) ?? false
             }
@@ -388,7 +387,6 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     private func loadRelaySettings() {
         let value = settings.loadRelaySettings()
         preferredInputDeviceUID = value.preferredInputDeviceUID
-        allowContinuityMicrophone = value.allowContinuityMicrophone
         relayHotKey = value.relayHotKey
     }
 
@@ -397,7 +395,6 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         let view = RelaySettingsView(
             relayShortcut: relayHotKey,
             preferredDeviceUID: preferredInputDeviceUID,
-            allowContinuityMicrophone: allowContinuityMicrophone,
             devices: AudioInputDevices.current()
         )
         let alert = NSAlert()
@@ -413,7 +410,6 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         }
 
         preferredInputDeviceUID = view.preferredDeviceUID
-        allowContinuityMicrophone = view.allowContinuityMicrophone
 
         relayHotKey = view.relayShortcut
         saveRelayHotKey()
@@ -430,7 +426,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     private func saveRelayHotKey() {
         settings.saveRelaySettings(RelaySettings(
             preferredInputDeviceUID: preferredInputDeviceUID,
-            allowContinuityMicrophone: allowContinuityMicrophone, relayHotKey: relayHotKey
+            relayHotKey: relayHotKey
         ))
     }
 
@@ -680,10 +676,8 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
             showError("尚未允許麥克風。請到「系統設定 → 隱私權與安全性 → 麥克風」開啟 What's up my neighbor。")
             return
         }
-        guard let device = AudioInputDevices.selected(
-            preferredUID: preferredInputDeviceUID, allowContinuityCapture: allowContinuityMicrophone
-        ) else {
-            showError("找不到可用的麥克風。請接上其他麥克風，或在「iPhone 接力與麥克風設定…」中允許使用 iPhone 連續互通麥克風。")
+        guard let device = AudioInputDevices.selected(preferredUID: preferredInputDeviceUID) else {
+            showError("找不到電腦端麥克風。請接上麥克風；若電腦放得較遠，可手動開啟 iPhone 接力模式，再從手機錄音。")
             return
         }
         correctionMonitor.stop(reason: "錄音中；完成貼上後才開始觀察修正。")

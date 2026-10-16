@@ -26,11 +26,10 @@ enum AudioInputDevices {
     }
 
     /// 依目前設定選出這次錄音要用的裝置。回傳 nil 表示沒有可用的輸入裝置。
-    static func selected(preferredUID: String?, allowContinuityCapture: Bool) -> AudioInputDevice? {
+    static func selected(preferredUID: String?) -> AudioInputDevice? {
         AudioInputPolicy.selectDevice(
             from: current(),
-            preferredUID: preferredUID,
-            allowContinuityCapture: allowContinuityCapture
+            preferredUID: preferredUID
         )
     }
 
