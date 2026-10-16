@@ -29,6 +29,8 @@ App 使用 Sparkle，每天向 GitHub Releases 讀取公開版本清單。GitHub
 - 輔助使用：本機錄音只模擬 `Command + V`。只有已配對 iPhone 明確送出 `貼上並送出` 動作、且 Mac 再次驗證同一輸入框時，才會額外模擬一次 Enter。
 - 網路：用於向 GitHub 檢查／下載使用者選擇的更新、呼叫 Groq Speech-to-Text API，以及透過加密的 Multipeer Connectivity 與附近已配對 iPhone 傳送文字、目標名稱與明確動作。遠端資料不經過開發者後端。
 
+iPhone 接力每次啟動預設關閉，不廣播也不接受手機連線；只有使用者手動開啟時才使用。電腦錄音排除 iPhone 連續互通麥克風，也不會因找不到電腦麥克風而自動開啟接力。關閉接力會斷開手機並清除遠端輸入目標，舊連線延後送達的訊息不會執行。
+
 ## 刪除
 
 執行 `移除.command` 可刪除 App、本機啟動設定及 Keychain 中的 Groq API Key。本機剪貼簿歷史也會刪除；目前系統剪貼簿內容由 macOS 管理。

@@ -90,6 +90,12 @@ final class MacRemoteBridge: NSObject, @unchecked Sendable {
         return relayEnabled
     }
 
+    private func activeSession(for advertiser: MCNearbyServiceAdvertiser) -> MCSession? {
+        relayLock.lock()
+        defer { relayLock.unlock() }
+        return relayEnabled && relayAdvertiser === advertiser ? relaySession : nil
+    }
+
     func beginPairing(code: String, validFor seconds: TimeInterval = 300) {
         pairingLock.lock()
         pairingCode = code
@@ -166,18 +172,19 @@ final class MacRemoteBridge: NSObject, @unchecked Sendable {
     }
 
     private func notifyConnectionChange() {
-        let status: String
-        if !isRelayEnabled {
-            status = "已停用"
-        } else if let connectedPhoneName {
-            status = "已連線：\(connectedPhoneName)"
-        } else if hasPairedPhone {
-            status = "已配對，等待 iPhone 連線"
-        } else {
-            status = "尚未配對"
-        }
         DispatchQueue.main.async { [weak self] in
-            self?.onConnectionChange?(status)
+            guard let self else { return }
+            let status: String
+            if !self.isRelayEnabled {
+                status = "已停用"
+            } else if let connectedPhoneName = self.connectedPhoneName {
+                status = "已連線：\(connectedPhoneName)"
+            } else if self.hasPairedPhone {
+                status = "已配對，等待 iPhone 連線"
+            } else {
+                status = "尚未配對"
+            }
+            self.onConnectionChange?(status)
         }
     }
 }
@@ -191,7 +198,7 @@ extension MacRemoteBridge: MCNearbyServiceAdvertiserDelegate {
     ) {
         // 接力模式關閉時一律拒絕。以前這裡對已配對的手機是零確認自動接受，
         // 等於 App 一開就永遠在等手機連進來，正是使用者回報的「沒同意就連上手機」。
-        guard let session = activeSession() else {
+        guard let session = activeSession(for: advertiser) else {
             invitationHandler(false, nil)
             return
         }
@@ -211,13 +218,15 @@ extension MacRemoteBridge: MCNearbyServiceAdvertiserDelegate {
         savePeer(peerID, forKey: pairedPeerDefaultsKey)
         invitationHandler(true, session)
         DispatchQueue.main.async { [weak self] in
-            self?.onPairingComplete?(peerID.displayName)
+            guard let self, self.activeSession() === session, self.isPaired(peerID) else { return }
+            self.onPairingComplete?(peerID.displayName)
         }
     }
 
     func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didNotStartAdvertisingPeer error: Error) {
         DispatchQueue.main.async { [weak self] in
-            self?.onConnectionChange?("無法啟動附近連線：\(error.localizedDescription)")
+            guard let self, self.activeSession(for: advertiser) != nil else { return }
+            self.onConnectionChange?("無法啟動附近連線：\(error.localizedDescription)")
         }
     }
 }
@@ -232,7 +241,9 @@ extension MacRemoteBridge: MCSessionDelegate {
               isPaired(peerID),
               let message = try? RemoteMessageCodec.decode(RemoteMessage.self, from: data) else { return }
         DispatchQueue.main.async { [weak self] in
-            self?.onMessage?(message)
+            // A stop/restart can occur while this callback waits on main.
+            guard let self, self.activeSession() === session, self.isPaired(peerID) else { return }
+            self.onMessage?(message)
         }
     }
 

@@ -47,22 +47,19 @@ enum AudioInputPolicy {
     /// 回傳 nil 表示完全沒有可用的輸入裝置，呼叫端應視為無法錄音。
     static func selectDevice(
         from devices: [AudioInputDevice],
-        preferredUID: String?,
-        allowContinuityCapture: Bool
+        preferredUID: String?
     ) -> AudioInputDevice? {
+        // Desktop dictation never opens phone hardware, including a UID saved
+        // by an older version. Phone audio belongs to explicit phone relay.
+        let localDevices = devices.filter { !isContinuityCapture($0.transportType) }
         // 使用者指定的固定裝置優先。找不到時（例如 USB 麥克風被拔掉）不報錯，
         // 直接往下走自動規則，避免拔個線就完全不能錄音。
         if let preferredUID,
-           let pinned = devices.first(where: { $0.uid == preferredUID }) {
+           let pinned = localDevices.first(where: { $0.uid == preferredUID }) {
             return pinned
         }
 
-        let systemDefault = devices.first { $0.isSystemDefault }
-
-        // 使用者明確允許時完全不介入，照系統設定走。
-        if allowContinuityCapture {
-            return systemDefault ?? devices.first
-        }
+        let systemDefault = localDevices.first { $0.isSystemDefault }
 
         // 系統預設不是 iPhone 就直接用它，維持既有行為。
         if let systemDefault, !isContinuityCapture(systemDefault.transportType) {
@@ -70,11 +67,11 @@ enum AudioInputPolicy {
         }
 
         // 到這裡表示系統預設被 macOS 切到了 iPhone（或根本沒有預設裝置）。
-        if let builtInDevice = devices.first(where: { $0.transportType == builtIn }) {
+        if let builtInDevice = localDevices.first(where: { $0.transportType == builtIn }) {
             return builtInDevice
         }
 
         // 沒有內建麥克風的機型（例如接外接螢幕的 Mac mini）：退回任一非連續互通裝置。
-        return devices.first { !isContinuityCapture($0.transportType) }
+        return localDevices.first
     }
 }

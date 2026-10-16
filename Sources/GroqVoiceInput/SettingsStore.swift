@@ -9,7 +9,6 @@ struct TextSettings: Equatable {
 
 struct RelaySettings: Equatable {
     var preferredInputDeviceUID: String?
-    var allowContinuityMicrophone: Bool
     var relayHotKey: HotKeyShortcut?
 }
 
@@ -33,7 +32,6 @@ final class SettingsStore {
         static let clipboardHotKeyCode = "clipboardHotKeyCode"
         static let clipboardHotKeyModifiers = "clipboardHotKeyModifiers"
         static let preferredInputDeviceUID = "preferredInputDeviceUID"
-        static let allowContinuityMicrophone = "allowContinuityMicrophone"
     }
 
     private let defaults: UserDefaults
@@ -124,6 +122,8 @@ final class SettingsStore {
     }
 
     func loadRelaySettings() -> RelaySettings {
+        // Legacy allowContinuityMicrophone is deliberately ignored. Desktop
+        // recording never uses phone hardware, regardless of old preferences.
         let stored = storedHotKey(
             codeKey: Keys.relayHotKeyCode,
             modifiersKey: Keys.relayHotKeyModifiers
@@ -137,7 +137,6 @@ final class SettingsStore {
         }
         return RelaySettings(
             preferredInputDeviceUID: defaults.string(forKey: Keys.preferredInputDeviceUID),
-            allowContinuityMicrophone: defaults.bool(forKey: Keys.allowContinuityMicrophone),
             relayHotKey: shortcut
         )
     }
@@ -148,7 +147,6 @@ final class SettingsStore {
         } else {
             defaults.removeObject(forKey: Keys.preferredInputDeviceUID)
         }
-        defaults.set(settings.allowContinuityMicrophone, forKey: Keys.allowContinuityMicrophone)
         defaults.set(Int(settings.relayHotKey?.keyCode ?? 0), forKey: Keys.relayHotKeyCode)
         defaults.set(Int(settings.relayHotKey?.modifiers ?? 0), forKey: Keys.relayHotKeyModifiers)
     }
