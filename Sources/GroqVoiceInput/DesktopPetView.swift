@@ -197,17 +197,21 @@ final class DesktopPetView: NSView {
         check.lineJoinStyle = .round
         check.stroke()
 
-        // Mouth follows the leading muzzle without reflecting either eye.
-        let mouthX: CGFloat = facingLeft ? 47 : 329
+        // Center the original omega below the two eyes. Moving it onto the
+        // leading silhouette edge makes it look detached from the face.
+        NSGraphicsContext.saveGraphicsState()
+        let mouthPosition = NSAffineTransform()
+        mouthPosition.translateX(by: facingLeft ? 101 : 270, yBy: 192)
+        mouthPosition.scale(by: 0.75)
+        mouthPosition.concat()
         let mouth = NSBezierPath()
-        mouth.move(to: CGPoint(x: mouthX, y: 196))
-        mouth.curve(to: CGPoint(x: mouthX + 12, y: 196), controlPoint1: CGPoint(x: mouthX + 1, y: 205),
-                    controlPoint2: CGPoint(x: mouthX + 10, y: 205))
-        mouth.curve(to: CGPoint(x: mouthX + 24, y: 196), controlPoint1: CGPoint(x: mouthX + 14, y: 205),
-                    controlPoint2: CGPoint(x: mouthX + 23, y: 205))
-        mouth.lineWidth = 5
+        mouth.move(to: .zero)
+        mouth.curve(to: CGPoint(x: 18, y: 0), controlPoint1: CGPoint(x: 1, y: 12), controlPoint2: CGPoint(x: 14, y: 12))
+        mouth.curve(to: CGPoint(x: 36, y: 0), controlPoint1: CGPoint(x: 21, y: 12), controlPoint2: CGPoint(x: 35, y: 12))
+        mouth.lineWidth = 7
         mouth.lineCapStyle = .round
         mouth.stroke()
+        NSGraphicsContext.restoreGraphicsState()
     }
 
     private func drawYawning() {

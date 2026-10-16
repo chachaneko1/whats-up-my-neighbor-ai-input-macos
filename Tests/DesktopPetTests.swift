@@ -198,6 +198,10 @@ struct DesktopPetTests {
                    isInk(frame, left ? 142 : 312, bottom), "check rises to the right in either walking direction")
             expect(isInk(frame, left ? 69 : 240, left ? 145 : 140) &&
                    isInk(frame, left ? 94 : 257, left ? 145 : 140), "X remains to the left of check")
+            expect(isInk(frame, left ? 114 : 283, 192) &&
+                   isInk(frame, left ? 107 : 276, 198) && isInk(frame, left ? 121 : 290, 198) &&
+                   !isInk(frame, left ? 57 : 341, 200),
+                   "original omega mouth sits beneath the eyes, away from the silhouette edge")
             try data.write(to: output.appendingPathComponent(left ? "walk-left.png" : "walk-right.png"))
             let step = view.renderPNG(pose: .walking, phase: 0.18, facingLeft: left, walkDistance: 12.6)
             expect(data != step, "walking paws articulate in both directions")
