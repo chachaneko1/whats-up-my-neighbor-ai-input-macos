@@ -9,6 +9,13 @@ private final class DesktopPetPanel: NSPanel {
 /// Owns only the optional desktop companion. Recording and greeting keep their
 /// existing windows and take priority; this controller never posts input events.
 final class DesktopPetController {
+    struct Presentation {
+        var isAppHidden: () -> Bool
+        var unhideWithoutActivation: () -> Void
+        static var system: Self {
+            Self(isAppHidden: { NSApp.isHidden }, unhideWithoutActivation: { NSApp.unhideWithoutActivation() })
+        }
+    }
     var onReleasedChange: ((Bool) -> Void)?
     var isBusy: () -> Bool = { NSApp.modalWindow != nil }
     private(set) var model = DesktopPetModel()
@@ -23,12 +30,15 @@ final class DesktopPetController {
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var disposed = false
     private let automaticallyTicks: Bool
+    private let presentation: Presentation
     private var injectedWorld: (() -> DesktopPetWorld)?
 
     init(resources: URL? = Bundle.main.resourceURL?.appendingPathComponent("DesktopPet"),
-         automaticallyTicks: Bool = true, world: (() -> DesktopPetWorld)? = nil) {
+         automaticallyTicks: Bool = true, world: (() -> DesktopPetWorld)? = nil,
+         presentation: Presentation = .system) {
         precondition(Thread.isMainThread)
         self.automaticallyTicks = automaticallyTicks
+        self.presentation = presentation
         injectedWorld = world
         artwork = DesktopPetView(resources: resources)
         panel = DesktopPetPanel(contentRect: CGRect(origin: .zero, size: DesktopPetModel.size),
@@ -40,6 +50,7 @@ final class DesktopPetController {
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .ignoresCycle]
         panel.hidesOnDeactivate = false
+        panel.canHide = false
         panel.isFloatingPanel = true
         panel.becomesKeyOnlyIfNeeded = true
         panel.ignoresMouseEvents = true
@@ -72,6 +83,10 @@ final class DesktopPetController {
         let environment = world(now: now)
         model.tick(now: now, world: environment)
         if model.visible {
+            // The login agent uses open -gj. Match the recording HUD's
+            // nonactivating presentation instead of leaving a hidden app's
+            // animation running without an on-screen window.
+            if presentation.isAppHidden() { presentation.unhideWithoutActivation() }
             artwork.update(model, reduceMotion: environment.reduceMotion)
             panel.setFrameOrigin(model.origin)
             if !panel.isVisible { panel.orderFrontRegardless() }

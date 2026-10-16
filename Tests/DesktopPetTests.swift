@@ -83,10 +83,16 @@ struct DesktopPetTests {
         world = DesktopPetWorld(areas: [area], cursor: CGPoint(x: 10, y: 600), idleSeconds: 0)
         let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
         let key = NSApp.keyWindow, main = NSApp.mainWindow
-        let controller = DesktopPetController(resources: resources, world: { world })
+        var applicationHidden = true, unhides = 0
+        let presentation = DesktopPetController.Presentation(isAppHidden: { applicationHidden },
+            unhideWithoutActivation: { applicationHidden = false; unhides += 1 })
+        let controller = DesktopPetController(resources: resources, world: { world }, presentation: presentation)
         var busy = false
         controller.isBusy = { busy }
+        controller.refresh()
+        expect(unhides == 0, "recalled startup never unhides the app")
         controller.setReleased(true)
+        expect(unhides == 1 && !applicationHidden, "hidden login launch reveals the released pet")
         expect(controller.testPanel.isVisible && controller.testTimerActive, "released native window runs")
         expect(controller.testPanel.ignoresMouseEvents, "clicks pass through")
         expect(!controller.testPanel.canBecomeKey && !controller.testPanel.canBecomeMain, "cannot take keyboard focus")
@@ -95,15 +101,23 @@ struct DesktopPetTests {
                NSWorkspace.shared.frontmostApplication?.processIdentifier == front, "presentation preserves typing target")
         busy = true; controller.refresh()
         expect(!controller.testPanel.isVisible, "recording/modal/selection takes priority")
+        applicationHidden = true; controller.refresh()
+        expect(unhides == 1, "busy UI never unhides the app for the pet")
         busy = false; controller.refresh()
         expect(controller.testPanel.isVisible, "idle restores released pet")
+        expect(unhides == 2 && !applicationHidden, "released pet recovers from hidden app state")
         controller.testSuspend(true)
         expect(!controller.testPanel.isVisible && !controller.testTimerActive, "sleep/lock stops animation timer")
+        applicationHidden = true; controller.refresh()
+        expect(unhides == 2, "sleep/lock never unhides the app")
         controller.testSuspend(false)
         expect(controller.testPanel.isVisible, "wake restores a released pet")
         controller.setReleased(false)
+        applicationHidden = true; controller.refresh()
+        let beforeWake = unhides
         controller.testSuspend(true); controller.testSuspend(false)
         expect(!controller.testPanel.isVisible && !controller.testTimerActive, "recall has no timer, including after wake")
+        expect(unhides == beforeWake && applicationHidden, "recalled wake preserves the hidden app")
         controller.dispose()
         controller.setReleased(true)
         expect(!controller.testPanel.isVisible && !controller.testTimerActive, "disposed window cannot restart")
