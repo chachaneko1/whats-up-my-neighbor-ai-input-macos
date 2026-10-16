@@ -1,5 +1,6 @@
 """Offline release regressions. Uses disposable keys/files, never user credentials."""
 import importlib.util
+import json
 import os
 from pathlib import Path
 import plistlib
@@ -28,6 +29,38 @@ temporary_keychain = load_module("temporary_keychain", ROOT / "scripts/temporary
 
 
 class ReleaseContractTests(unittest.TestCase):
+    def test_publication_timeout_reconciles_server_state_without_masking_failure(self):
+        # Exercise the actual workflow shell, including macOS's Bash behavior.
+        parsed = subprocess.check_output([
+            'ruby', '-r', 'yaml', '-r', 'json', '-e',
+            'data = YAML.load_file(ARGV[0]); puts JSON.generate(data["jobs"]["release"]["steps"].map { |step| step["run"] }.compact)',
+            str(ROOT / '.github/workflows/release-macos.yml'),
+        ], text=True)
+        steps = json.loads(parsed)
+        for step in steps:
+            subprocess.run(['bash', '-n'], input=step, text=True, check=True)
+        publish = next(step for step in steps if 'if ! gh release edit' in step)
+        reconcile = publish[publish.index('if ! gh release edit'):]
+        with tempfile.TemporaryDirectory(prefix='neko-publish-response-') as directory:
+            gh = Path(directory) / 'gh'
+            gh.write_text('''#!/usr/bin/env python3
+import os, sys
+if sys.argv[1:3] == ['release', 'edit']: sys.exit(int(os.environ['EDIT_RESULT']))
+if sys.argv[1:3] == ['release', 'view']: print(os.environ['PUBLISHED_STATE'])
+elif sys.argv[1] == 'api': print(os.environ['LATEST_TAG'])
+else: sys.exit(99)
+''')
+            gh.chmod(0o700)
+            cases = [(0, 'false', 'old', True), (1, 'true', 'v1.3.2', True),
+                     (1, 'false', 'v1.3.2', False), (1, 'true', 'v1.3.1', False)]
+            for edit, published, latest, accepted in cases:
+                with self.subTest(edit=edit, published=published, latest=latest):
+                    environment = dict(os.environ, PATH=directory + ':' + os.environ['PATH'],
+                                       RELEASE_TAG='v1.3.2', GITHUB_REPOSITORY='example/repo',
+                                       EDIT_RESULT=str(edit), PUBLISHED_STATE=published, LATEST_TAG=latest)
+                    result = subprocess.run(['bash', '-e', '-c', reconcile], env=environment, capture_output=True)
+                    self.assertEqual(result.returncode == 0, accepted)
+
     def test_metadata(self):
         self.assertEqual(metadata.release_metadata("v1.2.3", "7"), ("1.2.3", "1007"))
         self.assertLess(int(metadata.release_metadata("v1.2.3", "7")[1]), int(metadata.release_metadata("v1.2.4", "8")[1]))

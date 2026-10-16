@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-    paths: ['Resources/Info.plist', 'RELEASE_NOTES.md']
+    paths: ['Resources/Info.plist', 'RELEASE_NOTES.md', '.github/workflows/release-macos.yml']
   workflow_dispatch:
     inputs:
       tag:
@@ -48,15 +48,18 @@ jobs:
             git checkout --detach "refs/tags/$REQUESTED_TAG"
           fi
           python3 scripts/release_metadata.py --from-plist Resources/Info.plist "$REQUESTED_TAG" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=$REQUESTED_TAG" >> "$GITHUB_ENV"
+          echo "RELEASE_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo 'verify=true' >> "$GITHUB_OUTPUT"
           gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name' > "$RUNNER_TEMP/published-tags.txt"
-          if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]] && grep -Fxq -- "$REQUESTED_TAG" "$RUNNER_TEMP/published-tags.txt"; then
+          if grep -Fxq -- "$REQUESTED_TAG" "$RUNNER_TEMP/published-tags.txt"; then
+            git merge-base --is-ancestor "refs/tags/$REQUESTED_TAG" origin/main
+            echo "RELEASE_COMMIT=$(git rev-parse "refs/tags/$REQUESTED_TAG^{commit}")" >> "$GITHUB_ENV"
             echo 'publish=false' >> "$GITHUB_OUTPUT"
-            echo "No release: $REQUESTED_TAG is already published. Increase both source version and build for the next update." >> "$GITHUB_STEP_SUMMARY"
+            echo "$REQUESTED_TAG is already published; verify its immutable assets without replacing them. Increase both source version and build for the next update." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           python3 scripts/release_metadata.py --check-progression "$REQUESTED_TAG" "$RUNNER_TEMP/published-tags.txt"
-          echo "RELEASE_TAG=$REQUESTED_TAG" >> "$GITHUB_ENV"
-          echo "RELEASE_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
           echo 'publish=true' >> "$GITHUB_OUTPUT"
       - name: Reject reused or decreasing build numbers
         if: steps.prepare.outputs.publish == 'true'
@@ -101,17 +104,37 @@ jobs:
           gh release upload "$RELEASE_TAG" \
             dist/update/*.zip dist/update/appcast.xml dist/update/SHA256SUMS.txt \
             dist/Groq-AI-Voice-Input-macOS-*.zip dist/Groq-AI-Voice-Input-macOS-*.sha256 CHANGELOG.md
-          gh release edit "$RELEASE_TAG" --draft=false --latest
+          if ! gh release edit "$RELEASE_TAG" --draft=false --latest; then
+            # GitHub can accept the PATCH but time out before returning it.
+            # Reconcile the server state; do not publish another copy.
+            [[ "$(gh release view "$RELEASE_TAG" --json isDraft,isPrerelease --jq '.isDraft == false and .isPrerelease == false')" == true ]] || exit 1
+            [[ "$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)" == "$RELEASE_TAG" ]] || exit 1
+          fi
       - name: Verify published update assets
-        if: steps.prepare.outputs.publish == 'true'
+        if: steps.prepare.outputs.verify == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          EXPECTED_SIGNING_SHA1: ${{ vars.MACOS_SIGNING_SHA1 }}
         run: |
           set -euo pipefail
           PUBLISHED="$RUNNER_TEMP/published-release"
-          gh release download "$RELEASE_TAG" --pattern '*.zip' --pattern '*.sha256' --pattern appcast.xml --pattern SHA256SUMS.txt --dir "$PUBLISHED"
+          for attempt in 1 2 3; do
+            if gh release download "$RELEASE_TAG" --pattern '*.zip' --pattern '*.sha256' --pattern appcast.xml --pattern SHA256SUMS.txt --dir "$PUBLISHED" --clobber; then break; fi
+            [[ "$attempt" -lt 3 ]] || exit 1
+            sleep 5
+          done
           (cd "$PUBLISHED" && shasum -a 256 -c SHA256SUMS.txt && shasum -a 256 -c ./*.sha256)
-          python3 scripts/validate-release.py build/AI語音輸入.app "$PUBLISHED/appcast.xml" "$PUBLISHED/Neighbor-macOS-$RELEASE_VERSION.zip"
+          ditto -x -k "$PUBLISHED/Neighbor-macOS-$RELEASE_VERSION.zip" "$PUBLISHED/extracted"
+          APP="$PUBLISHED/extracted/AI語音輸入.app"
+          python3 scripts/validate-signing.py "$APP" "$EXPECTED_SIGNING_SHA1"
+          python3 scripts/validate-release.py "$APP" "$PUBLISHED/appcast.xml" "$PUBLISHED/Neighbor-macOS-$RELEASE_VERSION.zip"
+          python3 - "$APP/Contents/Info.plist" Resources/Info.plist <<'PY'
+          import plistlib, sys
+          from pathlib import Path
+          published, source = (plistlib.loads(Path(path).read_bytes()) for path in sys.argv[1:])
+          for key in ('CFBundleIdentifier', 'CFBundleShortVersionString', 'CFBundleVersion', 'SUPublicEDKey'):
+              assert published[key] == source[key], key
+          PY
           {
             echo "Published version: $RELEASE_VERSION (build $RELEASE_BUILD)"
             echo "Commit: $RELEASE_COMMIT"
