@@ -14,10 +14,14 @@ final class DesktopPetView: NSView {
     override var acceptsFirstResponder: Bool { false }
 
     init(resources: URL? = Bundle.main.resourceURL?.appendingPathComponent("DesktopPet")) {
-        let names = ["sit", "walk", "reply", "body", "tail", "walk-body", "walk-paws"]
+        let names = ["sit", "walk", "reply", "body", "tail", "walk-body", "walk-paws", "walk-head"]
         images = Dictionary(uniqueKeysWithValues: names.compactMap { name in
             guard let url = resources?.appendingPathComponent(name + ".svg"),
                   let image = NSImage(contentsOf: url) else { return nil }
+            // The narrowed head is drawn in both reflected and original
+            // transforms. Reusing AppKit's transformed SVG cache shifts its
+            // edge after a turn; draw this small original path directly.
+            if name == "walk-head" { image.cacheMode = .never }
             return (name, image)
         })
         super.init(frame: CGRect(origin: .zero, size: DesktopPetModel.size))
@@ -147,28 +151,9 @@ final class DesktopPetView: NSView {
     }
 
     private func drawTurnedHead() {
-        // Left-facing three-quarter silhouette: forward muzzle, taller near
-        // ear and a narrower far cheek. The rest poses keep the approved SVG.
-        let head = NSBezierPath()
-        head.move(to: CGPoint(x: 42, y: 154))
-        head.curve(to: CGPoint(x: 70, y: 103), controlPoint1: CGPoint(x: 42, y: 132), controlPoint2: CGPoint(x: 50, y: 119))
-        head.line(to: CGPoint(x: 83, y: 56))
-        head.curve(to: CGPoint(x: 99, y: 54), controlPoint1: CGPoint(x: 87, y: 45), controlPoint2: CGPoint(x: 92, y: 44))
-        head.line(to: CGPoint(x: 127, y: 91))
-        head.curve(to: CGPoint(x: 180, y: 92), controlPoint1: CGPoint(x: 145, y: 86), controlPoint2: CGPoint(x: 162, y: 88))
-        head.line(to: CGPoint(x: 209, y: 69))
-        head.curve(to: CGPoint(x: 226, y: 73), controlPoint1: CGPoint(x: 216, y: 62), controlPoint2: CGPoint(x: 223, y: 65))
-        head.line(to: CGPoint(x: 238, y: 114))
-        head.curve(to: CGPoint(x: 250, y: 167), controlPoint1: CGPoint(x: 250, y: 134), controlPoint2: CGPoint(x: 254, y: 149))
-        head.curve(to: CGPoint(x: 225, y: 223), controlPoint1: CGPoint(x: 252, y: 195), controlPoint2: CGPoint(x: 242, y: 214))
-        head.curve(to: CGPoint(x: 79, y: 228), controlPoint1: CGPoint(x: 185, y: 244), controlPoint2: CGPoint(x: 118, y: 242))
-        head.curve(to: CGPoint(x: 39, y: 204), controlPoint1: CGPoint(x: 58, y: 227), controlPoint2: CGPoint(x: 45, y: 218))
-        head.curve(to: CGPoint(x: 33, y: 190), controlPoint1: CGPoint(x: 31, y: 199), controlPoint2: CGPoint(x: 27, y: 193))
-        head.curve(to: CGPoint(x: 44, y: 179), controlPoint1: CGPoint(x: 29, y: 184), controlPoint2: CGPoint(x: 40, y: 181))
-        head.curve(to: CGPoint(x: 42, y: 154), controlPoint1: CGPoint(x: 45, y: 171), controlPoint2: CGPoint(x: 40, y: 164))
-        head.close()
-        fur.setFill()
-        head.fill()
+        // Turn the approved round head by narrowing it over the leading
+        // shoulders. Keep its original silhouette, without a protruding muzzle.
+        drawImage("walk-head", in: CGRect(x: 11, y: 18, width: 292, height: 400))
     }
 
     private func drawWalkingFace() {

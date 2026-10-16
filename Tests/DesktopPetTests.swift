@@ -156,7 +156,8 @@ struct DesktopPetTests {
         let partner = DesktopPetView.pawOffset(distance: DesktopPetView.strideDistance * 0.3, pair: 1)
         expect(partner.y <= -27, "diagonal pairs alternate stance and swing")
         expect(view.loadedAssets.contains("sit") && view.loadedAssets.contains("walk") && view.loadedAssets.contains("reply"), "original artwork bundled")
-        expect(view.loadedAssets.contains("walk-body") && view.loadedAssets.contains("walk-paws"), "directional walking components bundled")
+        expect(view.loadedAssets.contains("walk-body") && view.loadedAssets.contains("walk-paws") &&
+               view.loadedAssets.contains("walk-head"), "original directional walking components bundled")
         for pose in DesktopPetPose.allCases {
             let data = view.renderPNG(pose: pose, phase: pose == .yawning ? 1.6 : 0.55)
             expect(data.count > 1500, "native pose renders nonempty")
@@ -202,6 +203,15 @@ struct DesktopPetTests {
                    isInk(frame, left ? 107 : 276, 198) && isInk(frame, left ? 121 : 290, 198) &&
                    !isInk(frame, left ? 57 : 341, 200),
                    "original omega mouth sits beneath the eyes, away from the silhouette edge")
+            func leadingEdge(at y: CGFloat) -> Int {
+                let xs = (0..<400).filter { x in
+                    let pixel = color(frame, artX: CGFloat(x), artY: y)
+                    return pixel.alphaComponent > 0.8 && pixel.redComponent < 0.2
+                }
+                return left ? xs.first! : xs.last!
+            }
+            expect(left ? leadingEdge(at: 195) >= leadingEdge(at: 165) : leadingEdge(at: 195) <= leadingEdge(at: 165),
+                   "lower cheek curves inward rather than adding a protruding muzzle")
             try data.write(to: output.appendingPathComponent(left ? "walk-left.png" : "walk-right.png"))
             let step = view.renderPNG(pose: .walking, phase: 0.18, facingLeft: left, walkDistance: 12.6)
             expect(data != step, "walking paws articulate in both directions")
@@ -209,6 +219,58 @@ struct DesktopPetTests {
                    "elapsed time alone cannot slide paws when the cat has not moved")
             try step.write(to: output.appendingPathComponent(left ? "walk-left-step.png" : "walk-right-step.png"))
         }
+        let framesDirectory = output.appendingPathComponent("walking-cycle")
+        try FileManager.default.createDirectory(at: framesDirectory, withIntermediateDirectories: true)
+        var cycleFrames: [Data] = []
+        for left in [true, false] {
+            for index in 0..<16 {
+                let distance = DesktopPetView.strideDistance * CGFloat(index) / 16
+                let data = view.renderPNG(pose: .walking, facingLeft: left, walkDistance: distance)
+                let pixels = bitmap(data), width = pixels.pixelsWide, height = pixels.pixelsHigh
+                var solid = [Bool](repeating: false, count: width * height)
+                var clips = false
+                for y in 0..<height {
+                    for x in 0..<width where pixels.colorAt(x: x, y: y)!.alphaComponent > 0.5 {
+                        solid[y * width + x] = true
+                        clips = clips || x == 0 || y == 0 || x == width - 1 || y == height - 1
+                    }
+                }
+                var components = 0
+                for seed in solid.indices where solid[seed] {
+                    var queue = [seed], next = 0
+                    solid[seed] = false
+                    while next < queue.count {
+                        let point = queue[next], x = point % width, y = point / width
+                        next += 1
+                        for neighbor in [x > 0 ? point - 1 : -1, x + 1 < width ? point + 1 : -1,
+                                         y > 0 ? point - width : -1, y + 1 < height ? point + width : -1]
+                            where neighbor >= 0 && solid[neighbor] {
+                            solid[neighbor] = false; queue.append(neighbor)
+                        }
+                    }
+                    if queue.count > 8 { components += 1 }
+                }
+                expect(components == 1, "walking frame \(left)/\(index) has no detached paws, face or tail")
+                expect(!clips, "walking frame \(left)/\(index) fits the panel without cropping")
+                try data.write(to: framesDirectory.appendingPathComponent("\(left ? "left" : "right")-\(index).png"))
+                if index % 2 == 0 { cycleFrames.append(data) }
+            }
+        }
+        let cycleSheet = NSImage(size: CGSize(width: 640, height: 704), flipped: true) { _ in
+            NSColor(srgbRed: 0.90, green: 0.91, blue: 0.89, alpha: 1).setFill()
+            CGRect(x: 0, y: 0, width: 640, height: 704).fill()
+            for (index, data) in cycleFrames.enumerated() {
+                let x = (index % 4) * 160, y = (index / 4) * 176
+                NSImage(data: data)!.draw(in: CGRect(x: x, y: y, width: 160, height: 160),
+                    from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+                ("\(index < 8 ? "← 向左" : "向右 →")  \(index % 8 + 1)/8" as NSString)
+                    .draw(at: CGPoint(x: x + 30, y: y + 156), withAttributes: [
+                        .font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.black])
+            }
+            return true
+        }
+        try NSBitmapImageRep(data: cycleSheet.tiffRepresentation!)!.representation(using: .png, properties: [:])!
+            .write(to: output.appendingPathComponent("walking-composition.png"))
         let directions: [(String, DesktopPetPose, Bool, Double)] = [
             ("向左走 ←", .walking, true, 0), ("向左邁步 ←", .walking, true, 0.18),
             ("向右走 →", .walking, false, 0), ("向右邁步 →", .walking, false, 0.18),
