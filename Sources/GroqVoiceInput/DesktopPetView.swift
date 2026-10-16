@@ -14,14 +14,13 @@ final class DesktopPetView: NSView {
     override var acceptsFirstResponder: Bool { false }
 
     init(resources: URL? = Bundle.main.resourceURL?.appendingPathComponent("DesktopPet")) {
-        let names = ["sit", "walk", "reply", "body", "tail", "walk-body", "walk-paws", "walk-head"]
+        let names = ["sit", "walk", "reply", "body", "tail", "walk-body", "walk-paws", "walk-front-face"]
         images = Dictionary(uniqueKeysWithValues: names.compactMap { name in
             guard let url = resources?.appendingPathComponent(name + ".svg"),
                   let image = NSImage(contentsOf: url) else { return nil }
-            // The narrowed head is drawn in both reflected and original
-            // transforms. Reusing AppKit's transformed SVG cache shifts its
-            // edge after a turn; draw this small original path directly.
-            if name == "walk-head" { image.cacheMode = .never }
+            // Render the original head and face together, without a reflected
+            // SVG cache moving their edges after direction changes.
+            if name == "walk-front-face" { image.cacheMode = .never }
             return (name, image)
         })
         super.init(frame: CGRect(origin: .zero, size: DesktopPetModel.size))
@@ -120,11 +119,10 @@ final class DesktopPetView: NSView {
         lift.translateX(by: 0, yBy: bob)
         lift.concat()
         drawImage("walk-body")
-        drawTurnedHead()
         NSGraphicsContext.restoreGraphicsState()
 
-        // A turned face: the far eye is smaller. Both glyphs share one eye
-        // line and retain their handedness and X-left / check-right order.
+        // Keep the approved front-facing head, eyes and mouth together.
+        // Only the body turns; the face keeps its original proportions.
         NSGraphicsContext.saveGraphicsState()
         let faceLift = NSAffineTransform()
         faceLift.translateX(by: 0, yBy: bob)
@@ -150,58 +148,10 @@ final class DesktopPetView: NSView {
         return CGPoint(x: 43 - 86 * eased, y: -sin(swing * .pi) * 28)
     }
 
-    private func drawTurnedHead() {
-        // Turn the approved round head by narrowing it over the leading
-        // shoulders. Keep its original silhouette, without a protruding muzzle.
-        drawImage("walk-head", in: CGRect(x: 11, y: 18, width: 292, height: 400))
-    }
-
     private func drawWalkingFace() {
-        ink.setStroke()
-        let eyeLine: CGFloat = 156
-        let crossCenter: CGFloat = facingLeft ? 84 : 252
-        let checkCenter: CGFloat = facingLeft ? 148 : 316
-        let cross = NSBezierPath()
-        let size: CGFloat = facingLeft ? 25 : 17
-        let x = crossCenter - size / 2
-        let y = eyeLine - size / 2
-        cross.move(to: CGPoint(x: x, y: y))
-        cross.line(to: CGPoint(x: x + size, y: y + size))
-        cross.move(to: CGPoint(x: x + size, y: y))
-        cross.line(to: CGPoint(x: x, y: y + size))
-        cross.lineWidth = facingLeft ? 11 : 8
-        cross.lineCapStyle = .round
-        cross.stroke()
-
-        let check = NSBezierPath()
-        let scale: CGFloat = facingLeft ? 0.62 : 0.9
-        // Original check bounds: x=0...39, y=-17...12. Position by its
-        // center, not its first point (which puts the far eye too high).
-        let checkX = checkCenter - 19.5 * scale
-        let checkY = eyeLine + 2.5 * scale
-        check.move(to: CGPoint(x: checkX, y: checkY))
-        check.line(to: CGPoint(x: checkX + 12 * scale, y: checkY + 12 * scale))
-        check.line(to: CGPoint(x: checkX + 39 * scale, y: checkY - 17 * scale))
-        check.lineWidth = 14 * scale
-        check.lineCapStyle = .round
-        check.lineJoinStyle = .round
-        check.stroke()
-
-        // Center the original omega below the two eyes. Moving it onto the
-        // leading silhouette edge makes it look detached from the face.
-        NSGraphicsContext.saveGraphicsState()
-        let mouthPosition = NSAffineTransform()
-        mouthPosition.translateX(by: (crossCenter + checkCenter) / 2 - 13.5, yBy: 192)
-        mouthPosition.scale(by: 0.75)
-        mouthPosition.concat()
-        let mouth = NSBezierPath()
-        mouth.move(to: .zero)
-        mouth.curve(to: CGPoint(x: 18, y: 0), controlPoint1: CGPoint(x: 1, y: 12), controlPoint2: CGPoint(x: 14, y: 12))
-        mouth.curve(to: CGPoint(x: 36, y: 0), controlPoint1: CGPoint(x: 21, y: 12), controlPoint2: CGPoint(x: 35, y: 12))
-        mouth.lineWidth = 7
-        mouth.lineCapStyle = .round
-        mouth.stroke()
-        NSGraphicsContext.restoreGraphicsState()
+        // A small shoulder offset follows travel without stretching the head
+        // or mirroring the X-left / check-right face.
+        drawImage("walk-front-face", in: CGRect(x: facingLeft ? 0 : 40, y: 0, width: 400, height: 400))
     }
 
     private func drawYawning() {

@@ -157,7 +157,7 @@ struct DesktopPetTests {
         expect(partner.y <= -27, "diagonal pairs alternate stance and swing")
         expect(view.loadedAssets.contains("sit") && view.loadedAssets.contains("walk") && view.loadedAssets.contains("reply"), "original artwork bundled")
         expect(view.loadedAssets.contains("walk-body") && view.loadedAssets.contains("walk-paws") &&
-               view.loadedAssets.contains("walk-head"), "original directional walking components bundled")
+               view.loadedAssets.contains("walk-front-face"), "original directional walking components bundled")
         for pose in DesktopPetPose.allCases {
             let data = view.renderPNG(pose: pose, phase: pose == .yawning ? 1.6 : 0.55)
             expect(data.count > 1500, "native pose renders nonempty")
@@ -185,7 +185,7 @@ struct DesktopPetTests {
                 guard artY > 125 && artY < 180 else { continue }
                 for x in 0..<width {
                     let artX = (CGFloat(x) * 128 / CGFloat(width) - 8) / 0.28
-                    guard left ? (55...180).contains(artX) : (225...355).contains(artX) else { continue }
+                    guard left ? (60...310).contains(artX) : (100...350).contains(artX) else { continue }
                     let pixel = pixels.colorAt(x: x, y: y)!.usingColorSpace(.deviceRGB)!
                     mask[y * width + x] = pixel.alphaComponent > 0.5 && pixel.redComponent > 0.6
                 }
@@ -214,8 +214,8 @@ struct DesktopPetTests {
         for left in [false, true] {
             let data = view.renderPNG(pose: .walking, facingLeft: left)
             let frame = bitmap(data)
-            // Head above the body must lead travel, rather than looking front-on
-            // while a mirrored still image slides to either side.
+            // The front-facing head sits over the leading shoulders; body
+            // direction is verified independently by the rear tail below.
             var mass: CGFloat = 0, xMass: CGFloat = 0
             for y in 50..<200 {
                 for x in 20..<380 {
@@ -225,18 +225,16 @@ struct DesktopPetTests {
                     }
                 }
             }
-            expect(mass > 1000 && (left ? xMass / mass < 180 : xMass / mass > 220),
-                   "turned head leads the body in the direction of travel")
-            let start: CGFloat = left ? 136 : 298, tip: CGFloat = left ? 160 : 334
-            let top: CGFloat = left ? 147 : 143, bottom: CGFloat = left ? 165 : 169
-            expect(isInk(frame, tip, top) && !isInk(frame, start, top) &&
-                   isInk(frame, left ? 143 : 309, bottom), "check rises to the right in either walking direction")
-            expect(isInk(frame, left ? 72 : 244, left ? 144 : 148) &&
-                   isInk(frame, left ? 96 : 260, left ? 144 : 148), "X remains to the left of check")
-            expect(isInk(frame, left ? 116 : 284, 192) &&
-                   isInk(frame, left ? 109 : 277, 198) && isInk(frame, left ? 123 : 291, 198) &&
-                   !isInk(frame, left ? 57 : 341, 200),
-                   "original omega mouth sits beneath the eyes, away from the silhouette edge")
+            expect(mass > 1000 && (left ? xMass / mass < 195 : xMass / mass > 205),
+                   "front-facing head stays over the leading shoulders")
+            let offset: CGFloat = left ? 0 : 40
+            expect(isInk(frame, 286 + offset, 145) && !isInk(frame, 247 + offset, 145) &&
+                   isInk(frame, 259 + offset, 174), "original check rises to the right in either direction")
+            expect(isInk(frame, 80 + offset, 147) && isInk(frame, 108 + offset, 147),
+                   "original X remains left of check")
+            expect(isInk(frame, 181 + offset, 187) && isInk(frame, 171 + offset, 194) &&
+                   isInk(frame, 190 + offset, 194) && !isInk(frame, 34 + offset, 198),
+                   "original omega stays centered within the original round head")
             func leadingEdge(at y: CGFloat) -> Int {
                 let xs = (0..<400).filter { x in
                     let pixel = color(frame, artX: CGFloat(x), artY: y)
@@ -261,10 +259,14 @@ struct DesktopPetTests {
                 let distance = DesktopPetView.strideDistance * CGFloat(index) / 16
                 let data = view.renderPNG(pose: .walking, facingLeft: left, walkDistance: distance)
                 let pixels = bitmap(data), width = pixels.pixelsWide, height = pixels.pixelsHigh
+                let tail = color(pixels, artX: left ? 384 : 16, artY: 150)
+                let ahead = color(pixels, artX: left ? 16 : 384, artY: 150)
+                expect(tail.alphaComponent > 0.8 && tail.redComponent < 0.2 && ahead.alphaComponent < 0.2,
+                       "tail trails the actual walking direction through every gait frame")
                 let eyes = renderedEyeCenters(pixels, left: left)
                 expect(eyes.count == 2 && abs(eyes[0].y - eyes[1].y) <= 1,
                        "walking eyes share one rendered horizontal line in frame \(left)/\(index): \(eyes)")
-                expect(eyes.count == 2 && abs(eyes[1].x - eyes[0].x - 64 * 0.28 * CGFloat(width) / 128) <= 1,
+                expect(eyes.count == 2 && abs(eyes[1].x - eyes[0].x - 172.5 * 0.28 * CGFloat(width) / 128) <= 1,
                        "walking eye spacing stays consistent in either direction")
                 var solid = [Bool](repeating: false, count: width * height)
                 var clips = false
