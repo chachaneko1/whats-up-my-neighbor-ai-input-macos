@@ -53,6 +53,7 @@ jobs:
           echo 'verify=true' >> "$GITHUB_OUTPUT"
           gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name' > "$RUNNER_TEMP/published-tags.txt"
           if grep -Fxq -- "$REQUESTED_TAG" "$RUNNER_TEMP/published-tags.txt"; then
+            git merge-base --is-ancestor "refs/tags/$REQUESTED_TAG" origin/main
             echo "RELEASE_COMMIT=$(git rev-parse "refs/tags/$REQUESTED_TAG^{commit}")" >> "$GITHUB_ENV"
             echo 'publish=false' >> "$GITHUB_OUTPUT"
             echo "$REQUESTED_TAG is already published; verify its immutable assets without replacing them. Increase both source version and build for the next update." >> "$GITHUB_STEP_SUMMARY"
