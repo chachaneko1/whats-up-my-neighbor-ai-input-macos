@@ -5,6 +5,13 @@ import Carbon
 enum SettingsStoreTests {
     static func main() {
         withStore { store, defaults in
+            precondition(!store.loadDesktopPetReleased())
+            defaults.set("retained", forKey: "unrelatedPreference")
+            store.saveDesktopPetReleased(true)
+            precondition(SettingsStore(defaults: defaults).loadDesktopPetReleased())
+            store.saveDesktopPetReleased(false)
+            precondition(!store.loadDesktopPetReleased())
+            precondition(defaults.string(forKey: "unrelatedPreference") == "retained")
             precondition(store.loadHotKey() == defaultHotKey)
             precondition(store.loadClipboardHotKey() == defaultClipboardHotKey)
             precondition(defaults.object(forKey: "clipboardHotKeyCode") == nil,

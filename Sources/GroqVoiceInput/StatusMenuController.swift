@@ -7,6 +7,7 @@ final class StatusMenuController {
     private(set) var remoteTargetMenuItem: NSMenuItem!
     private(set) var relayMenuItem: NSMenuItem!
     private(set) var clipboardPickerMenuItem: NSMenuItem!
+    private(set) var desktopPetMenuItem: NSMenuItem!
     private(set) var retryMenuItem: NSMenuItem!
     private(set) var cancelMenuItem: NSMenuItem!
     private(set) var modeMenuItems: [TextOutputMode: NSMenuItem] = [:]
@@ -66,6 +67,10 @@ final class StatusMenuController {
         let vocabularyItem = NSMenuItem(title: "詞典與學習狀態…", action: actions["showVocabularyWindow"], keyEquivalent: "")
         vocabularyItem.target = target
         menu.addItem(vocabularyItem)
+
+        desktopPetMenuItem = NSMenuItem(title: "放出小黑貓", action: actions["toggleDesktopPet"], keyEquivalent: "")
+        desktopPetMenuItem.target = target
+        menu.addItem(desktopPetMenuItem)
 
         let nekoPreview = NSMenuItem(title: "小黑貓介面預覽…", action: actions["showNekoPreview"], keyEquivalent: "")
         nekoPreview.target = target
@@ -154,6 +159,10 @@ final class StatusMenuController {
 
     func updateClipboardShortcut(_ title: String) {
         clipboardPickerMenuItem.title = "剪貼簿歷史（\(title)）"
+    }
+
+    func updateDesktopPet(_ released: Bool) {
+        desktopPetMenuItem.title = released ? "收回小黑貓" : "放出小黑貓"
     }
 
     func updateIcon(_ state: NekoMenuBarIcon.State, description: String) {
