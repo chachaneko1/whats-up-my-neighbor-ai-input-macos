@@ -56,11 +56,11 @@ GitHub repository 或 `macos-release` environment 只需要：
 正式發佈：
 
 1. 同時提高 `Resources/Info.plist` 的版本與 build，維護 `RELEASE_NOTES.md` 及 `CHANGELOG.md`，再合併通過 CI 的 PR。
-2. main 收到版本檔或更新說明變更後，自動執行 Release macOS；使用來源檔的版本與 build，不需另建 tag。既有版本不重發；新版本的 build 必須高於已公開 appcast。仍支援可信 main 歷史中的版本 tag 或手動指定 tag。
+2. main 收到版本檔、更新說明或發佈流程變更後，自動執行 Release macOS；使用來源檔的版本與 build，不需另建 tag。既有版本只重新驗證公開資產，不重發或覆寫；新版本的 build 必須高於已公開 appcast。仍支援可信 main 歷史中的版本 tag 或手動指定 tag。
 3. 再次執行測試，以固定憑證及既有 requirement 簽署；驗證真實憑證指紋、Bundle ID、requirement 與 strict code signature。無公證步驟或付費憑證分類要求。
 4. 產生 app-only 更新 ZIP、首次安裝 ZIP、SHA-256 清單與包含更新說明的簽署 appcast；以 App 內嵌公鑰驗證 ZIP 與 appcast 的 Ed25519 簽章。
 5. 測試及簽章驗證通過後才為這個不可變 commit 建立版本 tag，建立 draft Release、上傳全部資產後才標記正式 latest。上傳失敗維持 draft，原版本清單不變。既有公開版本不覆蓋；有問題時發更高版本修正。
-6. 下載已發佈的完整安裝包、更新 ZIP 及 appcast，再驗證 SHA-256 與 Ed25519 簽章；Actions 摘要記錄版本、build、commit 及下載位置。使用者的 App 透過既有定期檢查讀取更新清單，先通知，再由使用者選擇是否安裝。
+6. 下載已發佈的完整安裝包、更新 ZIP 及 appcast，再驗證 SHA-256、固定程式碼簽章、來源版本及 Ed25519 簽章；下載連線失敗會重試。若 GitHub 已接受正式發布但回覆逾時，先核對伺服器上的正式版與 latest 狀態；重新執行時直接驗證既有資產，不重建版本。Actions 摘要記錄版本、build、commit 及下載位置。使用者的 App 透過既有定期檢查讀取更新清單，先通知，再由使用者選擇是否安裝。
 
 固定使用官方 Sparkle 2.10.0，版本及下載 SHA-256 固定，每次從驗證過的 archive 解開。`Resources/Info.plist` 是版本與 build 的唯一來源，選單、一般建置與正式更新包保持一致。已停止以 workflow 執行次數產生 build；正式版必須同時提高版本及 build，9999 前需明確遷移。黑貓選單顯示「版本 x.y.z（build）」；歷史紀錄見 `CHANGELOG.md`。
 
