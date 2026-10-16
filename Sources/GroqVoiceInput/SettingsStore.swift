@@ -32,6 +32,7 @@ final class SettingsStore {
         static let clipboardHotKeyCode = "clipboardHotKeyCode"
         static let clipboardHotKeyModifiers = "clipboardHotKeyModifiers"
         static let preferredInputDeviceUID = "preferredInputDeviceUID"
+        static let desktopPetReleased = "desktopPetReleased"
     }
 
     private let defaults: UserDefaults
@@ -39,6 +40,10 @@ final class SettingsStore {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
     }
+
+    func loadDesktopPetReleased() -> Bool { defaults.bool(forKey: Keys.desktopPetReleased) }
+
+    func saveDesktopPetReleased(_ value: Bool) { defaults.set(value, forKey: Keys.desktopPetReleased) }
 
     func loadHotKey() -> HotKeyShortcut {
         storedHotKey(codeKey: Keys.hotKeyCode, modifiersKey: Keys.hotKeyModifiers)

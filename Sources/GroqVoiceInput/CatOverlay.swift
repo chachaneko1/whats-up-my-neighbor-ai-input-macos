@@ -16,6 +16,7 @@ final class CatOverlay {
     private var greetingStarted: TimeInterval = 0
     private var catTopLeft: NSPoint?
     private var disposed = false
+    var isVisible: Bool { panel.isVisible }
 
     init(configuration: CatConfiguration, bundledImageURL: URL? = nil) {
         precondition(Thread.isMainThread)

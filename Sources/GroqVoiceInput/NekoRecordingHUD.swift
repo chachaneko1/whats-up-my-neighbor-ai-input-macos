@@ -232,6 +232,7 @@ final class NekoRecordingView: NSView {
 }
 
 final class NekoRecordingHUD {
+    var isVisible: Bool { panel.isVisible }
     private let panel: NekoFloatingPanel
     private let view: NekoRecordingView
     private var startedAt: Date?

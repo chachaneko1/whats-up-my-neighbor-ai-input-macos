@@ -10,6 +10,7 @@ mkdir -p "$OUTPUT/Contents/MacOS" "$OUTPUT/Contents/Resources" "$OUTPUT/Contents
 cp "$ROOT/Resources/Info.plist" "$OUTPUT/Contents/Info.plist"
 cp "$ROOT/Resources/AppIcon.icns" "$OUTPUT/Contents/Resources/AppIcon.icns"
 cp "$ROOT/Resources/neko-base.png" "$OUTPUT/Contents/Resources/neko-base.png"
+ditto "$ROOT/Resources/DesktopPet" "$OUTPUT/Contents/Resources/DesktopPet"
 cp "$ROOT/cat.config.json" "$ROOT/CAT-CONFIG.md" "$OUTPUT/Contents/Resources/"
 cp "$SPARKLE_ROOT/LICENSE" "$OUTPUT/Contents/Resources/Sparkle-LICENSE.txt"
 ditto "$SPARKLE_ROOT/Sparkle.framework" "$OUTPUT/Contents/Frameworks/Sparkle.framework"

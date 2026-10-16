@@ -21,6 +21,19 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     private lazy var nekoHUD = NekoRecordingHUD(image: catConfiguration.imageData.flatMap(NSImage.init(data:)) ?? NekoAppearance.catImage)
     private lazy var catGreeting = CatGreeting(configuration: catConfiguration)
     private lazy var catOverlay = CatOverlay(configuration: catConfiguration)
+    private lazy var desktopPet: DesktopPetController = {
+        let pet = DesktopPetController()
+        pet.isBusy = { [weak self] in
+            guard let self else { return true }
+            return self.dictation.state != .idle || self.clipboardPicker.isVisible ||
+                self.catOverlay.isVisible || self.nekoHUD.isVisible || NSApp.modalWindow != nil
+        }
+        pet.onReleasedChange = { [weak self] released in
+            self?.settings.saveDesktopPetReleased(released)
+            self?.statusMenu.updateDesktopPet(released)
+        }
+        return pet
+    }()
     private lazy var appUpdater = AppUpdateController { [weak self] in
         guard let self else { return true }
         return self.dictation.state != .idle || self.micRecorder.isBusy || NSApp.modalWindow != nil
@@ -124,6 +137,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
 
         // Show the guide once per user, not once per build; never open the microphone.
         nekoHUD.showIntroductionIfNeeded(shortcut: shortcutDisplayName(currentHotKey))
+        desktopPet.setReleased(settings.loadDesktopPetReleased())
 
         let hasAPIKey = credentials.readAPIKey() != nil
         UpdateDiagnostics.shared.record(.apiKeyAccess, succeeded: hasAPIKey)
@@ -141,6 +155,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         clipboardHistoryStore.flush()
         nekoHUD.hide()
         catOverlay.dispose()
+        desktopPet.dispose()
         correctionMonitor.stop()
         dictation.shutdown()
         hotKeys.unregisterAll()
@@ -158,6 +173,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
             "openCatSettings": #selector(openCatSettings),
             "showVocabularyWindow": #selector(showVocabularyWindow),
             "showNekoPreview": #selector(showNekoPreview),
+            "toggleDesktopPet": #selector(toggleDesktopPet),
             "showVocabularyPreview": #selector(showVocabularyPreview),
             "showNekoIntroduction": #selector(showNekoIntroduction),
             "selectNekoPosition": #selector(selectNekoPosition(_:)),
@@ -609,7 +625,10 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     @objc private func showNekoPreview() {
         guard dictation.state == .idle else { return }
         nekoHUD.showPreview(shortcut: shortcutDisplayName(currentHotKey))
+        desktopPet.refresh()
     }
+
+    @objc private func toggleDesktopPet() { desktopPet.setReleased(!desktopPet.isReleased) }
 
     @objc private func showVocabularyPreview() {
         PasteDiagnostics.shared.record(.init(tag: .vocabularyPreviewRequest,
@@ -630,6 +649,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     @objc private func showNekoIntroduction() {
         guard dictation.state == .idle else { return }
         nekoHUD.showPreview(shortcut: shortcutDisplayName(currentHotKey), showIntroduction: true)
+        desktopPet.refresh()
     }
 
     @objc private func selectNekoPosition(_ sender: NSMenuItem) {
@@ -644,7 +664,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
 
     @objc private func showClipboardPicker() {
         guard dictation.state == .idle else { NSSound.beep(); return }
-        if clipboardPicker.isVisible { clipboardPicker.dismiss(); return }
+        if clipboardPicker.isVisible { clipboardPicker.dismiss(); desktopPet.refresh(); return }
         clipboardHistory.checkForChanges()
         correctionMonitor.stop(reason: "正在選擇剪貼簿歷史；下一次語音貼上後重新觀察修正。")
         var target: FocusTarget?
@@ -655,6 +675,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         clipboardPicker.show(items: clipboardHistoryStore.items,
                              shortcutTitle: clipboardShortcutTitle,
                              target: target, captureFailure: failure)
+        desktopPet.refresh()
     }
 
     func toggleRecording(useAlternateMode: Bool = false) {
@@ -704,6 +725,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
 
     private func renderDictationState(_ state: DictationState) {
         if state != .idle { catOverlay.hide() }
+        desktopPet.refresh()
         if PasteDiagnostics.shared.isEnabled {
             var event = PasteDiagnostics.Event(tag: .stateChange)
             event.state = PasteDiagnostics.State(rawValue: String(describing: state))
@@ -748,6 +770,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         case .greet:
             nekoHUD.hide()
             catOverlay.showGreeting()
+            desktopPet.refresh()
             return true
         }
     }
