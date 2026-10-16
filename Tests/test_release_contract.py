@@ -51,6 +51,32 @@ class ReleaseContractTests(unittest.TestCase):
         for value in ["recordingHotKeyCode", "recordingHotKeyModifiers", "alternateHotKeyCode", "alternateHotKeyModifiers", "relayHotKeyCode", "relayHotKeyModifiers", "clipboardHotKeyCode", "clipboardHotKeyModifiers"]:
             self.assertIn('"' + value + '"', settings)
 
+    def test_release_uses_source_version_and_build(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "Info.plist"
+            info = {"CFBundleShortVersionString": "1.3.2", "CFBundleVersion": "1004"}
+            path.write_bytes(plistlib.dumps(info))
+            self.assertEqual(metadata.source_metadata(path), ("1.3.2", "1004"))
+            self.assertEqual(metadata.source_metadata(path, "v1.3.2"), ("1.3.2", "1004"))
+            with self.assertRaises(ValueError):
+                metadata.source_metadata(path, "v1.3.1")
+            for build in ["0", "01004", "10000", "1004.1", "1004\nX=Y", 1004]:
+                with self.subTest(build=build), self.assertRaises(ValueError):
+                    path.write_bytes(plistlib.dumps(dict(info, CFBundleVersion=build)))
+                    metadata.source_metadata(path)
+
+    def test_release_build_must_exceed_published_feed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            feed = Path(directory) / "appcast.xml"
+            feed.write_text('<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><item><sparkle:version>1002</sparkle:version></item><item><sparkle:version>1003</sparkle:version></item></channel></rss>')
+            metadata.validate_build_progression("1004", feed)
+            for build in ["1002", "1003", "0", "01004", "10000"]:
+                with self.subTest(build=build), self.assertRaises(ValueError):
+                    metadata.validate_build_progression(build, feed)
+            feed.write_text('<rss><channel/></rss>')
+            with self.assertRaises(ValueError):
+                metadata.validate_build_progression("1004", feed)
+
     def test_release_cannot_downgrade_published_versions(self):
         metadata.validate_progression("v1.3.0", ["v1.2.9", "windows-preview"])
         metadata.validate_progression("v1.3.0", [])

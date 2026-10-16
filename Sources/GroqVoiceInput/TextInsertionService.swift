@@ -55,7 +55,9 @@ final class TextInsertionService {
                                                           keyDownCreated: keyDown != nil, keyUpCreated: keyUp != nil))
                     guard let keyDown, let keyUp else { return false }
                     keyDown.flags = .maskCommand
-                    keyUp.flags = .maskCommand
+                    // Release the synthesized modifier state after paste; leaving
+                    // Command on key-up can make the next history choice wait.
+                    keyUp.flags = []
                     keyDown.post(tap: .cghidEventTap)
                     keyUp.post(tap: .cghidEventTap)
                     // CGEvent.post has no destination acknowledgement or success result.
