@@ -21,6 +21,11 @@ final class StatusMenuController {
         let title = NSMenuItem(title: "What's up my neighbor", action: nil, keyEquivalent: "")
         title.isEnabled = false
         menu.addItem(title)
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "開發版"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "未編號"
+        let installedVersion = NSMenuItem(title: "版本 \(version)（\(build)）", action: nil, keyEquivalent: "")
+        installedVersion.isEnabled = false
+        menu.addItem(installedVersion)
         menu.addItem(NSMenuItem.separator())
 
         toggleMenuItem = NSMenuItem(title: toggleTitle, action: actions["toggleFromMenu"], keyEquivalent: "")
@@ -33,7 +38,7 @@ final class StatusMenuController {
         cancelMenuItem.target = target
         menu.addItem(cancelMenuItem)
 
-        clipboardPickerMenuItem = NSMenuItem(title: "開啟剪貼簿（⌃⌥V）", action: actions["showClipboardPicker"], keyEquivalent: "")
+        clipboardPickerMenuItem = NSMenuItem(title: "剪貼簿歷史", action: actions["showClipboardPicker"], keyEquivalent: "")
         clipboardPickerMenuItem.target = target
         menu.addItem(clipboardPickerMenuItem)
         if let clipboardMenu {
@@ -145,6 +150,10 @@ final class StatusMenuController {
         quit.target = target
         menu.addItem(quit)
         statusItem.menu = menu
+    }
+
+    func updateClipboardShortcut(_ title: String) {
+        clipboardPickerMenuItem.title = "剪貼簿歷史（\(title)）"
     }
 
     func updateIcon(_ state: NekoMenuBarIcon.State, description: String) {

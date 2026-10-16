@@ -51,17 +51,18 @@ GitHub repository 或 `macos-release` environment 只需要：
 
 ## CI 與發佈
 
-`.github/workflows/build.yml` 的一般 push／PR 工作不讀發佈 Secrets：編譯 Universal 2（arm64 + x86_64）、驗證簽章、執行20 組離線測試，產出保留七天的開發安裝包與原生貓咪圖像。另有 `free-release-check`，只允許此 repository 的 main 或指定實作分支可信 push，實際匯入固定憑證、產生免費簽章安裝包及真實簽署 appcast，完全不提供付費 Apple／公證資料。該工作沒有發佈權限，不建立 tag、Release 或更新公開清單；PR／fork 不取得發佈憑證。
+`.github/workflows/build.yml` 的一般 push／PR 工作不讀發佈 Secrets：編譯 Universal 2（arm64 + x86_64）、驗證簽章、執行 21 組離線測試，產出保留七天的開發安裝包與原生貓咪圖像。另有 `free-release-check`，只允許此 repository 的 main 或指定實作分支可信 push，實際匯入固定憑證、產生免費簽章安裝包及真實簽署 appcast，完全不提供付費 Apple／公證資料。該工作沒有發佈權限，不建立 tag、Release 或更新公開清單；PR／fork 不取得發佈憑證。
 
 正式發佈：
 
-1. 合併通過 CI 的 PR，維護 `RELEASE_NOTES.md`。
-2. 在 main 上建立尚未使用且高於既有正式版的 tag，例如 `v1.3.0`。或從 main 的 Release macOS workflow 指定已存在、且位於 main 歷史中的版本 tag。
+1. 同時提高 `Resources/Info.plist` 的版本與 build，維護 `RELEASE_NOTES.md` 及 `CHANGELOG.md`，再合併通過 CI 的 PR。
+2. main 收到版本檔或更新說明變更後，自動執行 Release macOS；使用來源檔的版本與 build，不需另建 tag。既有版本不重發；新版本的 build 必須高於已公開 appcast。仍支援可信 main 歷史中的版本 tag 或手動指定 tag。
 3. 再次執行測試，以固定憑證及既有 requirement 簽署；驗證真實憑證指紋、Bundle ID、requirement 與 strict code signature。無公證步驟或付費憑證分類要求。
 4. 產生 app-only 更新 ZIP、首次安裝 ZIP、SHA-256 清單與包含更新說明的簽署 appcast；以 App 內嵌公鑰驗證 ZIP 與 appcast 的 Ed25519 簽章。
-5. 建立 draft Release，上傳全部資產後才標記正式 latest。上傳失敗維持 draft，原版本清單不變。既有公開版本不覆蓋；有問題時發更高版本修正。
+5. 測試及簽章驗證通過後才為這個不可變 commit 建立版本 tag，建立 draft Release、上傳全部資產後才標記正式 latest。上傳失敗維持 draft，原版本清單不變。既有公開版本不覆蓋；有問題時發更高版本修正。
+6. 下載已發佈的完整安裝包、更新 ZIP 及 appcast，再驗證 SHA-256 與 Ed25519 簽章；Actions 摘要記錄版本、build、commit 及下載位置。使用者的 App 透過既有定期檢查讀取更新清單，先通知，再由使用者選擇是否安裝。
 
-固定使用官方 Sparkle 2.10.0，版本及下載 SHA-256 固定，每次從驗證過的 archive 解開。版本號寫入輸出 Info.plist，不修改 source；release build 為該 workflow run number + 1000，9999 前需明確遷移。
+固定使用官方 Sparkle 2.10.0，版本及下載 SHA-256 固定，每次從驗證過的 archive 解開。`Resources/Info.plist` 是版本與 build 的唯一來源，選單、一般建置與正式更新包保持一致。已停止以 workflow 執行次數產生 build；正式版必須同時提高版本及 build，9999 前需明確遷移。黑貓選單顯示「版本 x.y.z（build）」；歷史紀錄見 `CHANGELOG.md`。
 
 清單網址為 `https://github.com/yuipan0611/groq-ai-voice-input-macos/releases/latest/download/appcast.xml`。公開 repository 的使用者不需 GitHub token。每個標記 latest 的正式 Release 都必須含 macOS appcast；Windows 或其他產品不可搶佔 latest。PR／CI 通過並不等於公開清單已上線，首次發佈前該網址可能 404。
 

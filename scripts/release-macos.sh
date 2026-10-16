@@ -8,6 +8,8 @@ for required in RELEASE_VERSION RELEASE_BUILD MACOS_CERTIFICATE_P12_BASE64 MACOS
   [[ -n "${(P)required:-}" ]] || { print -u2 "Missing release credential/config: $required"; exit 1; }
 done
 python3 "$ROOT/scripts/release_metadata.py" "v$RELEASE_VERSION" 1 >/dev/null
+SOURCE_METADATA="$(python3 "$ROOT/scripts/release_metadata.py" --from-plist "$ROOT/Resources/Info.plist" "v$RELEASE_VERSION")"
+[[ "$SOURCE_METADATA" == "RELEASE_VERSION=$RELEASE_VERSION"$'\n'"RELEASE_BUILD=$RELEASE_BUILD" ]] || { print -u2 'Release metadata differs from Resources/Info.plist'; exit 1; }
 [[ "$RELEASE_BUILD" =~ '^[1-9][0-9]{0,3}$' ]] || { print -u2 'Invalid release build'; exit 1; }
 [[ "$MACOS_SIGNING_SHA1" =~ '^[A-F0-9]{40}$' ]] || { print -u2 'Invalid signing fingerprint'; exit 1; }
 

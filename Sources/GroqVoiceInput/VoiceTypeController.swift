@@ -58,6 +58,12 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     )
     private var currentHotKey = defaultHotKey
     private var clipboardHotKey: HotKeyShortcut? = defaultClipboardHotKey
+    private var clipboardHotKeyRegistrationFailed = false
+    private var clipboardShortcutTitle: String {
+        guard let clipboardHotKey else { return "未設定" }
+        let title = shortcutDisplayName(clipboardHotKey)
+        return clipboardHotKeyRegistrationFailed ? "\(title)，無法使用" : title
+    }
     private var alternateHotKey: HotKeyShortcut?
     private var relayHotKey: HotKeyShortcut? = defaultRelayHotKey
     private var alternateOutputMode: TextOutputMode = .concise
@@ -173,6 +179,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
             "quitApp": #selector(quitApp),
         ])
         if let menu = statusItem.menu { appUpdater.addMenuItems(to: menu) }
+        statusMenu.updateClipboardShortcut(clipboardShortcutTitle)
         updateTextOutputModeMenu()
         statusMenu.updateNekoPosition(nekoHUD.position)
         updateRelayMenu()
@@ -444,10 +451,9 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         if let clipboardHotKey {
             let clipboardStatus = hotKeys.register(shortcut: clipboardHotKey, id: HotKeyManager.clipboardID)
             UpdateDiagnostics.shared.record(.clipboardHotKey, succeeded: clipboardStatus == noErr)
-            if clipboardStatus != noErr {
-                statusMenu.clipboardPickerMenuItem.title = "開啟剪貼簿（快捷鍵無法使用）"
-            }
+            clipboardHotKeyRegistrationFailed = clipboardStatus != noErr
         }
+        statusMenu.updateClipboardShortcut(clipboardShortcutTitle)
         if registerRelayHotKey() != noErr {
             relayHotKey = nil
             registerRelayHotKey()
@@ -651,7 +657,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         catch let error as FocusTargetError { failure = error }
         catch { failure = .noEditableTarget }
         clipboardPicker.show(items: clipboardHistoryStore.items,
-                             shortcutTitle: clipboardHotKey.map(shortcutDisplayName) ?? "未設定",
+                             shortcutTitle: clipboardShortcutTitle,
                              target: target, captureFailure: failure)
     }
 

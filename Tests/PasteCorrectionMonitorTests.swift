@@ -418,17 +418,19 @@ private final class SyntheticEditor {
 
     private static func testDeadlineRaces() {
         let editor = SyntheticEditor(text: "NekoEye")
-        let monitor = editor.monitor(reviewDelay: 0.08)
+        // Drive review boundaries explicitly so a busy CI run loop cannot
+        // deliver both debounce timers before the intermediate assertion.
+        let monitor = editor.monitor(reviewDelay: 60)
         defer { monitor.stop() }
         begin(monitor, editor, original: "NekoEye")
         editor.replace("NekoAI")
         monitor.pollCurrentRange()
         let stoppedBefore = editor.stopped
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { editor.replace("NekoEyes") }
-        settle(0.11)
+        editor.replace("NekoEyes")
+        monitor.flushPendingCorrection()
         check(editor.candidates.isEmpty && editor.stopped == stoppedBefore,
               "An edit between the last poll and review timer restarts debounce without stopping")
-        settle(0.10)
+        monitor.flushPendingCorrection()
         check(editor.candidates.count == 1 && editor.candidates[0].suggestedTerm == "NekoEyes",
               "The re-debounced review offers the latest edit even if no notification arrived")
 
@@ -438,7 +440,7 @@ private final class SyntheticEditor {
         check(!monitor.isCurrentCorrectionValid() && editor.editsResumed == 1,
               "Deadline validation synchronizes unseen edits and cancels the prior offer")
         check(editor.stopped == stoppedBefore, "An outdated toast does not stop the next correction session")
-        settle(0.11)
+        monitor.flushPendingCorrection()
         check(editor.candidates.count == 2 && editor.candidates[1].suggestedTerm == "NekoEyelet",
               "The replacement candidate is still offered after deadline cancellation")
     }

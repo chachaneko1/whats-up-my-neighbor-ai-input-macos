@@ -105,6 +105,7 @@ enum ClipboardHistoryInsertionTests {
     static func main() throws {
         try testCopiedOnlyKeepsHistory()
         try testPasteObservesHistoryBeforePosting()
+        try testMixedHistoryAndReinsertion()
         try testCopyFailureDoesNotSaveOrPaste()
         try testEventFailureKeepsSuccessfulCopy()
         try testPausedHistoryStillCopiesAndPastes()
@@ -149,6 +150,28 @@ enum ClipboardHistoryInsertionTests {
         check(f.clipboard == Data(text.utf8), "The old clipboard must not be restored after Cmd+V")
         check(f.events == ["copy", "history", "paste"] && f.store.items[0].id == savedID)
         check(f.payloadReads == 0)
+    }
+
+    private static func testMixedHistoryAndReinsertion() throws {
+        let f = HistoryInsertionFixture()
+        let target = try f.focus.captureTarget(policy: .localDictation)
+        check(f.insertion.insert("語音 A", target: target) == .pasteEventPosted)
+        let originalA = f.store.items[0]
+        f.clipboard = Data("複製 B".utf8)
+        f.generation += 1
+        f.monitor.checkForChanges()
+        check(f.insertion.insert("語音 C", target: target) == .pasteEventPosted)
+        check(f.store.items.map(\.text) == ["語音 C", "複製 B", "語音 A"])
+        check(f.store.items.last == originalA)
+
+        f.events.removeAll()
+        check(f.insertion.insert(originalA.text!, target: target) == .pasteEventPosted)
+        check(f.store.items.map(\.text) == ["語音 A", "語音 C", "複製 B"])
+        check(f.store.items.first == originalA, "Selection keeps the original item identity and timestamp")
+        check(f.clipboard == originalA.data && f.clipboardAtPaste.last == originalA.data)
+        check(f.events == ["copy", "history", "paste"], "One paste without submitting or duplicating the history item")
+        f.monitor.checkForChanges()
+        check(f.store.items.count == 3, "The picker write must not be captured twice")
     }
 
     private static func testCopyFailureDoesNotSaveOrPaste() throws {

@@ -4,9 +4,19 @@ import Carbon
 
 private final class ClipboardPickerPanel: NSPanel {
     var onKey: ((NSEvent) -> Void)?
+    var onKeyUp: ((NSEvent) -> Void)?
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
     override func keyDown(with event: NSEvent) { onKey?(event) }
+    override func keyUp(with event: NSEvent) { onKeyUp?(event) }
+    override func sendEvent(_ event: NSEvent) {
+        // Route releases before a button or another first responder consumes them.
+        switch event.type {
+        case .keyDown: keyDown(with: event)
+        case .keyUp: keyUp(with: event)
+        default: super.sendEvent(event)
+        }
+    }
 }
 
 private final class RoundedPawView: NSView {
@@ -19,11 +29,30 @@ private final class RoundedPawView: NSView {
 /// Key panel remains nonactivating so the destination app can regain its editor
 /// after the picker closes. It never reads live clipboard contents.
 final class ClipboardPickerController: NSObject {
+    struct Environment {
+        var selectionKeysHeld: () -> Bool
+        var schedule: (TimeInterval, @escaping () -> Void) -> Void
+
+        static var system: Self {
+            Self(selectionKeysHeld: {
+                // A synthesized Cmd+V sets modifier flags without pressing a
+                // Command key. Query the actual keys to avoid a stale flag wait.
+                let keys = [kVK_Return, kVK_ANSI_KeypadEnter, kVK_Command, kVK_RightCommand,
+                            kVK_Control, kVK_RightControl, kVK_Option, kVK_RightOption,
+                            kVK_Shift, kVK_RightShift]
+                return keys.contains { CGEventSource.keyState(.hidSystemState, key: CGKeyCode($0)) }
+            }, schedule: { delay, action in
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: action)
+            })
+        }
+    }
+
     var onInsertResult: ((TextInsertionResult) -> Void)?
     var isCurrentItem: ((ClipboardHistoryItem) -> Bool)?
 
     private let focusTargets: FocusTargetService
     private let textInsertion: TextInsertionService
+    private let environment: Environment
     private var panel: ClipboardPickerPanel?
     private var rows: [NSButton] = []
     private var items: [ClipboardHistoryItem] = []
@@ -32,13 +61,17 @@ final class ClipboardPickerController: NSObject {
     private var captureFailure: FocusTargetError?
     private var resignObserver: NSObjectProtocol?
     private var generation = 0
+    private var isSelecting = false
+    private var heldConfirmationKeys: Set<UInt16> = []
     private var scrollView: NSScrollView?
 
     var isVisible: Bool { panel?.isVisible == true }
 
-    init(focusTargets: FocusTargetService, textInsertion: TextInsertionService) {
+    init(focusTargets: FocusTargetService, textInsertion: TextInsertionService,
+         environment: Environment = .system) {
         self.focusTargets = focusTargets
         self.textInsertion = textInsertion
+        self.environment = environment
     }
 
     func toggle(items: [ClipboardHistoryItem], shortcutTitle: String,
@@ -49,13 +82,8 @@ final class ClipboardPickerController: NSObject {
 
     func show(items: [ClipboardHistoryItem], shortcutTitle: String,
               target: FocusTarget?, captureFailure: FocusTargetError?) {
-        dismiss()
-        self.items = Array(items.filter { $0.kind == .text }.prefix(10))
-        self.target = target
-        self.captureFailure = captureFailure
-        selectedIndex = 0
-        let panel = makePanel(shortcutTitle: shortcutTitle)
-        self.panel = panel
+        let panel = prepare(items: items, shortcutTitle: shortcutTitle,
+                            target: target, captureFailure: captureFailure)
         let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1200, height: 800)
         panel.setFrameOrigin(NSPoint(x: screen.midX - panel.frame.width / 2,
                                      y: screen.maxY - panel.frame.height - 60))
@@ -66,8 +94,30 @@ final class ClipboardPickerController: NSObject {
         ) { [weak self] _ in self?.dismiss() }
     }
 
+    private func prepare(items: [ClipboardHistoryItem], shortcutTitle: String,
+                         target: FocusTarget?, captureFailure: FocusTargetError?) -> ClipboardPickerPanel {
+        dismiss()
+        self.items = Array(items.filter { $0.kind == .text }.prefix(10))
+        self.target = target
+        self.captureFailure = captureFailure
+        selectedIndex = 0
+        let panel = makePanel(shortcutTitle: shortcutTitle)
+        self.panel = panel
+        return panel
+    }
+
+    #if CLIPBOARD_PICKER_TESTING
+    /// Build the real view without displaying a window or changing typing focus.
+    func testPrepare(items: [ClipboardHistoryItem], shortcutTitle: String = "⌃⌥V",
+                     target: FocusTarget? = nil, captureFailure: FocusTargetError? = nil) -> NSPanel {
+        prepare(items: items, shortcutTitle: shortcutTitle, target: target, captureFailure: captureFailure)
+    }
+    #endif
+
     func dismiss() {
         generation += 1
+        isSelecting = false
+        heldConfirmationKeys.removeAll()
         if let resignObserver { NotificationCenter.default.removeObserver(resignObserver); self.resignObserver = nil }
         panel?.orderOut(nil)
         panel = nil
@@ -82,12 +132,14 @@ final class ClipboardPickerController: NSObject {
         let frame = NSRect(x: 0, y: 0, width: 540, height: 530)
         let panel = ClipboardPickerPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel],
                                          backing: .buffered, defer: false)
+        panel.title = "剪貼簿歷史"
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.onKey = { [weak self] event in self?.handleKey(event) }
+        panel.onKeyUp = { [weak self] event in self?.heldConfirmationKeys.remove(event.keyCode) }
         let root = NSView(frame: frame)
         panel.contentView = root
 
@@ -117,18 +169,18 @@ final class ClipboardPickerController: NSObject {
             glass.addSubview(field)
             return field
         }
-        _ = label("剪貼簿", frame: NSRect(x: 34, y: 357, width: 200, height: 28), size: 19, weight: .bold)
+        _ = label("剪貼簿歷史", frame: NSRect(x: 34, y: 357, width: 250, height: 28), size: 19, weight: .bold)
         let count = self.items.count
         let countLabel = label("\(count) 筆文字", frame: NSRect(x: 380, y: 362, width: 86, height: 20),
                                size: 12, weight: .medium)
         countLabel.alignment = .right
 
-        let scroll = NSScrollView(frame: NSRect(x: 26, y: 48, width: 448, height: 300))
+        let scroll = NSScrollView(frame: NSRect(x: 26, y: 68, width: 448, height: 280))
         scroll.drawsBackground = false
-        scroll.hasVerticalScroller = count > 5
+        scroll.hasVerticalScroller = count > 4
         scroll.autohidesScrollers = true
         scroll.borderType = .noBorder
-        let document = NSView(frame: NSRect(x: 0, y: 0, width: 428, height: max(300, count * 58)))
+        let document = NSView(frame: NSRect(x: 0, y: 0, width: 428, height: max(280, count * 58)))
         scroll.documentView = document
         glass.addSubview(scroll)
         scrollView = scroll
@@ -137,7 +189,14 @@ final class ClipboardPickerController: NSObject {
             empty.frame = NSRect(x: 100, y: 139, width: 240, height: 25)
             empty.alignment = .center
             empty.font = .systemFont(ofSize: 16, weight: .medium)
+            empty.textColor = NSColor(calibratedWhite: 0.09, alpha: 1)
             document.addSubview(empty)
+            let guidance = NSTextField(labelWithString: "錄音完成或複製文字後會出現在這裡")
+            guidance.frame = NSRect(x: 14, y: 106, width: 400, height: 22)
+            guidance.alignment = .center
+            guidance.font = .systemFont(ofSize: 13)
+            guidance.textColor = NSColor(calibratedWhite: 0.32, alpha: 1)
+            document.addSubview(guidance)
         } else {
             for (index, item) in self.items.enumerated() {
                 let y = document.frame.height - CGFloat(index + 1) * 58 + 4
@@ -159,12 +218,17 @@ final class ClipboardPickerController: NSObject {
             }
             updateSelection()
         }
-        let hint = label("↑↓ 選擇　 ↩ 直接貼上　 Esc 關閉",
-                         frame: NSRect(x: 86, y: 16, width: 330, height: 19),
+        let hint = label("↑↓ 選擇　 ↩ 貼上（不送出）　 Esc 關閉",
+                         frame: NSRect(x: 26, y: 37, width: 448, height: 19),
                          size: 12, weight: .medium,
                          color: NSColor(calibratedWhite: 0.32, alpha: 1))
         hint.alignment = .center
         hint.setAccessibilityLabel("上、下方向鍵選擇，Return 直接貼上，Escape 關閉。快捷鍵 \(shortcutTitle)")
+        let shortcut = label("開啟快捷鍵：\(shortcutTitle)",
+                             frame: NSRect(x: 26, y: 16, width: 448, height: 18),
+                             size: 11, weight: .regular,
+                             color: NSColor(calibratedWhite: 0.32, alpha: 1))
+        shortcut.alignment = .center
 
         if let catImage = Bundle.main.url(forResource: "neko-base", withExtension: "png")
             .flatMap(NSImage.init(contentsOf:)) {
@@ -181,6 +245,13 @@ final class ClipboardPickerController: NSObject {
     }
 
     private func handleKey(_ event: NSEvent) {
+        if [kVK_Return, kVK_ANSI_KeypadEnter].contains(Int(event.keyCode)) {
+            heldConfirmationKeys.insert(event.keyCode)
+        }
+        if isSelecting {
+            if Int(event.keyCode) == kVK_Escape { dismiss() }
+            return
+        }
         switch Int(event.keyCode) {
         case kVK_DownArrow:
             if !items.isEmpty { selectedIndex = min(selectedIndex + 1, items.count - 1); updateSelection() }
@@ -207,33 +278,28 @@ final class ClipboardPickerController: NSObject {
     @objc private func selectRow(_ sender: NSButton) { select(index: sender.tag) }
 
     private func select(index: Int) {
-        guard items.indices.contains(index) else { return }
+        guard !isSelecting, items.indices.contains(index) else { return }
         let item = items[index]
         let target = self.target
         let failure = captureFailure
         guard isCurrentItem?(item) == true, let text = item.text else { dismiss(); return }
-        dismiss()
+        isSelecting = true
         let token = generation
-        // Return and shortcut modifiers must be released before the destination
-        // receives Cmd+V; otherwise key repeat can submit its form.
-        func attempt(_ retries: Int) {
+        // Keep the panel key until Return and shortcut modifiers are released,
+        // so a held confirmation key cannot repeat into the destination app.
+        func attempt() {
             guard self.generation == token else { return }
-            let modifiers = CGEventSource.flagsState(.combinedSessionState)
-            let returnHeld = CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(kVK_Return))
-            let stillHeld = returnHeld || !modifiers.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]).isEmpty
-            if stillHeld {
-                if retries == 0 {
-                    self.onInsertResult?(self.textInsertion.insert(text, target: nil))
-                    return
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { attempt(retries - 1) }
+            if !self.heldConfirmationKeys.isEmpty || self.environment.selectionKeysHeld() {
+                self.environment.schedule(0.05) { attempt() }
                 return
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-                guard self.generation == token else { return }
+            self.dismiss()
+            let insertionToken = self.generation
+            self.environment.schedule(0.12) {
+                guard self.generation == insertionToken else { return }
                 self.onInsertResult?(self.textInsertion.insert(text, target: target, captureFailure: failure))
             }
         }
-        attempt(30)
+        attempt()
     }
 }
