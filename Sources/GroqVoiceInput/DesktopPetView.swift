@@ -6,6 +6,7 @@ final class DesktopPetView: NSView {
     private let images: [String: NSImage]
     var pose: DesktopPetPose = .sitting
     var phase: Double = 0
+    var walkDistance: CGFloat = 0
     var facingLeft = false
     var reduceMotion = false
     override var isFlipped: Bool { true }
@@ -13,10 +14,13 @@ final class DesktopPetView: NSView {
     override var acceptsFirstResponder: Bool { false }
 
     init(resources: URL? = Bundle.main.resourceURL?.appendingPathComponent("DesktopPet")) {
-        let names = ["sit", "walk", "reply", "body", "tail"]
+        let names = ["sit", "walk", "reply", "body", "tail", "walk-body", "walk-paws", "walk-front-face"]
         images = Dictionary(uniqueKeysWithValues: names.compactMap { name in
             guard let url = resources?.appendingPathComponent(name + ".svg"),
                   let image = NSImage(contentsOf: url) else { return nil }
+            // Render the original head and face together, without a reflected
+            // SVG cache moving their edges after direction changes.
+            if name == "walk-front-face" { image.cacheMode = .never }
             return (name, image)
         })
         super.init(frame: CGRect(origin: .zero, size: DesktopPetModel.size))
@@ -32,6 +36,7 @@ final class DesktopPetView: NSView {
         if pose != model.pose { setAccessibilityValue(model.pose.description) }
         pose = model.pose
         phase = model.phase
+        walkDistance = model.walkDistance
         facingLeft = model.facingLeft
         self.reduceMotion = reduceMotion
         needsDisplay = true
@@ -47,13 +52,6 @@ final class DesktopPetView: NSView {
         transform.translateX(by: 8, yBy: 128 - 2 - 367 * 0.28)
         transform.scale(by: 0.28)
         transform.concat()
-        NSGraphicsContext.saveGraphicsState()
-        if facingLeft {
-            let mirror = NSAffineTransform()
-            mirror.translateX(by: 400, yBy: 0)
-            mirror.scaleX(by: -1, yBy: 1)
-            mirror.concat()
-        }
         switch pose {
         case .sitting, .curious:
             breathe { drawImage(pose == .curious ? "reply" : "sit") }
@@ -62,7 +60,6 @@ final class DesktopPetView: NSView {
         case .yawning: drawYawning()
         case .loafing, .sleeping: drawLoaf(sleeping: pose == .sleeping)
         }
-        NSGraphicsContext.restoreGraphicsState()
         if pose == .curious { drawQuestion() }
         if pose == .sleeping { drawSleepMarks() }
     }
@@ -88,20 +85,73 @@ final class DesktopPetView: NSView {
     }
 
     private func drawWalking() {
-        let stride = reduceMotion ? 0 : sin(phase * 8.5)
-        // Articulate two paw groups rather than sliding a still cat along the
-        // screen. All three crops draw the original full-resolution SVG.
+        let stride = reduceMotion ? 0 : sin(walkDistance / Self.strideDistance * 2 * .pi)
+        NSGraphicsContext.saveGraphicsState()
+        // Only the silhouette turns. Mirroring the complete mascot swaps X/✓
+        // and reverses the check itself, including after a leftward walk.
+        if !facingLeft {
+            let turn = NSAffineTransform()
+            turn.translateX(by: 400, yBy: 0)
+            turn.scaleX(by: -1, yBy: 1)
+            turn.concat()
+        }
+        // The original Walk body has its tail at the rear (right). Separate
+        // original paw groups keep contact with the ground as they alternate.
         for side in 0...1 {
             NSGraphicsContext.saveGraphicsState()
-            NSBezierPath(rect: CGRect(x: CGFloat(side) * 200, y: 272, width: 200, height: 110)).addClip()
-            let step = side == 0 ? stride : -stride
-            drawImage("walk", in: CGRect(x: step * 6, y: -max(0, step) * 8, width: 400, height: 400))
+            let step = Self.pawOffset(distance: reduceMotion ? 0 : walkDistance, pair: side)
+            let motion = NSAffineTransform()
+            motion.translateX(by: step.x, yBy: step.y)
+            motion.concat()
+            // Diagonal pairs, not a sliding lower half of the front-facing cat.
+            for region in side == 0
+                ? [CGRect(x: 60, y: 270, width: 73, height: 100), CGRect(x: 240, y: 270, width: 63, height: 100)]
+                : [CGRect(x: 133, y: 270, width: 65, height: 100), CGRect(x: 303, y: 270, width: 65, height: 100)] {
+                NSGraphicsContext.saveGraphicsState()
+                NSBezierPath(rect: region).addClip()
+                drawImage("walk-paws")
+                NSGraphicsContext.restoreGraphicsState()
+            }
             NSGraphicsContext.restoreGraphicsState()
         }
-        NSGraphicsContext.saveGraphicsState()
-        NSBezierPath(rect: CGRect(x: 0, y: 0, width: 400, height: 281)).addClip()
-        drawImage("walk", in: CGRect(x: 0, y: -abs(stride) * 2, width: 400, height: 400))
+        let bob = reduceMotion ? 0 : -abs(stride) * 3
+        let lift = NSAffineTransform()
+        lift.translateX(by: 0, yBy: bob)
+        lift.concat()
+        drawImage("walk-body")
         NSGraphicsContext.restoreGraphicsState()
+
+        // Keep the approved front-facing head, eyes and mouth together.
+        // Only the body turns; the face keeps its original proportions.
+        NSGraphicsContext.saveGraphicsState()
+        let faceLift = NSAffineTransform()
+        faceLift.translateX(by: 0, yBy: bob)
+        faceLift.concat()
+        drawWalkingFace()
+        NSGraphicsContext.restoreGraphicsState()
+    }
+
+    // One cycle covers 40pt of actual screen travel. During 60% of the
+    // cycle each planted paw moves back relative to the body by exactly the
+    // distance the body moves forward, so the paw stays fixed on the desktop.
+    // The remaining 40% lifts it in an arc and brings it forward for landing.
+    static let strideDistance: CGFloat = 86 * 0.28 / 0.6
+
+    static func pawOffset(distance: CGFloat, pair: Int) -> CGPoint {
+        let cycle = (max(0, distance) / strideDistance + CGFloat(pair) * 0.5)
+            .truncatingRemainder(dividingBy: 1)
+        if cycle < 0.6 {
+            return CGPoint(x: -43 + 86 * cycle / 0.6, y: 0)
+        }
+        let swing = (cycle - 0.6) / 0.4
+        let eased = swing * swing * (3 - 2 * swing)
+        return CGPoint(x: 43 - 86 * eased, y: -sin(swing * .pi) * 28)
+    }
+
+    private func drawWalkingFace() {
+        // A small shoulder offset follows travel without stretching the head
+        // or mirroring the X-left / check-right face.
+        drawImage("walk-front-face", in: CGRect(x: facingLeft ? 0 : 40, y: 0, width: 400, height: 400))
     }
 
     private func drawYawning() {
@@ -194,9 +244,11 @@ final class DesktopPetView: NSView {
     }
 
     #if DESKTOP_PET_TESTS
-    func renderPNG(pose: DesktopPetPose, phase: Double = 0) -> Data {
+    func renderPNG(pose: DesktopPetPose, phase: Double = 0, facingLeft: Bool = false, walkDistance: CGFloat = 0) -> Data {
         self.pose = pose
         self.phase = phase
+        self.facingLeft = facingLeft
+        self.walkDistance = walkDistance
         let image = NSImage(size: bounds.size, flipped: true) { _ in self.draw(self.bounds); return true }
         let bitmap = NSBitmapImageRep(data: image.tiffRepresentation!)!
         return bitmap.representation(using: .png, properties: [:])!
