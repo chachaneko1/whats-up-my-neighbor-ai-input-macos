@@ -174,6 +174,9 @@ private let hotKeyHandler: EventHandlerUPP = { _, _, _ in
 final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorderDelegate {
     private var statusItem: NSStatusItem!
     private var toggleMenuItem: NSMenuItem!
+    private var vocabularySyncMenuItem: NSMenuItem!
+    private var remoteConnectionMenuItem: NSMenuItem!
+    private var remoteTargetMenuItem: NSMenuItem!
     private var hotKeyRef: EventHotKeyRef?
     private var eventHandlerRef: EventHandlerRef?
     private var currentHotKey = defaultHotKey
@@ -181,6 +184,13 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
     private var recordingURL: URL?
     private var activeUploadURL: URL?
     private var isUploading = false
+    private let remoteBridge = MacRemoteBridge()
+    private let remoteTargetController = RemoteTargetController()
+    private let pasteCorrectionMonitor = PasteCorrectionMonitor()
+    private let vocabularyStore = MacVocabularyStore()
+    private var vocabularyWindowController: VocabularyWindowController?
+    private var vocabularySyncStatus = "等待 iPhone 連線"
+    private var vocabularySyncHasError = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -190,7 +200,13 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
         configureStatusItem()
         registerHotKey()
         requestPermissions()
+        configureRemoteInput()
 
+        if CommandLine.arguments.contains("--show-vocabulary") {
+            DispatchQueue.main.async { [weak self] in
+                self?.showVocabularyWindow()
+            }
+        }
         if readAPIKey() == nil {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                 self.showAPIKeyDialog(firstRun: true)
@@ -204,6 +220,8 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
         if let activeUploadURL { try? FileManager.default.removeItem(at: activeUploadURL) }
         if let hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
         if let eventHandlerRef { RemoveEventHandler(eventHandlerRef) }
+        pasteCorrectionMonitor.stop()
+        remoteBridge.stop()
     }
 
     private func configureStatusItem() {
@@ -224,6 +242,14 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
         shortcutItem.target = self
         menu.addItem(shortcutItem)
 
+        let vocabularyItem = NSMenuItem(title: "常用詞典…", action: #selector(showVocabularyWindow), keyEquivalent: "")
+        vocabularyItem.target = self
+        menu.addItem(vocabularyItem)
+
+        vocabularySyncMenuItem = NSMenuItem(title: "詞典同步：等待 iPhone 連線", action: nil, keyEquivalent: "")
+        vocabularySyncMenuItem.isEnabled = false
+        menu.addItem(vocabularySyncMenuItem)
+
         let keyItem = NSMenuItem(title: "設定／更換 Groq API 金鑰…", action: #selector(showAPIKeyFromMenu), keyEquivalent: "")
         keyItem.target = self
         menu.addItem(keyItem)
@@ -233,10 +259,212 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
         menu.addItem(permissionsItem)
 
         menu.addItem(NSMenuItem.separator())
+        remoteConnectionMenuItem = NSMenuItem(title: "iPhone 遠端：準備中…", action: nil, keyEquivalent: "")
+        remoteConnectionMenuItem.isEnabled = false
+        menu.addItem(remoteConnectionMenuItem)
+
+        remoteTargetMenuItem = NSMenuItem(title: "尚未鎖定輸入框", action: nil, keyEquivalent: "")
+        remoteTargetMenuItem.isEnabled = false
+        menu.addItem(remoteTargetMenuItem)
+
+        let pairingItem = NSMenuItem(title: "配對 iPhone…", action: #selector(showPairingCode), keyEquivalent: "")
+        pairingItem.target = self
+        menu.addItem(pairingItem)
+
+        let forgetPhoneItem = NSMenuItem(title: "忘記已配對的 iPhone…", action: #selector(forgetPairedPhone), keyEquivalent: "")
+        forgetPhoneItem.target = self
+        menu.addItem(forgetPhoneItem)
+
+        menu.addItem(NSMenuItem.separator())
         let quit = NSMenuItem(title: "結束 AI 語音輸入", action: #selector(quitApp), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
         statusItem.menu = menu
+    }
+
+    private func configureRemoteInput() {
+        vocabularyStore.onLocalChange = { [weak self] in
+            self?.sendVocabularySnapshot(kind: .vocabularySync)
+        }
+        remoteBridge.onConnectionChange = { [weak self] status in
+            self?.remoteConnectionMenuItem.title = "iPhone 遠端：\(status)"
+        }
+        remoteBridge.onConnectionStateChange = { [weak self] isConnected in
+            guard let self else { return }
+            if isConnected {
+                self.sendVocabularySnapshot(kind: .vocabularySync)
+            } else {
+                self.updateVocabularySyncStatus("等待 iPhone 連線")
+            }
+        }
+        remoteBridge.onPairingComplete = { [weak self] phoneName in
+            guard let self else { return }
+            self.remoteConnectionMenuItem.title = "iPhone 遠端：已配對 \(phoneName)"
+            NSSound(named: "Glass")?.play()
+        }
+        remoteBridge.onMessage = { [weak self] message in
+            guard let self else { return }
+            switch message.kind {
+            case .vocabularySync, .vocabularySyncAck:
+                self.handleVocabularySyncMessage(message)
+            default:
+                self.remoteTargetController.handle(message) { [weak self] response in
+                    self?.remoteBridge.send(response) ?? false
+                }
+            }
+        }
+        remoteTargetController.onTargetChange = { [weak self] status in
+            self?.remoteTargetMenuItem.title = status
+        }
+        remoteTargetController.onPastedText = { [weak self] element, text in
+            self?.pasteCorrectionMonitor.beginMonitoringAfterPaste(
+                originalText: text,
+                targetElement: element,
+                verificationDelay: 0.08
+            )
+        }
+        pasteCorrectionMonitor.onCandidate = { [weak self] candidate in
+            self?.showVocabularySuggestion(candidate)
+        }
+        remoteBridge.start()
+    }
+
+    private func showVocabularySuggestion(_ candidate: MacVocabularyCandidate) {
+        let suggestedTerm = candidate.suggestedTerm
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !suggestedTerm.isEmpty,
+              !vocabularyStore.contains(term: suggestedTerm),
+              vocabularyStore.entries.count < MacVocabularyStore.maximumEntryCount else {
+            return
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+        let termField = NSTextField(
+            frame: NSRect(x: 0, y: 0, width: 340, height: 26)
+        )
+        termField.stringValue = suggestedTerm
+        termField.placeholderString = "可先修改詞彙"
+
+        let alert = NSAlert()
+        alert.messageText = "加入常用詞典？"
+        if candidate.originalSegment.isEmpty {
+            alert.informativeText = "你剛才在 Groq 貼入的文字中新增了這個詞。確認後才會保存並同步到 iPhone。"
+        } else {
+            alert.informativeText = "你剛才把「\(candidate.originalSegment)」修正為下面的詞。確認後才會保存並同步到 iPhone。"
+        }
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "加入詞典")
+        alert.addButton(withTitle: "這次不要")
+        alert.accessoryView = termField
+        alert.window.initialFirstResponder = termField
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        do {
+            try vocabularyStore.add(term: termField.stringValue)
+            NSSound(named: "Glass")?.play()
+        } catch MacVocabularyError.duplicateTerm {
+            return
+        } catch {
+            showError(error.localizedDescription)
+        }
+    }
+
+    @objc private func showVocabularyWindow() {
+        if vocabularyWindowController == nil {
+            vocabularyWindowController = VocabularyWindowController(store: vocabularyStore)
+        }
+        vocabularyWindowController?.updateSyncStatus(
+            vocabularySyncStatus,
+            isError: vocabularySyncHasError
+        )
+        vocabularyWindowController?.present()
+    }
+
+    @discardableResult
+    private func sendVocabularySnapshot(kind: RemoteMessageKind) -> Bool {
+        guard remoteBridge.connectedPhoneName != nil else {
+            updateVocabularySyncStatus("等待 iPhone 連線")
+            return false
+        }
+        updateVocabularySyncStatus("同步中…")
+        let sent = remoteBridge.send(
+            RemoteMessage(
+                kind: kind,
+                vocabulary: vocabularyStore.snapshot()
+            )
+        )
+        if !sent {
+            updateVocabularySyncStatus("等待重新連線", isError: true)
+        }
+        return sent
+    }
+
+    private func handleVocabularySyncMessage(_ message: RemoteMessage) {
+        guard RemoteProtocolPolicy.supports(message.protocolVersion) else {
+            updateVocabularySyncStatus("版本不相容，請更新兩端", isError: true)
+            return
+        }
+        guard let payload = message.vocabulary else {
+            updateVocabularySyncStatus("同步資料無效", isError: true)
+            return
+        }
+
+        _ = vocabularyStore.merge(payload)
+        switch message.kind {
+        case .vocabularySync:
+            if sendVocabularySnapshot(kind: .vocabularySyncAck) {
+                updateVocabularySyncStatus("已同步")
+            }
+        case .vocabularySyncAck:
+            updateVocabularySyncStatus("已同步")
+        default:
+            break
+        }
+    }
+
+    private func updateVocabularySyncStatus(_ status: String, isError: Bool = false) {
+        vocabularySyncStatus = status
+        vocabularySyncHasError = isError
+        vocabularySyncMenuItem.title = "詞典同步：\(status)"
+        vocabularyWindowController?.updateSyncStatus(status, isError: isError)
+    }
+
+    @objc private func showPairingCode() {
+        var randomValue: UInt32 = 0
+        let status = withUnsafeMutableBytes(of: &randomValue) { bytes in
+            SecRandomCopyBytes(kSecRandomDefault, bytes.count, bytes.baseAddress!)
+        }
+        guard status == errSecSuccess else {
+            showError("無法建立安全配對碼，請再試一次。")
+            return
+        }
+
+        let code = String(format: "%06u", randomValue % 1_000_000)
+        remoteBridge.beginPairing(code: code)
+
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "配對 iPhone"
+        alert.informativeText = "請在 iPhone 的「Mac 連線」中選擇這台 Mac，輸入配對碼：\n\n\(code)\n\n配對碼 5 分鐘後失效。"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "完成")
+        alert.runModal()
+        NSApp.hide(nil)
+    }
+
+    @objc private func forgetPairedPhone() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "忘記已配對的 iPhone？"
+        alert.informativeText = "之後若要使用遠端貼上，必須重新輸入一次配對碼。"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "忘記")
+        alert.addButton(withTitle: "取消")
+        if alert.runModal() == .alertFirstButtonReturn {
+            remoteTargetController.clearTarget()
+            remoteBridge.forgetPairedPhone()
+        }
+        NSApp.hide(nil)
     }
 
     private func registerHotKey() {
@@ -408,8 +636,10 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
         recordingURL = nil
         activeUploadURL = url
         isUploading = true
+        let vocabularyPrompt = vocabularyStore.buildPrompt()
+        vocabularyStore.recordPromptUse(entryIDs: vocabularyPrompt.includedEntryIDs)
 
-        transcribe(url: url, apiKey: apiKey) { result in
+        transcribe(url: url, apiKey: apiKey, prompt: vocabularyPrompt.text) { result in
             DispatchQueue.main.async {
                 self.isUploading = false
                 try? FileManager.default.removeItem(at: url)
@@ -430,7 +660,12 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
         }
     }
 
-    private func transcribe(url: URL, apiKey: String, completion: @escaping (Result<String, Error>) -> Void) {
+    private func transcribe(
+        url: URL,
+        apiKey: String,
+        prompt: String,
+        completion: @escaping (Result<String, Error>) -> Void
+    ) {
         DispatchQueue.global(qos: .userInitiated).async {
             do {
                 let audioData = try Data(contentsOf: url)
@@ -451,7 +686,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
                 addField("language", "zh")
                 addField("response_format", "json")
                 addField("temperature", "0")
-                addField("prompt", "繁體中文口述，使用台灣繁體中文字形與自然標點。可能包含英文、macOS、ChatGPT、API、法律及專有名詞。")
+                addField("prompt", prompt)
 
                 body.append("--\(boundary)\r\n".data(using: .utf8)!)
                 body.append("Content-Disposition: form-data; name=\"file\"; filename=\"speech.m4a\"\r\n".data(using: .utf8)!)
@@ -500,6 +735,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
             return
         }
 
+        let correctionTarget = pasteCorrectionMonitor.captureFocusedEditableElement()
         let source = CGEventSource(stateID: .combinedSessionState)
         let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: true)
         let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: false)
@@ -507,6 +743,12 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate, AVAudioRecorde
         keyUp?.flags = .maskCommand
         keyDown?.post(tap: .cghidEventTap)
         keyUp?.post(tap: .cghidEventTap)
+        if let correctionTarget {
+            pasteCorrectionMonitor.beginMonitoringAfterPaste(
+                originalText: text,
+                targetElement: correctionTarget
+            )
+        }
         NSSound(named: "Glass")?.play()
     }
 
