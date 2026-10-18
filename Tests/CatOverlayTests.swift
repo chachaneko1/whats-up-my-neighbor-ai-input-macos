@@ -95,6 +95,13 @@ struct CatOverlayTests {
         overlay.testClickCancel()
         overlay.testClickFinish()
         expect(cancels == 1 && finishes == 1, "greeting cannot accidentally invoke recording eye actions")
+        // Observe the live timer before encoding 30 large PNGs. On a busy
+        // machine those exports can outlast the entire three-second greeting.
+        if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            let deadline = Date().addingTimeInterval(1)
+            while overlay.testMouthFrame < 1 && Date() < deadline { pump(0.02) }
+            expect(overlay.testMouthFrame >= 1, "live run-loop advances the greeting mouth")
+        }
         let closed = try overlay.testPNG(greeting: true, frame: 0)
         let open = try overlay.testPNG(greeting: true, frame: 2)
         expect(closed != open, "greeting changes the tiny mouth opening")
@@ -116,11 +123,6 @@ struct CatOverlayTests {
             let data = try overlay.testPNG(greeting: true, frame: frame)
             try data.write(to: output.appendingPathComponent(String(format: "greeting-frame-%02d.png", frame)))
         }
-        pump(0.23)
-        if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
-            expect(overlay.testMouthFrame >= 1, "live run-loop advances the greeting mouth")
-        }
-
         overlay.showRecording()
         expect(!overlay.testMouthTimerActive && !overlay.testExpiryTimerActive, "starting recording cancels both greeting timers")
         expect(overlay.testMouthFrame == 0, "starting recording restores neutral omega")
