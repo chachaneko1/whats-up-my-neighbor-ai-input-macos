@@ -51,7 +51,7 @@ GitHub repository 或 `macos-release` environment 只需要：
 
 ## CI 與發佈
 
-`.github/workflows/build.yml` 的一般 push／PR 工作不讀發佈 Secrets：編譯 Universal 2（arm64 + x86_64）、驗證簽章、執行 21 組離線測試，產出保留七天的開發安裝包與原生貓咪圖像。另有 `free-release-check`，只允許此 repository 的 main 或指定實作分支可信 push，實際匯入固定憑證、產生免費簽章安裝包及真實簽署 appcast，完全不提供付費 Apple／公證資料。該工作沒有發佈權限，不建立 tag、Release 或更新公開清單；PR／fork 不取得發佈憑證。
+`.github/workflows/build.yml` 的一般 push／PR 工作不讀發佈 Secrets：編譯 Universal 2（arm64 + x86_64）、驗證簽章、執行 22 組離線測試，產出保留七天的開發安裝包與原生貓咪圖像。另有 `free-release-check`，只允許此 repository 的 main 或指定實作分支可信 push，實際匯入固定憑證、產生免費簽章安裝包及真實簽署 appcast，完全不提供付費 Apple／公證資料。該工作沒有發佈權限，不建立 tag、Release 或更新公開清單；PR／fork 不取得發佈憑證。
 
 正式發佈：
 
