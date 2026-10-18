@@ -51,6 +51,8 @@ def run(task_file, repo):
         home = repo.parent / 'agent-home'
         home.mkdir(mode=0o700)
         os.chown(home, UID, UID)
+        (home / '.codex').mkdir(mode=0o700)
+        os.chown(home / '.codex', UID, UID)
         env = child_environment(home)
         # This must succeed before spending model tokens. Cloud Run compatibility
         # is established only by the actual execution, not this local source check.
@@ -112,6 +114,8 @@ if __name__ == '__main__':
                 '--ro-bind', '/', '/', '--dev', '/dev', '--proc', '/proc', '--', '/bin/true'],
                 check=True, **IDENTITY)
             home = Path('/home/agent')
+            (home / '.codex').mkdir(mode=0o700, exist_ok=True)
+            os.chown(home / '.codex', UID, UID)
             outside = Path('/outside-sandbox-probe')
             outside.mkdir(mode=0o777)
             outside.chmod(0o777)
