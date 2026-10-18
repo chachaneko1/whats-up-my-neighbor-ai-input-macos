@@ -64,6 +64,14 @@ final class SettingsStore {
         return stored.modifiers == 0 ? nil : stored
     }
 
+    /// The legacy default migrates to the paste gesture; explicit custom and
+    /// disabled shortcuts keep their meaning without rewriting old preferences.
+    func usesClipboardPasteGesture() -> Bool {
+        guard let stored = storedHotKey(codeKey: Keys.clipboardHotKeyCode,
+                                        modifiersKey: Keys.clipboardHotKeyModifiers) else { return true }
+        return stored == defaultClipboardHotKey
+    }
+
     func saveClipboardHotKey(_ shortcut: HotKeyShortcut?) {
         defaults.set(Int(shortcut?.keyCode ?? 0), forKey: Keys.clipboardHotKeyCode)
         defaults.set(Int(shortcut?.modifiers ?? 0), forKey: Keys.clipboardHotKeyModifiers)

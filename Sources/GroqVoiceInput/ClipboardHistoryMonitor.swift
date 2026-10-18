@@ -32,6 +32,8 @@ final class ClipboardHistoryMonitor {
         }
     }
 
+    static let markdownTypes = ["net.daringfireball.markdown", "public.markdown", "text/markdown"]
+        .map { NSPasteboard.PasteboardType($0) }
     static let enabledPreferenceKey = "neighbor.clipboardHistory.enabled"
     static let maximumItemByteCount = 8 * 1024 * 1024
     private static let ignoredTypes: Set<String> = [
@@ -118,8 +120,9 @@ final class ClipboardHistoryMonitor {
 
         // Text-only history: ignore image representations before reading data,
         // even when an image advertises an incidental text fallback.
-        guard types.contains(.string), !types.contains(.png), !types.contains(.tiff),
-              let data = environment.data(.string),
+        guard !types.contains(.png), !types.contains(.tiff),
+              let textType = (Self.markdownTypes + [.string]).first(where: { types.contains($0) }),
+              let data = environment.data(textType),
               environment.changeCount() == generation,
               Self.accepts(data, kind: .text),
               environment.changeCount() == generation else { return }

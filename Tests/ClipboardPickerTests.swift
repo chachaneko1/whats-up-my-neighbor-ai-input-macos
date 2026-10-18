@@ -82,11 +82,37 @@ enum ClipboardPickerTests {
 
     static func main() throws {
         NSApplication.shared.setActivationPolicy(.prohibited)
+        try testMarkdownAndCode()
         try testKeyboardAndMouse()
         try testHeldConfirmationAndCancellation()
         try testStaleAndChangedTargets()
         try renderStates()
         print("ClipboardPickerTests passed: \(checks) view/selection checks; no displayed windows, system clipboard or external input")
+    }
+
+    private static func testMarkdownAndCode() throws {
+        let f = PickerFixture()
+        let source = "# Markdown\n\n```python\n\tdef hello():\n    print(\"a < b\")  \n```\n"
+        _ = f.store.add(kind: .text, data: Data(source.utf8))
+        let panel = try f.prepare()
+        let first = descendants(panel.contentView!).compactMap { $0 as? NSButton }.first { $0.tag == 0 }!
+        check(first.title.contains("\n") && first.title.contains("\t"), "preview keeps source line breaks and indentation")
+        check(first.font == .monospacedSystemFont(ofSize: 12.5, weight: .regular), "code preview uses a monospaced font")
+        let view = panel.contentView!
+        let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds)!
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        try bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: CommandLine.arguments[1]).appendingPathComponent("clipboard-picker-markdown.png"))
+        f.key(kVK_Return, panel: panel); f.drain()
+        check(f.copied == [source] && f.pasteCount == 1, "selected Markdown/code is pasted byte-for-byte once")
+        check(f.copied.first.map { Data($0.utf8) } == Data(source.utf8), "fences, tabs and trailing whitespace are not normalized")
+        let hold = PickerFixture()
+        let heldPanel = try hold.prepare()
+        hold.held = true
+        hold.key(kVK_Return, panel: heldPanel)
+        hold.next()
+        check(hold.copied.isEmpty, "history insertion waits for all gesture keys to release")
+        hold.held = false; hold.drain()
+        check(hold.pasteCount == 1, "gesture key release cannot trigger an extra paste")
     }
 
     private static func testKeyboardAndMouse() throws {

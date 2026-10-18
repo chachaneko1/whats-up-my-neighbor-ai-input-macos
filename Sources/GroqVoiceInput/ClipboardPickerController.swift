@@ -39,7 +39,7 @@ final class ClipboardPickerController: NSObject {
                 // Command key. Query the actual keys to avoid a stale flag wait.
                 let keys = [kVK_Return, kVK_ANSI_KeypadEnter, kVK_Command, kVK_RightCommand,
                             kVK_Control, kVK_RightControl, kVK_Option, kVK_RightOption,
-                            kVK_Shift, kVK_RightShift]
+                            kVK_Shift, kVK_RightShift, kVK_ANSI_V, kVK_UpArrow, kVK_DownArrow]
                 return keys.contains { CGEventSource.keyState(.hidSystemState, key: CGKeyCode($0)) }
             }, schedule: { delay, action in
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: action)
@@ -81,9 +81,9 @@ final class ClipboardPickerController: NSObject {
     }
 
     func show(items: [ClipboardHistoryItem], shortcutTitle: String,
-              target: FocusTarget?, captureFailure: FocusTargetError?) {
+              target: FocusTarget?, captureFailure: FocusTargetError?, initialIndex: Int = 0) {
         let panel = prepare(items: items, shortcutTitle: shortcutTitle,
-                            target: target, captureFailure: captureFailure)
+                            target: target, captureFailure: captureFailure, initialIndex: initialIndex)
         let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1200, height: 800)
         panel.setFrameOrigin(NSPoint(x: screen.midX - panel.frame.width / 2,
                                      y: screen.maxY - panel.frame.height - 60))
@@ -95,12 +95,12 @@ final class ClipboardPickerController: NSObject {
     }
 
     private func prepare(items: [ClipboardHistoryItem], shortcutTitle: String,
-                         target: FocusTarget?, captureFailure: FocusTargetError?) -> ClipboardPickerPanel {
+                         target: FocusTarget?, captureFailure: FocusTargetError?, initialIndex: Int = 0) -> ClipboardPickerPanel {
         dismiss()
         self.items = Array(items.filter { $0.kind == .text }.prefix(10))
         self.target = target
         self.captureFailure = captureFailure
-        selectedIndex = 0
+        selectedIndex = min(max(0, initialIndex), max(0, self.items.count - 1))
         let panel = makePanel(shortcutTitle: shortcutTitle)
         self.panel = panel
         return panel
@@ -108,7 +108,7 @@ final class ClipboardPickerController: NSObject {
 
     #if CLIPBOARD_PICKER_TESTING
     /// Build the real view without displaying a window or changing typing focus.
-    func testPrepare(items: [ClipboardHistoryItem], shortcutTitle: String = "⌃⌥V",
+    func testPrepare(items: [ClipboardHistoryItem], shortcutTitle: String = "按住 ⌘V，再按 ↑／↓",
                      target: FocusTarget? = nil, captureFailure: FocusTargetError? = nil) -> NSPanel {
         prepare(items: items, shortcutTitle: shortcutTitle, target: target, captureFailure: captureFailure)
     }
@@ -200,16 +200,22 @@ final class ClipboardPickerController: NSObject {
         } else {
             for (index, item) in self.items.enumerated() {
                 let y = document.frame.height - CGFloat(index + 1) * 58 + 4
-                let text = (item.text ?? "").replacingOccurrences(of: "\\s+", with: " ",
-                                                                   options: .regularExpression)
-                let preview = text.count > 70 ? String(text.prefix(69)) + "…" : text
+                let text = item.text ?? ""
+                // Preview only; the selected item's original UTF-8 payload is
+                // never normalized, rendered as HTML, or copied from this label.
+                let preview = String(text.prefix(180)) + (text.count > 180 ? "…" : "")
                 let button = NSButton(title: preview, target: self, action: #selector(selectRow(_:)))
                 button.tag = index
                 button.frame = NSRect(x: 4, y: y, width: 416, height: 50)
                 button.isBordered = false
                 button.alignment = .left
-                button.font = .systemFont(ofSize: 14.5, weight: .medium)
+                button.font = text.contains("\n") || text.contains("`") || text.contains("\t")
+                    ? .monospacedSystemFont(ofSize: 12.5, weight: .regular)
+                    : .systemFont(ofSize: 14.5, weight: .medium)
+                button.cell?.usesSingleLineMode = false
+                button.cell?.wraps = true
                 button.cell?.lineBreakMode = .byTruncatingTail
+                button.toolTip = "保留原始 Markdown、換行與縮排貼上"
                 button.wantsLayer = true
                 button.layer?.cornerRadius = 12
                 button.setAccessibilityLabel("第 \(index + 1) 筆，\(preview)")
@@ -254,9 +260,9 @@ final class ClipboardPickerController: NSObject {
         }
         switch Int(event.keyCode) {
         case kVK_DownArrow:
-            if !items.isEmpty { selectedIndex = min(selectedIndex + 1, items.count - 1); updateSelection() }
+            moveSelection(by: 1)
         case kVK_UpArrow:
-            if !items.isEmpty { selectedIndex = max(0, selectedIndex - 1); updateSelection() }
+            moveSelection(by: -1)
         case kVK_Return, kVK_ANSI_KeypadEnter:
             select(index: selectedIndex)
         case kVK_Escape:
@@ -264,6 +270,12 @@ final class ClipboardPickerController: NSObject {
         default:
             NSSound.beep()
         }
+    }
+
+    func moveSelection(by delta: Int) {
+        guard !isSelecting, !items.isEmpty else { return }
+        selectedIndex = min(items.count - 1, max(0, selectedIndex + delta))
+        updateSelection()
     }
 
     private func updateSelection() {

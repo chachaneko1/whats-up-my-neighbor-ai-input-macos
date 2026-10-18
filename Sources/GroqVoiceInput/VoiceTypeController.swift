@@ -13,6 +13,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     private var relayMenuItem: NSMenuItem { statusMenu.relayMenuItem }
     private var modeMenuItems: [TextOutputMode: NSMenuItem] { statusMenu.modeMenuItems }
     private let hotKeys = HotKeyManager()
+    private let clipboardPasteGesture = ClipboardPasteGesture()
     private let settings = SettingsStore()
     private let credentials = KeychainStore()
     private let recordingStore = TemporaryRecordingStore()
@@ -73,6 +74,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     private var clipboardHotKey: HotKeyShortcut? = defaultClipboardHotKey
     private var clipboardHotKeyRegistrationFailed = false
     private var clipboardShortcutTitle: String {
+        if settings.usesClipboardPasteGesture(), clipboardPasteGesture.isRunning { return ClipboardPasteGesture.title }
         guard let clipboardHotKey else { return "未設定" }
         let title = shortcutDisplayName(clipboardHotKey)
         return clipboardHotKeyRegistrationFailed ? "\(title)，無法使用" : title
@@ -158,6 +160,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         desktopPet.dispose()
         correctionMonitor.stop()
         dictation.shutdown()
+        clipboardPasteGesture.stop()
         hotKeys.unregisterAll()
         remoteBridge.stop()
     }
@@ -460,7 +463,16 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         }
         let registerStatus = registerCurrentHotKey()
         UpdateDiagnostics.shared.record(.recordingHotKey, succeeded: registerStatus == noErr)
-        if let clipboardHotKey {
+        clipboardPasteGesture.canBegin = { [weak self] in
+            guard let self else { return false }
+            return self.dictation.state == .idle && !self.clipboardPicker.isVisible && NSApp.modalWindow == nil
+        }
+        clipboardPasteGesture.pickerVisible = { [weak self] in self?.clipboardPicker.isVisible == true }
+        clipboardPasteGesture.onOpen = { [weak self] _ in self?.openClipboardPicker(initialIndex: 1) }
+        clipboardPasteGesture.onMove = { [weak self] in self?.clipboardPicker.moveSelection(by: $0) }
+        let gestureActive = settings.usesClipboardPasteGesture() && clipboardPasteGesture.start()
+        UpdateDiagnostics.shared.record(.clipboardPasteGesture, succeeded: gestureActive)
+        if let clipboardHotKey, !gestureActive {
             let clipboardStatus = hotKeys.register(shortcut: clipboardHotKey, id: HotKeyManager.clipboardID)
             UpdateDiagnostics.shared.record(.clipboardHotKey, succeeded: clipboardStatus == noErr)
             clipboardHotKeyRegistrationFailed = clipboardStatus != noErr
@@ -665,6 +677,11 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     @objc private func showClipboardPicker() {
         guard dictation.state == .idle else { NSSound.beep(); return }
         if clipboardPicker.isVisible { clipboardPicker.dismiss(); desktopPet.refresh(); return }
+        openClipboardPicker()
+    }
+
+    private func openClipboardPicker(initialIndex: Int = 0) {
+        guard dictation.state == .idle, !clipboardPicker.isVisible else { return }
         clipboardHistory.checkForChanges()
         correctionMonitor.stop(reason: "正在選擇剪貼簿歷史；下一次語音貼上後重新觀察修正。")
         var target: FocusTarget?
@@ -674,7 +691,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         catch { failure = .noEditableTarget }
         clipboardPicker.show(items: clipboardHistoryStore.items,
                              shortcutTitle: clipboardShortcutTitle,
-                             target: target, captureFailure: failure)
+                             target: target, captureFailure: failure, initialIndex: initialIndex)
         desktopPet.refresh()
     }
 

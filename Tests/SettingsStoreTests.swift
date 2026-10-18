@@ -14,6 +14,7 @@ enum SettingsStoreTests {
             precondition(defaults.string(forKey: "unrelatedPreference") == "retained")
             precondition(store.loadHotKey() == defaultHotKey)
             precondition(store.loadClipboardHotKey() == defaultClipboardHotKey)
+            precondition(store.usesClipboardPasteGesture())
             precondition(defaults.object(forKey: "clipboardHotKeyCode") == nil,
                          "Reading the first-use default must not write preferences")
             precondition(store.loadOutputMode() == .verbatim)
@@ -78,6 +79,7 @@ enum SettingsStoreTests {
                 modifiers: UInt32(controlKey) | UInt32(shiftKey)
             )
             store.saveClipboardHotKey(clipboard)
+            precondition(!store.usesClipboardPasteGesture(), "Explicit custom shortcuts preserve their original mode")
             precondition(SettingsStore(defaults: defaults).loadClipboardHotKey() == clipboard)
             precondition(defaults.integer(forKey: "clipboardHotKeyCode") == Int(kVK_ANSI_C))
             precondition(defaults.integer(forKey: "clipboardHotKeyModifiers") == Int(clipboard.modifiers))
@@ -89,7 +91,9 @@ enum SettingsStoreTests {
             precondition(defaults.object(forKey: "clipboardHotKeyModifiers") != nil)
             precondition(defaults.integer(forKey: "clipboardHotKeyModifiers") == 0)
 
+            precondition(!store.usesClipboardPasteGesture(), "Explicit disabling also disables the paste gesture")
             store.saveClipboardHotKey(defaultClipboardHotKey)
+            precondition(store.usesClipboardPasteGesture(), "Legacy default migrates without rewriting preferences")
             precondition(SettingsStore(defaults: defaults).loadClipboardHotKey() == defaultClipboardHotKey,
                          "A disabled shortcut can be enabled again")
             defaults.removeObject(forKey: "clipboardHotKeyModifiers")

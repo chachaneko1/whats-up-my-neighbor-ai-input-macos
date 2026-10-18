@@ -76,6 +76,7 @@ enum ClipboardHistoryMonitorTests {
     }
 
     static func main() {
+        markdownAndCode()
         baselineAndPolling()
         protectedMetadata()
         externalReadRaces()
@@ -84,6 +85,27 @@ enum ClipboardHistoryMonitorTests {
         imageAndSizeValidation()
         privatePasteboardIntegration()
         print("ClipboardHistoryMonitorTests passed: \(assertions) checks for baselines, polling, pause, protected metadata before payload, external races, exact own writes, stable restoration, text-only exclusion and size limits; no general pasteboard access")
+    }
+
+    private static func markdownAndCode() {
+        let f = HistoryMonitorFixture()
+        let markdown = "# 標題\n\n```swift\n\tlet value = \"a < b && b > c\"\n    print(value)  \n```\n\n- **繁體中文**\n"
+        for type in ClipboardHistoryMonitor.markdownTypes {
+            f.board.external([type: Data(markdown.utf8)])
+            f.monitor.checkForChanges()
+            check(f.store.items.first?.data == Data(markdown.utf8), "Markdown-only representation keeps exact source bytes")
+            let item = f.store.items.first!
+            check(f.monitor.restore(item), "Markdown history restores as plain source")
+            check(f.board.values[.string] == Data(markdown.utf8), "restore keeps fences, tabs, trailing spaces and newlines")
+        }
+        f.board.external([ClipboardHistoryMonitor.markdownTypes[0]: Data(markdown.utf8), .string: Data("rendered fallback".utf8)])
+        f.monitor.checkForChanges()
+        check(f.store.items.first?.text == markdown, "explicit Markdown source is preferred to rendered text fallback")
+        let before = f.store.items.count
+        f.board.external([ClipboardHistoryMonitor.markdownTypes[0]: Data(markdown.utf8), NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType"): Data()])
+        let reads = f.board.dataReads
+        f.monitor.checkForChanges()
+        check(f.board.dataReads == reads && f.store.items.count == before, "protected Markdown excluded before payload access")
     }
 
     private static func baselineAndPolling() {
