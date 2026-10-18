@@ -53,6 +53,17 @@ def cloud(destination, project, region, job, bucket):
             raise ValueError('Invalid cloud resource name.')
     task = validate_task(json.loads((destination / 'task.json').read_text()))
     base = ['gcloud', '--quiet', '--project', project]
+    upload_request(base, bucket, destination, task)
+    # CLI waits for the remote job, but the job itself survives a disconnected Mac.
+    # No automatic retry on nonzero exit: inspect status/log before retrying.
+    subprocess.run(base + ['run', 'jobs', 'execute', job, '--region', region,
+        '--args', task['id'], '--wait'], check=True, timeout=1250)
+    for name in ('status.json', 'changes.patch'):
+        run(base + ['storage', 'cp', f'gs://{bucket}/tasks/{task["id"]}/{name}', str(destination / name)])
+    verify_result(destination)
+
+
+def upload_request(base, bucket, destination, task):
     request = f'gs://{bucket}/requests/{task["id"]}.json'
     # Re-runs use the same manifest. Verify immutable input before re-executing.
     exists = subprocess.run(base + ['storage', 'objects', 'describe', request],
@@ -63,24 +74,48 @@ def cloud(destination, project, region, job, bucket):
             raise ValueError('Existing task manifest differs; choose a new task id.')
     else:
         run(base + ['storage', 'cp', str(destination / 'task.json'), request, '--if-generation-match=0'])
-    # CLI waits for the remote job, but the job itself survives a disconnected Mac.
-    # No automatic retry on nonzero exit: inspect status/log before retrying.
-    subprocess.run(base + ['run', 'jobs', 'execute', job, '--region', region,
-        '--args', task['id'], '--wait'], check=True, timeout=1250)
-    for name in ('status.json', 'changes.patch'):
-        run(base + ['storage', 'cp', f'gs://{bucket}/tasks/{task["id"]}/{name}', str(destination / name)])
-    verify_result(destination)
+
+
+def verify_status(directory, task):
+    status = json.loads((directory / 'status.json').read_text())
+    digest = hashlib.sha256(json.dumps(task, sort_keys=True).encode()).hexdigest()
+    if (status.get('id') != task['id'] or status.get('source_sha') != task['sha']
+            or status.get('task_digest') != digest or status.get('state') != 'succeeded'):
+        raise ValueError('Task result does not match the immutable request.')
+    return status
+
+
+def cloud_audit(destination, project, region, job, bucket, task_id, sha):
+    for value in (project, region, job, bucket):
+        if not re.fullmatch(r'[a-z][a-z0-9.-]{2,62}', value):
+            raise ValueError('Invalid cloud resource name.')
+    task = validate_task(dict(id=task_id, repo='https://github.com/' + REPOSITORY,
+                             sha=sha, mode='audit', prompt='Inventory only. No model call or code modification.'))
+    destination.mkdir(parents=True, exist_ok=True)
+    (destination / 'task.json').write_text(json.dumps(task, ensure_ascii=False, indent=2))
+    base = ['gcloud', '--quiet', '--project', project]
+    upload_request(base, bucket, destination, task)
+    subprocess.run(base + ['run', 'jobs', 'execute', job + '-audit', '--region', region,
+                          '--args', task_id, '--wait'], check=True, timeout=360)
+    for name in ('status.json', 'audit.json'):
+        run(base + ['storage', 'cp', f'gs://{bucket}/tasks/{task_id}/{name}', str(destination / name)])
+    verify_status(destination, task)
+    inventory = json.loads((destination / 'audit.json').read_text())
+    if inventory.get('source_sha') != sha:
+        raise ValueError('Audit inventory does not match the requested source SHA.')
+    output(task_id=task_id, source_sha=sha, tracked_files=inventory['tracked_files'])
+    summary = os.environ.get('GITHUB_STEP_SUMMARY')
+    if summary:
+        with open(summary, 'a') as file:
+            file.write(f'GCP keyless sandbox + audit passed. Task `{task_id}`, source `{sha}`. '
+                       'No model call, code modification, PR, merge or release.\n')
 
 
 def verify_result(directory):
     task = validate_task(json.loads((directory / 'task.json').read_text()))
     if task['repo'] != 'https://github.com/' + REPOSITORY or task['prompt'] != PROMPT or task['mode'] != 'develop':
         raise ValueError('Publisher accepts only the fixed Neko documentation pilot.')
-    status = json.loads((directory / 'status.json').read_text())
-    digest = hashlib.sha256(json.dumps(task, sort_keys=True).encode()).hexdigest()
-    if (status.get('id') != task['id'] or status.get('source_sha') != task['sha']
-            or status.get('task_digest') != digest or status.get('state') != 'succeeded'):
-        raise ValueError('Task result does not match the immutable request.')
+    verify_status(directory, task)
     patch = directory / 'changes.patch'
     if not 0 < patch.stat().st_size <= MAX_ARTIFACT:
         raise ValueError('Expected a nonempty patch of at most 2 MiB.')
@@ -169,7 +204,7 @@ def report(sha, result):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['prepare', 'cloud', 'publish', 'report'])
+    parser.add_argument('action', choices=['prepare', 'cloud', 'audit', 'publish', 'report'])
     parser.add_argument('--directory', type=Path, default=Path('pilot-results'))
     parser.add_argument('--repo', type=Path)
     parser.add_argument('--task-id')
@@ -182,6 +217,8 @@ def main():
         prepare(args.directory, args.task_id, args.sha)
     elif args.action == 'cloud':
         cloud(args.directory, args.project, args.region, args.job, args.bucket)
+    elif args.action == 'audit':
+        cloud_audit(args.directory, args.project, args.region, args.job, args.bucket, args.task_id, args.sha)
     elif args.action == 'publish':
         publish(args.repo.resolve(), args.directory.resolve())
     else:

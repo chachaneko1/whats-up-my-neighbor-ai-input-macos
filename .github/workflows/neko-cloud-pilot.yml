@@ -33,13 +33,43 @@ jobs:
         run: |
           docker run --rm --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined --entrypoint python3 neko-codex-pilot /app/codex_adapter.py --self-check
 
-  generate:
+  preflight:
     needs: validate
     if: >-
-      vars.NEKO_GCP_PILOT_ENABLED == 'true' &&
+      (vars.NEKO_GCP_PREFLIGHT_ENABLED == 'true' || vars.NEKO_GCP_PILOT_ENABLED == 'true') &&
       github.event_name != 'pull_request' &&
       github.repository == 'yuipan0611/whats-up-my-neighbor-ai-input-macos' &&
       (github.ref == 'refs/heads/codex/neko-cloud-pilot' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      NEKO_PROJECT: ${{ vars.NEKO_GCP_PROJECT }}
+      NEKO_REGION: ${{ vars.NEKO_GCP_REGION }}
+      NEKO_JOB: ${{ vars.NEKO_GCP_JOB }}
+      NEKO_BUCKET: ${{ vars.NEKO_GCP_BUCKET }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.NEKO_GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.NEKO_GCP_GITHUB_SA }}
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
+      - name: Verify the actual Cloud Run sandbox without a model key
+        run: gcloud --quiet --project "$NEKO_PROJECT" run jobs execute "$NEKO_JOB-probe" --region "$NEKO_REGION" --wait
+      - name: Verify fixed-SHA checkout and durable GCS results without a model
+        env:
+          AUDIT_TASK: audit-${{ github.run_id }}
+          AUDIT_SHA: ${{ github.sha }}
+        run: python3 tools/cloud-agent/pipeline.py audit --directory "$RUNNER_TEMP/audit-results" --task-id "$AUDIT_TASK" --sha "$AUDIT_SHA"
+
+  generate:
+    needs: [validate, preflight]
+    if: vars.NEKO_GCP_PILOT_ENABLED == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:

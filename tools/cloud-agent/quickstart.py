@@ -5,6 +5,7 @@ import re
 import shlex
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -78,6 +79,14 @@ def commands(args):
                         '--service-account', runner, '--cpu=2', '--memory=8Gi', '--tasks=1',
                         '--parallelism=1', '--max-retries=0', '--task-timeout=120s',
                         '--command=python3', '--args=/app/codex_adapter.py,--self-check'],
+                base + ['run', 'jobs', 'deploy', job + '-audit', '--region', region, '--image', image,
+                        '--service-account', runner, '--cpu=1', '--memory=1Gi', '--tasks=1',
+                        '--parallelism=1', '--max-retries=0', '--task-timeout=300s',
+                        '--set-env-vars', f'RESULTS_BUCKET={bucket},ALLOWED_REPO=https://github.com/{REPOSITORY}'],
+                base + ['run', 'jobs', 'add-iam-policy-binding', job + '-probe', '--region', region,
+                        '--member', 'serviceAccount:' + github, '--role', 'roles/run.invoker'],
+                base + ['run', 'jobs', 'add-iam-policy-binding', job + '-audit', '--region', region,
+                        '--member', 'serviceAccount:' + github, '--role', 'roles/run.jobsExecutorWithOverrides'],
                 base + ['run', 'jobs', 'execute', job + '-probe', '--region', region, '--wait']]
         if not re.fullmatch(r'[1-9][0-9]*', args.secret_version or ''):
             raise ValueError('deploy requires numeric --secret-version after secure key provisioning.')
@@ -92,6 +101,28 @@ def commands(args):
     return []
 
 
+def apply_command(command):
+    for attempt in range(8):
+        result = subprocess.run(command, capture_output=True, text=True)
+        if result.returncode == 0:
+            if result.stdout:
+                print(result.stdout, end='', flush=True)
+            if result.stderr:
+                print(result.stderr, end='', file=sys.stderr, flush=True)
+            return
+        # IAM creation and visibility in other Google APIs are eventually consistent.
+        # Only repeat an idempotent binding after this exact propagation error.
+        pending_identity = ('add-iam-policy-binding' in command
+            and 'Service account ' in result.stderr and 'does not exist' in result.stderr)
+        if pending_identity and attempt < 7:
+            print('Waiting for the newly created service account to become visible...', flush=True)
+            time.sleep(min(2 ** (attempt + 1), 20))
+            continue
+        if result.stderr:
+            print(result.stderr, end='', file=sys.stderr, flush=True)
+        raise subprocess.CalledProcessError(result.returncode, command)
+
+
 def deploy(args):
     planned = commands(args)
     for command in planned:
@@ -101,7 +132,7 @@ def deploy(args):
         return
     # Fail closed on collisions; never silently adopt another user's resources.
     for command in planned:
-        subprocess.run(command, check=True)
+        apply_command(command)
 
 
 def main():

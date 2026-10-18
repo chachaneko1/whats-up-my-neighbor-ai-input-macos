@@ -142,9 +142,8 @@
     "notes": ""
   },
   "known_unknowns": [
-    "Cloud Run nested sandbox and proxy are unverified until actual remote execution.",
-    "OpenAI credential setup deferred; live model execution remains unverified.",
-    "GCP billing/IAM setup is not complete."
+    "OpenAI credential setup is deferred; live model execution remains unverified.",
+    "Secret Manager mount and Responses proxy with a real key remain unverified."
   ],
   "evidence": [
     {
@@ -158,6 +157,10 @@
     {
       "fact": "Canonical version/build and updater configuration are release inputs.",
       "source": "Resources/Info.plist"
+    },
+    {
+      "fact": "Trusted-branch preflight verifies the Cloud Run sandbox and fixed-SHA GCS audit before model work.",
+      "source": ".github/workflows/neko-cloud-pilot.yml#preflight"
     }
   ]
 }

@@ -136,6 +136,52 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(payload['head_sha'], self.sha)
         self.assertEqual(payload['conclusion'], 'failure')
 
+    def test_new_service_account_visibility_is_retried(self):
+        missing = subprocess.CompletedProcess([], 1, '', 'HTTPError 400: Service account fixture@example.invalid does not exist.')
+        success = subprocess.CompletedProcess([], 0, 'bound\n', '')
+        command = ['gcloud', 'storage', 'buckets', 'add-iam-policy-binding', 'gs://fixture']
+        with patch('subprocess.run', side_effect=[missing, success]) as called, \
+             patch('time.sleep') as sleep, patch('builtins.print'):
+            quickstart.apply_command(command)
+        self.assertEqual(called.call_count, 2)
+        sleep.assert_called_once_with(2)
+
+    def test_permission_denial_and_creation_collision_are_not_retried(self):
+        for command, error in [(['gcloud', 'add-iam-policy-binding'], 'PERMISSION_DENIED'),
+                               (['gcloud', 'service-accounts', 'create'], 'Service account fixture does not exist')]:
+            with patch('subprocess.run', return_value=subprocess.CompletedProcess([], 1, '', error)) as called, \
+                 patch('time.sleep') as sleep, patch('builtins.print'):
+                with self.assertRaises(subprocess.CalledProcessError):
+                    quickstart.apply_command(command)
+            called.assert_called_once()
+            sleep.assert_not_called()
+
+    def test_cloud_audit_uses_no_model_and_checks_returned_inventory_sha(self):
+        for mismatch in (False, True):
+            def fake_command(args, **kwargs):
+                if 'describe' in args:
+                    return subprocess.CompletedProcess(args, 1, b'', b'not found')
+                if 'cp' in args and args[-2].startswith('gs://'):
+                    task = json.loads((self.results / 'task.json').read_text())
+                    self.assertEqual(task['mode'], 'audit')
+                    self.assertNotIn('--set-secrets', args)
+                    if args[-1].endswith('status.json'):
+                        value = dict(id=task['id'], source_sha=task['sha'], state='succeeded',
+                            task_digest=hashlib.sha256(json.dumps(task, sort_keys=True).encode()).hexdigest())
+                    else:
+                        value = dict(source_sha='0' * 40 if mismatch else task['sha'], tracked_files=1)
+                    Path(args[-1]).write_text(json.dumps(value))
+                return subprocess.CompletedProcess(args, 0, b'', b'')
+
+            with patch('subprocess.run', side_effect=fake_command), patch('builtins.print'):
+                if mismatch:
+                    with self.assertRaisesRegex(ValueError, 'inventory does not match'):
+                        pipeline.cloud_audit(self.results, 'example-project', 'us-central1',
+                            'neko-agent', 'example-results-bucket', 'audit-123', self.sha)
+                else:
+                    pipeline.cloud_audit(self.results, 'example-project', 'us-central1',
+                        'neko-agent', 'example-results-bucket', 'audit-123', self.sha)
+
     def test_publisher_reuses_branch_and_pr_without_force_push(self):
         self.result({'docs/CLOUD_DEVELOPMENT.md': '雲端開發\n'})
         origin = self.root / 'origin.git'

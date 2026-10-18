@@ -18,3 +18,7 @@ Risk: high at the authentication/workflow boundary, within the user's requested 
 Unverified: Cloud Run sandbox support and proxy runtime, GCP billing and IAM, actual model execution and shutdown continuation. These require the staged cloud run; a local fixture is not a substitute.
 
 New local tooling is confined to ignored tools/cloud-agent/.dependencies/: npm Codex/proxy 0.163.0 for CLI inspection and the official actionlint 1.7.12 Darwin ARM64 release with its published SHA-256 verified. They are not uploaded in the cloud build context.
+
+Cloud setup follow-up: billing is now enabled. The first resource application reached the IAM binding step before newly created service accounts were visible to Cloud Storage. Add bounded retries only for this specific propagation error on idempotent IAM-binding commands; unrelated errors and creation collisions still stop immediately. Verify with transient-success and permanent-error fixtures, then run the keyless Cloud Run probe. No app or generated-task scope changes.
+
+The actual Cloud Run probe succeeded. Next validate GitHub OIDC by a trusted-branch-only preflight job: run the existing keyless sandbox probe and an audit-only runner that checks out the workflow's exact source SHA, persists inventory/status through GCS, and retrieves matching results. No model key is mounted. Keep model execution separately disabled until credential setup is complete. Verify audit status mismatch rejection and run actionlint plus offline regression tests before pushing this additive workflow change.

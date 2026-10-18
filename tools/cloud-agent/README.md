@@ -58,6 +58,8 @@ python3 tools/cloud-agent/quickstart.py check-runtime \
 
 此計畫需加 `--apply` 才建置容器與執行最多 2 分鐘的 probe job。它不掛載金鑰、
 不呼叫模型，會驗證可在工作區寫入、工作區外寫入被擋，以及連往已知運行的本機測試服務被擋。
+也會建立不掛載金鑰的 audit job，供 GitHub 驗證固定 SHA checkout、GCS 狀態保存與取回；
+audit job 只做公開倉庫盤點，不修改程式、不建立 PR。
 若失敗，先解決 runtime 相容性；不要繼續付費模型試跑或繞過 sandbox。
 
 通過後，安全設定流程將專用 OpenAI 金鑰存成 Secret Manager 的版本，使用該**版本編號**部署：
@@ -83,11 +85,14 @@ GitHub repository variables（沒有私密金鑰）：
 | `NEKO_GCP_GITHUB_SA` | `neko-agent-github@PROJECT.iam.gserviceaccount.com` |
 | `NEKO_GCP_WIF_PROVIDER` | `projects/NUMBER/locations/global/workloadIdentityPools/neko-agent/providers/github` |
 | `NEKO_GCP_PILOT_ENABLED` | 完成上述設定與驗證後才設 `true`；預設停用 |
+| `NEKO_GCP_PREFLIGHT_ENABLED` | 設 `true` 僅啟動不用模型金鑰的 sandbox 與 audit 檢查；模型開關仍獨立控制 |
 
 GitHub Settings → Actions → General 需允許 Actions 建立 PR。這不會自動合併或核准 PR。
 基礎設施未合併前，可在受信任的 `codex/neko-cloud-pilot` 分支 push 啟動，
 或重跑該分支既有的 Actions 執行；合併後可在 main 使用 Run workflow。
 workflow 沒有定時排程，所以不會自行產生週期費用或持續修改程式碼。
+啟用任何一項雲端開關後，符合條件的分支 push 會產生 Cloud Run 用量；需要完全停止後續雲端執行時，
+將 `NEKO_GCP_PREFLIGHT_ENABLED` 與 `NEKO_GCP_PILOT_ENABLED` 都設為 `false`。
 
 給其他開發者使用時：雲端資源腳本可沿用，但這份 pilot 刻意鎖定 Neko。
 須先修改 `quickstart.py` 的倉庫數字 ID／擁有者 ID／workflow 路徑，
@@ -112,7 +117,7 @@ GCS `requests/ID.json` 是不可覆寫的輸入；`tasks/ID/` 保存狀態、lea
 PR 分支以任務 ID 命名；重試只接受相同 tree 與來源 parent，不 force push，不建立重複 PR。
 若來源 main 已移動而輸入不再一致，啟動新任務，不把舊 ID 指向新內容。
 
-若要停用，將 `NEKO_GCP_PILOT_ENABLED` 設 `false`；已開始的 Cloud Run 工作需另行取消。
+若要停用，將 `NEKO_GCP_PILOT_ENABLED` 與 `NEKO_GCP_PREFLIGHT_ENABLED` 都設為 `false`；已開始的 Cloud Run 工作需另行取消。
 這不會刪除結果、容器、secret 或儲存資源；閒置儲存仍可能計費。
 
 ## 官方依據
