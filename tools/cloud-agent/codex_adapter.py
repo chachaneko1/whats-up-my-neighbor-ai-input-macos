@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -105,8 +106,8 @@ def run(task_file, repo):
 if __name__ == '__main__':
     try:
         if sys.argv[1:] == ['--self-check']:
-            subprocess.run(['codex', 'exec', '--ignore-user-config', '--ignore-rules', '--help'], check=True)
-            subprocess.run(['codex-responses-api-proxy', '--help'], check=True)
+            subprocess.run(['codex', 'exec', '--ignore-user-config', '--ignore-rules', '--help'], check=True, stdout=subprocess.DEVNULL)
+            subprocess.run(['codex-responses-api-proxy', '--help'], check=True, stdout=subprocess.DEVNULL)
             subprocess.run(['bwrap', '--unshare-user', '--unshare-pid', '--unshare-net',
                 '--ro-bind', '/', '/', '--dev', '/dev', '--proc', '/proc', '--', '/bin/true'],
                 check=True, **IDENTITY)
@@ -121,12 +122,16 @@ if __name__ == '__main__':
                 'try:\n Path("/outside-sandbox-probe/denied.txt").write_text("bad")\n'
                 'except OSError: pass\n'
                 'else: raise RuntimeError("filesystem sandbox did not block outside write")\n'
-                'try:\n socket.create_connection(("example.com",443),timeout=3)\n'
+                'try:\n socket.create_connection(("127.0.0.1",PORT),timeout=3)\n'
                 'except OSError: pass\n'
                 'else: raise RuntimeError("sandbox did not block outbound connection")\n')
-            subprocess.run(['codex', 'sandbox', '-P', ':workspace', '-C', str(home),
-                '--', 'python3', '-c', check], env=child_environment(home), cwd=home,
-                check=True, timeout=30, **IDENTITY)
+            with socket.socket() as listener:
+                listener.bind(('127.0.0.1', 0))
+                listener.listen(1)
+                check = check.replace('PORT', str(listener.getsockname()[1]))
+                subprocess.run(['codex', 'sandbox', '-P', ':workspace', '-C', str(home),
+                    '--', 'python3', '-c', check], env=child_environment(home), cwd=home,
+                    check=True, timeout=30, **IDENTITY)
             print('Pinned CLI and sandbox self-check passed; no model call was made.')
         else:
             run(*sys.argv[1:])

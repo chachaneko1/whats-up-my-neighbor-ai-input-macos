@@ -49,7 +49,18 @@ python3 tools/cloud-agent/quickstart.py provision \
 腳本遇到既有資源會停止，不會自動接管，也不會自動刪除或回滾資源。
 若中斷，先確認最後成功步驟，再接續尚未完成的指令，勿盲目整段重跑。
 
-安全設定流程將專用 OpenAI 金鑰存成 Secret Manager 的版本後，使用該**版本編號**部署：
+先在沒有模型金鑰的狀態測試 Cloud Run 實際隔離相容性：
+
+```sh
+python3 tools/cloud-agent/quickstart.py check-runtime \
+  --project example-neko-project --bucket example-neko-private-results
+```
+
+此計畫需加 `--apply` 才建置容器與執行最多 2 分鐘的 probe job。它不掛載金鑰、
+不呼叫模型，會驗證可在工作區寫入、工作區外寫入被擋，以及連往已知運行的本機測試服務被擋。
+若失敗，先解決 runtime 相容性；不要繼續付費模型試跑或繞過 sandbox。
+
+通過後，安全設定流程將專用 OpenAI 金鑰存成 Secret Manager 的版本，使用該**版本編號**部署：
 
 ```sh
 python3 tools/cloud-agent/quickstart.py deploy \

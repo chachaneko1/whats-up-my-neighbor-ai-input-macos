@@ -51,6 +51,8 @@ def commands(args):
                     '--member', 'serviceAccount:' + builder, '--role', 'roles/artifactregistry.writer'],
             base + ['projects', 'add-iam-policy-binding', project, '--member', 'serviceAccount:' + builder,
                     '--role', 'roles/logging.logWriter', '--condition=None'],
+            base + ['projects', 'add-iam-policy-binding', project, '--member', 'serviceAccount:' + github,
+                    '--role', 'roles/run.viewer', '--condition=None'],
             base + ['secrets', 'create', secret, '--replication-policy=automatic'],
             base + ['secrets', 'add-iam-policy-binding', secret, '--member', 'serviceAccount:' + runner,
                     '--role', 'roles/secretmanager.secretAccessor'],
@@ -65,13 +67,21 @@ def commands(args):
                     '--member', f'principalSet://iam.googleapis.com/{pool}/attribute.repository_id/1297905701',
                     '--role', 'roles/iam.workloadIdentityUser']]
         return setup
-    if args.action == 'deploy':
-        if not re.fullmatch(r'[1-9][0-9]*', args.secret_version or ''):
-            raise ValueError('deploy requires numeric --secret-version after secure key provisioning.')
-        return [base + ['builds', 'submit', str(ROOT), '--region', region,
+    if args.action in ('check-runtime', 'deploy'):
+        build = base + ['builds', 'submit', str(ROOT), '--region', region,
                         '--config', str(ROOT / 'cloudbuild.yaml'), '--substitutions', '_IMAGE=' + image,
                         '--service-account', f'projects/{project}/serviceAccounts/{builder}',
-                        '--gcs-source-staging-dir', f'gs://{bucket}/build-source', '--timeout=1200s'],
+                        '--gcs-source-staging-dir', f'gs://{bucket}/build-source', '--timeout=1200s']
+        if args.action == 'check-runtime':
+            return [build,
+                base + ['run', 'jobs', 'deploy', job + '-probe', '--region', region, '--image', image,
+                        '--service-account', runner, '--cpu=2', '--memory=8Gi', '--tasks=1',
+                        '--parallelism=1', '--max-retries=0', '--task-timeout=120s',
+                        '--command=python3', '--args=/app/codex_adapter.py,--self-check'],
+                base + ['run', 'jobs', 'execute', job + '-probe', '--region', region, '--wait']]
+        if not re.fullmatch(r'[1-9][0-9]*', args.secret_version or ''):
+            raise ValueError('deploy requires numeric --secret-version after secure key provisioning.')
+        return [build,
                 base + ['run', 'jobs', 'deploy', job, '--region', region, '--image', image,
                         '--service-account', runner, '--cpu=2', '--memory=8Gi', '--tasks=1',
                         '--parallelism=1', '--max-retries=0', '--task-timeout=1200s',
@@ -96,7 +106,7 @@ def deploy(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['provision', 'deploy'])
+    parser.add_argument('action', choices=['provision', 'check-runtime', 'deploy'])
     parser.add_argument('--project', required=True)
     parser.add_argument('--project-number')
     parser.add_argument('--bucket', required=True)

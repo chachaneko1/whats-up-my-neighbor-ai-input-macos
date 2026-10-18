@@ -123,6 +123,10 @@ class PipelineTests(unittest.TestCase):
         args.secret_version = None
         with self.assertRaisesRegex(ValueError, 'secret-version'):
             quickstart.commands(args)
+        args.action = 'check-runtime'
+        probe = quickstart.commands(args)
+        self.assertFalse(any('--set-secrets' in part for command in probe for part in command))
+        self.assertTrue(any('--task-timeout=120s' in command for command in probe))
 
     def test_native_check_records_exact_sha(self):
         with patch.dict(os.environ, GITHUB_SERVER_URL='https://github.com', GITHUB_RUN_ID='123'), \
