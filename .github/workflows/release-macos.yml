@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   release:
-    if: github.repository == 'yuipan0611/groq-ai-voice-input-macos' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
+    if: github.repository == 'yuipan0611/whats-up-my-neighbor-ai-input-macos' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
     runs-on: macos-14
     timeout-minutes: 60
     environment: macos-release
@@ -115,6 +115,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           EXPECTED_SIGNING_SHA1: ${{ vars.MACOS_SIGNING_SHA1 }}
+          # Existing signed assets retain the original repository URL.
+          NEIGHBOR_ALLOW_LEGACY_REPOSITORY: ${{ steps.prepare.outputs.publish == 'false' && '1' || '0' }}
         run: |
           set -euo pipefail
           PUBLISHED="$RUNNER_TEMP/published-release"

@@ -38,7 +38,7 @@
         <string>_groq-voice._udp</string>
     </array>
     <key>SUFeedURL</key>
-    <string>https://github.com/yuipan0611/groq-ai-voice-input-macos/releases/latest/download/appcast.xml</string>
+    <string>https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/releases/latest/download/appcast.xml</string>
     <key>SUPublicEDKey</key>
     <string>qqjBV8qq10EF94BiTXsYjHq3tpg5cJLZS6AY6V6vYYk=</string>
     <key>SUEnableAutomaticChecks</key>

@@ -246,6 +246,25 @@ try k.publicKey.rawRepresentation.base64EncodedString().write(toFile: CommandLin
             (contents / "Info.plist").write_bytes(plistlib.dumps(info))
             with self.assertRaises(ValueError):
                 validator.validate_release(app, feed, archive)
+            # Repository migration must not invalidate historical signed assets,
+            # or allow old URLs in newly built packages without explicit opt-in.
+            info["SUAllowsAutomaticUpdates"] = False
+            info["SUFeedURL"] = validator.LEGACY_REPOSITORY + "/releases/latest/download/appcast.xml"
+            (contents / "Info.plist").write_bytes(plistlib.dumps(info))
+            archive.unlink()
+            feed.unlink()
+            subprocess.run(["codesign", "--force", "--sign", "-", "--requirements", '=designated => identifier "tw.panh.FreeVoiceType"', str(app)], check=True, stdout=subprocess.DEVNULL)
+            subprocess.run(["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(app), str(archive)], check=True)
+            subprocess.run([str(tools / "generate_appcast"), "--ed-key-file", str(key), "--maximum-deltas", "0", "--download-url-prefix", validator.LEGACY_REPOSITORY + "/releases/download/v" + info["CFBundleShortVersionString"] + "/", str(update_dir)], check=True, capture_output=True, timeout=30)
+            with self.assertRaisesRegex(ValueError, "Unexpected update repository"):
+                validator.validate_release(app, feed, archive)
+            validator.validate_release(app, feed, archive, allow_legacy_repository=True)
+            validator.verify_signatures(app, feed, archive)
+            # Explicit compatibility never accepts an unrelated repository.
+            info["SUFeedURL"] = "https://github.com/unrelated/repository/releases/latest/download/appcast.xml"
+            (contents / "Info.plist").write_bytes(plistlib.dumps(info))
+            with self.assertRaisesRegex(ValueError, "Unexpected update repository"):
+                validator.validate_release(app, feed, archive, allow_legacy_repository=True)
 
 
 if __name__ == "__main__":
