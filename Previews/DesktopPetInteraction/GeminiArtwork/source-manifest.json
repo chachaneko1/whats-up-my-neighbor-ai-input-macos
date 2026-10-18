@@ -1,0 +1,226 @@
+{
+  "source_size": [
+    1456,
+    720
+  ],
+  "source_sha256": "4904f3d1d8dd7b1666cb338233f8d5c4d60d6a8f6b384c9bca7de6be1683b0f6",
+  "frames": [
+    {
+      "frame": 1,
+      "source_cell": [
+        0,
+        0,
+        364,
+        360
+      ],
+      "source_bbox": [
+        49,
+        33,
+        315,
+        326
+      ],
+      "scale": 1.0135135135135136,
+      "offset": [
+        143,
+        9
+      ],
+      "output_bbox": [
+        192,
+        40,
+        463,
+        342
+      ],
+      "sha256": "99350b9877415ed0434a74141fccf97bfd58e8f78bbbc18aa3a08387c4364e22"
+    },
+    {
+      "frame": 2,
+      "source_cell": [
+        364,
+        0,
+        728,
+        360
+      ],
+      "source_bbox": [
+        40,
+        37,
+        299,
+        327
+      ],
+      "scale": 1.3636363636363635,
+      "offset": [
+        24,
+        -8
+      ],
+      "output_bbox": [
+        77,
+        41,
+        433,
+        441
+      ],
+      "sha256": "a4dd2712156137c5bbec22b1b4618031da544c087c6b516bfb545ed87e623e72"
+    },
+    {
+      "frame": 3,
+      "source_cell": [
+        728,
+        0,
+        1092,
+        360
+      ],
+      "source_bbox": [
+        56,
+        5,
+        299,
+        345
+      ],
+      "scale": 1.2295081967213115,
+      "offset": [
+        24,
+        36
+      ],
+      "output_bbox": [
+        92,
+        42,
+        395,
+        462
+      ],
+      "sha256": "56ece6eae58b4f86c229aa9b206dacbacb533e0335b348e53e0e99985248d6cc"
+    },
+    {
+      "frame": 4,
+      "source_cell": [
+        1092,
+        0,
+        1456,
+        360
+      ],
+      "source_bbox": [
+        51,
+        4,
+        308,
+        325
+      ],
+      "scale": 1.1278195488721805,
+      "offset": [
+        26,
+        37
+      ],
+      "output_bbox": [
+        81,
+        39,
+        375,
+        406
+      ],
+      "sha256": "b8a26971c28d7100060c2ad41a016780d221f7b64c0cf3027ae04c5fe39e2d77"
+    },
+    {
+      "frame": 5,
+      "source_cell": [
+        0,
+        360,
+        364,
+        720
+      ],
+      "source_bbox": [
+        33,
+        19,
+        318,
+        312
+      ],
+      "scale": 1.1904761904761905,
+      "offset": [
+        31,
+        19
+      ],
+      "output_bbox": [
+        69,
+        40,
+        412,
+        391
+      ],
+      "sha256": "b479e7630cb8fe1b917ec5152b7e2375252d0cbca45e8d9bca812c053432a91a"
+    },
+    {
+      "frame": 6,
+      "source_cell": [
+        364,
+        360,
+        728,
+        720
+      ],
+      "source_bbox": [
+        26,
+        41,
+        329,
+        323
+      ],
+      "scale": 1.1278195488721805,
+      "offset": [
+        44,
+        -4
+      ],
+      "output_bbox": [
+        71,
+        41,
+        418,
+        363
+      ],
+      "sha256": "ed7328a81846b35cad74cff61faecb69aa436ecfc1c4bd30154d47cdf8c064db"
+    },
+    {
+      "frame": 7,
+      "source_cell": [
+        728,
+        360,
+        1092,
+        720
+      ],
+      "source_bbox": [
+        33,
+        63,
+        315,
+        339
+      ],
+      "scale": 1.0135135135135136,
+      "offset": [
+        97,
+        -22
+      ],
+      "output_bbox": [
+        128,
+        41,
+        417,
+        324
+      ],
+      "sha256": "cd2198e28932ed3535483da810c1ba950119c716ee49f221c855efd02deca19c"
+    },
+    {
+      "frame": 8,
+      "source_cell": [
+        1092,
+        360,
+        1456,
+        720
+      ],
+      "source_bbox": [
+        45,
+        26,
+        335,
+        335
+      ],
+      "scale": 0.9493670886075949,
+      "offset": [
+        148,
+        17
+      ],
+      "output_bbox": [
+        190,
+        41,
+        469,
+        336
+      ],
+      "sha256": "1dafdf49f1674936ea5a20b9e76bdf75cd10d4e426003484893cd46251dd1f86"
+    }
+  ],
+  "note": "Gemini Nano Banana key poses; uniform rescale/align, magenta chroma matte, no generated in-betweens."
+}

@@ -40,6 +40,7 @@ struct DesktopPetLift: Equatable {
     var hip: CGFloat = 0
     var paws: CGFloat = 0
     var lean: CGFloat = 0
+    var spriteFrame: CGFloat = 0
 
     static func ease(_ elapsed: Double, delay: Double = 0, duration: Double) -> CGFloat {
         let t = max(0, min(1, (elapsed - delay) / duration))
@@ -50,14 +51,18 @@ struct DesktopPetLift: Equatable {
         Self(shoulder: start.shoulder + (1 - start.shoulder) * ease(elapsed, duration: 0.14),
              hip: start.hip + (1 - start.hip) * ease(elapsed, delay: 0.04, duration: 0.21),
              paws: start.paws + (1 - start.paws) * ease(elapsed, delay: 0.085, duration: 0.23),
-             lean: lean)
+             lean: lean,
+             spriteFrame: start.spriteFrame + (8 - start.spriteFrame) * ease(elapsed, duration: 0.42))
     }
 
     func landing(elapsed: Double) -> Self {
-        Self(shoulder: shoulder * (1 - Self.ease(elapsed, duration: 0.22)),
+        if elapsed >= 0.22 { return Self() }
+        let endpoint: CGFloat = spriteFrame >= 7.999 ? 17 : 0
+        return Self(shoulder: shoulder * (1 - Self.ease(elapsed, duration: 0.22)),
              hip: hip * (1 - Self.ease(elapsed, duration: 0.22)),
              paws: paws * (1 - Self.ease(elapsed, duration: 0.22)),
-             lean: lean * (1 - Self.ease(elapsed, duration: 0.22)))
+             lean: lean * (1 - Self.ease(elapsed, duration: 0.22)),
+             spriteFrame: spriteFrame + (endpoint - spriteFrame) * Self.ease(elapsed, duration: 0.22))
     }
 }
 
@@ -137,7 +142,7 @@ struct DesktopPetModel {
         origin = Self.clamp(CGPoint(x: pressOrigin.x + point.x - pressPoint.x,
                                    y: pressOrigin.y + point.y - pressPoint.y), to: area)
         phase = world.reduceMotion ? 0 : max(0, now - poseStarted)
-        lift = world.reduceMotion ? DesktopPetLift(shoulder: 1, hip: 1, paws: 1)
+        lift = world.reduceMotion ? DesktopPetLift(shoulder: 1, hip: 1, paws: 1, spriteFrame: 8)
             : .lifting(from: liftStart, elapsed: phase, lean: carryLean)
     }
 
@@ -257,7 +262,7 @@ struct DesktopPetModel {
             if isDragging {
                 carryLean = world.reduceMotion ? 0 : carryLean * CGFloat(exp(-delta * 7))
                 phase = world.reduceMotion ? 0 : max(0, now - poseStarted)
-                lift = world.reduceMotion ? DesktopPetLift(shoulder: 1, hip: 1, paws: 1)
+                lift = world.reduceMotion ? DesktopPetLift(shoulder: 1, hip: 1, paws: 1, spriteFrame: 8)
                     : .lifting(from: liftStart, elapsed: phase, lean: carryLean)
             }
             return

@@ -34,7 +34,7 @@ final class DesktopPetController {
         self.clock = clock
         self.pressedButtons = pressedButtons
         artwork = DesktopPetView(resources: resources)
-        panel = PreviewPetPanel(contentRect: CGRect(origin: .zero, size: DesktopPetModel.size),
+        panel = PreviewPetPanel(contentRect: CGRect(origin: .zero, size: DesktopPetView.panelSize),
                                 styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isReleasedWhenClosed = false
         panel.isOpaque = false
@@ -99,7 +99,8 @@ final class DesktopPetController {
         model.tick(now: clock(), world: environment)
         if model.visible {
             artwork.update(model, reduceMotion: environment.reduceMotion)
-            panel.setFrameOrigin(model.origin)
+            panel.setFrameOrigin(CGPoint(x: model.origin.x + DesktopPetView.panelOffset.x,
+                                         y: model.origin.y + DesktopPetView.panelOffset.y))
             if !panel.isVisible { panel.orderFrontRegardless() }
             updateHitRegion(at: environment.cursor)
         } else {
@@ -110,7 +111,9 @@ final class DesktopPetController {
         guard automatic else { return }
         let delay: TimeInterval
         if !model.released || !suspended.isEmpty { delay = 0 }
-        else if !environment.reduceMotion && (model.isDragging || (model.isSettling && model.phase < 0.36)) { delay = 1 / 24 }
+        else if !environment.reduceMotion && (model.isDragging || (model.isSettling && model.phase < 0.36)) {
+            delay = model.isSettling || model.phase < 0.45 ? 1 / 60 : 1 / 30
+        }
         else if model.isPressed || [.walking, .grooming, .yawning].contains(model.pose) { delay = 1 / 12 }
         else if [.petted, .carried].contains(model.pose) || environment.idleSeconds >= 12 { delay = 1 / 4 }
         else { delay = 1 }
@@ -129,8 +132,8 @@ final class DesktopPetController {
     func updateHitRegion(at point: CGPoint) {
         guard model.visible else { panel.ignoresMouseEvents = true; return }
         if model.isPressed { panel.ignoresMouseEvents = false; return }
-        let local = CGPoint(x: point.x - model.origin.x,
-                            y: DesktopPetModel.size.height - (point.y - model.origin.y))
+        let local = CGPoint(x: point.x - panel.frame.minX,
+                            y: panel.frame.maxY - point.y)
         panel.ignoresMouseEvents = !artwork.containsCat(local)
     }
 

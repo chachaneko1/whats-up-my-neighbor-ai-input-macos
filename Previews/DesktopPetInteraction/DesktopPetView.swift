@@ -4,6 +4,11 @@ import AppKit
 /// The SVG files remain unchanged; no temporary Figma URLs are used at runtime.
 final class DesktopPetView: NSView {
     private let images: [String: NSImage]
+    private let pickupFrames: [NSImage]
+    // Padding expands only the visual panel. Model/grip coordinates retain the
+    // original 128pt nominal frame, and sitting feet keep their world position.
+    static let panelSize = CGSize(width: 208, height: 192)
+    static let panelOffset = CGPoint(x: -40, y: -64)
     var pose: DesktopPetPose = .sitting
     var phase: Double = 0
     var walkDistance: CGFloat = 0
@@ -34,7 +39,11 @@ final class DesktopPetView: NSView {
             if name == "walk-front-face" { image.cacheMode = .never }
             return (name, image)
         })
-        super.init(frame: CGRect(origin: .zero, size: DesktopPetModel.size))
+        pickupFrames = (0...17).compactMap { index in
+            guard let url = resources?.appendingPathComponent("Pickup/" + String(format: "%02d.png", index)) else { return nil }
+            return NSImage(contentsOf: url)
+        }
+        super.init(frame: CGRect(origin: .zero, size: Self.panelSize))
         setAccessibilityElement(true)
         setAccessibilityRole(.button)
         setAccessibilityLabel("小黑貓桌面夥伴")
@@ -99,13 +108,23 @@ final class DesktopPetView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        if pose == .petted { drawResponseBubble() }
+        if pose == .petted {
+            NSGraphicsContext.saveGraphicsState()
+            let bubble = NSAffineTransform(); bubble.translateX(by: 40, yBy: 0); bubble.concat()
+            drawResponseBubble()
+            NSGraphicsContext.restoreGraphicsState()
+        }
+        if (pose == .carried || (pose == .sitting && isSettling && phase < 0.22)),
+           lift.spriteFrame > 0.001, lift.spriteFrame < 16.999, pickupFrames.count == 18 {
+            drawPickupFrame()
+            return
+        }
         NSGraphicsContext.saveGraphicsState()
         defer { NSGraphicsContext.restoreGraphicsState() }
         let transform = NSAffineTransform()
         // The original 400-point artwork's feet (y=367) sit 2pt above the
         // panel's bottom. This is also the model's folder-perch contact point.
-        transform.translateX(by: 8, yBy: 128 - 2 - 367 * 0.28)
+        transform.translateX(by: 48, yBy: 128 - 2 - 367 * 0.28)
         transform.scale(by: 0.28)
         transform.concat()
         switch pose {
@@ -127,6 +146,19 @@ final class DesktopPetView: NSView {
 
     private let fur = NSColor(srgbRed: 16 / 255, green: 17 / 255, blue: 20 / 255, alpha: 1)
     private let ink = NSColor(srgbRed: 250 / 255, green: 250 / 255, blue: 249 / 255, alpha: 1)
+
+    private func drawPickupFrame() {
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        let tilt = NSAffineTransform()
+        tilt.translateX(by: 104, yBy: 65)
+        tilt.rotate(byDegrees: reduceMotion ? 0 : lift.lean * lift.shoulder)
+        tilt.translateX(by: -104, yBy: -65); tilt.concat()
+        let index = max(0, min(17, Int(lift.spriteFrame.rounded())))
+        pickupFrames[index].draw(in: CGRect(origin: .zero, size: Self.panelSize), from: .zero,
+                                 operation: .sourceOver, fraction: 1, respectFlipped: true,
+                                 hints: [.interpolation: NSImageInterpolation.high])
+    }
 
     private func drawResponseBubble() {
         let bubble = NSBezierPath(roundedRect: CGRect(x: 66, y: 1, width: 59, height: 24), xRadius: 9, yRadius: 9)
@@ -506,5 +538,6 @@ final class DesktopPetView: NSView {
         return bitmap.representation(using: .png, properties: [:])!
     }
     var loadedAssets: Set<String> { Set(images.keys) }
+    var loadedPickupFrames: Int { pickupFrames.count }
     #endif
 }

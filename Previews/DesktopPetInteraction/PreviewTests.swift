@@ -116,6 +116,11 @@ struct PreviewTests {
         expect(!controller.panel.canBecomeKey && !controller.panel.canBecomeMain, "pet panel cannot take keyboard focus")
         expect(controller.panel.styleMask.contains(.nonactivatingPanel), "pet panel is nonactivating")
         let frame = controller.model.frame
+        expect(controller.panel.frame.origin == CGPoint(x: frame.minX - 40, y: frame.minY - 64),
+               "expanded visual panel preserves the nominal grab coordinate system")
+        expect(controller.panel.frame.size == CGSize(width: 208, height: 192), "hanging paws fit inside visual padding")
+        controller.updateHitRegion(at: CGPoint(x: controller.panel.frame.minX + 2, y: controller.panel.frame.minY + 2))
+        expect(controller.panel.ignoresMouseEvents, "new hanging-body padding remains click-through")
         controller.updateHitRegion(at: CGPoint(x: frame.minX + 1, y: frame.minY + 1))
         expect(controller.panel.ignoresMouseEvents, "transparent padding passes mouse events through")
         controller.updateHitRegion(at: CGPoint(x: frame.minX + 64, y: frame.minY + 65))
@@ -146,8 +151,9 @@ struct PreviewTests {
         controller.dispose()
 
         let view = DesktopPetView(resources: resources)
+        expect(view.loadedPickupFrames == 18, "all Gemini interpolation assets load into the native renderer")
         expect(!view.containsCat(CGPoint(x: 1, y: 1)), "alpha mask rejects transparent padding")
-        expect(view.containsCat(CGPoint(x: 64, y: 63)), "alpha mask accepts central body")
+        expect(view.containsCat(CGPoint(x: 104, y: 63)), "alpha mask accepts central body")
         expect(view.renderPNG(pose: .carried, phase: 0) == view.renderPNG(pose: .sitting, phase: 0),
                "pickup starts from the original sitting image without a double silhouette")
 
@@ -213,6 +219,37 @@ struct PreviewTests {
         model.tick(now: 3.1, world: world)
         expect(!model.isSettling && model.lift == DesktopPetLift(), "landing finishes without a residual pose")
 
+        // Full pickup follows the Gemini landing sequence, while a short drag
+        // returns along the partial pickup. Re-grab retains the selected image.
+        world = DesktopPetWorld(areas: [area], idleSeconds: 0)
+        model.setReleased(true, now: 10, world: world)
+        let spriteGrip = CGPoint(x: model.frame.midX, y: model.frame.midY)
+        model.pointerDown(at: spriteGrip, now: 10, world: world)
+        model.pointerDragged(to: CGPoint(x: spriteGrip.x - 40, y: spriteGrip.y + 100), now: 10.01, world: world)
+        model.tick(now: 10.5, world: world)
+        expect(model.lift.spriteFrame == 8, "full pickup reaches the generated hanging pose")
+        model.pointerUp(now: 10.5, world: world)
+        model.tick(now: 10.57, world: world)
+        expect(model.lift.spriteFrame > 8 && model.lift.spriteFrame < 17,
+               "fully lifted drop traverses the generated support and crouch frames")
+        let dropImage = model.lift
+        model.pointerDown(at: spriteGrip, now: 10.57, world: world)
+        model.pointerDragged(to: CGPoint(x: spriteGrip.x + 40, y: spriteGrip.y + 100), now: 10.58, world: world)
+        expect(model.lift == dropImage, "re-grab preserves the exact Gemini frame and captured lean")
+        for i in 1...24 {
+            model.tick(now: 10.58 + Double(i) / 60, world: world)
+            expect(model.lift.spriteFrame >= 0 && model.lift.spriteFrame <= 17, "interrupted frame path stays within the atlas")
+        }
+        model.cancelPointer(now: 11.1)
+        model.pointerDown(at: spriteGrip, now: 11.2, world: world)
+        model.pointerDragged(to: CGPoint(x: spriteGrip.x - 40, y: spriteGrip.y + 100), now: 11.21, world: world)
+        model.tick(now: 11.3, world: world)
+        let earlyFrame = model.lift.spriteFrame
+        model.pointerUp(now: 11.3, world: world)
+        model.tick(now: 11.35, world: world)
+        expect(model.lift.spriteFrame < earlyFrame, "short pickup returns along its current path without jumping to landing")
+        model.cancelPointer(now: 11.4)
+
         // A click interrupting a landing waits for the remaining visual return;
         // switching Reduce Motion while that press is held clears stale motion.
         model.pointerDown(at: reGrip, now: 3.2, world: world)
@@ -271,15 +308,16 @@ struct PreviewTests {
             view.update(model, reduceMotion: false)
             let image = view.renderPNG(pose: model.pose, phase: model.phase, carryLean: model.carryLean,
                                        isSettling: model.isSettling, lift: model.lift)
-            let file = String(format: "pickup-r3-%03d.png", i)
+            let file = String(format: "pickup-gemini-%03d.png", i)
             try image.write(to: output.appendingPathComponent(file))
             frames.append(["file": file, "pose": model.pose.rawValue, "pressed": model.isPressed,
                            "x": model.origin.x - start.x, "y": model.origin.y - start.y,
                            "phase": model.phase, "lean": model.carryLean, "settling": model.isSettling,
-                           "shoulder": model.lift.shoulder, "hip": model.lift.hip, "paws": model.lift.paws])
+                           "shoulder": model.lift.shoulder, "hip": model.lift.hip, "paws": model.lift.paws,
+                           "spriteFrame": model.lift.spriteFrame])
         }
         let data = try JSONSerialization.data(withJSONObject: frames, options: [.prettyPrinted, .sortedKeys])
-        try data.write(to: output.appendingPathComponent("pickup-r3-gesture.json"))
+        try data.write(to: output.appendingPathComponent("pickup-gemini-gesture.json"))
         print("Interaction preview: \(checks) checks passed; ten native poses rendered.")
     }
 }

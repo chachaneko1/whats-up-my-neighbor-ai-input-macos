@@ -20,7 +20,7 @@ def compose(file, title, x=220, y=65):
     draw.text((24, 16), title, font=font, fill='#252526')
     draw.text((24, 318), 'YUI Neko · 原生互動預覽', font=small, fill='#6a6864')
     sprite = Image.open(renders / file).convert('RGBA')
-    sprite = sprite.resize((256, 256), Image.Resampling.LANCZOS)
+    sprite = sprite.resize((312, 288), Image.Resampling.LANCZOS)
     canvas.paste(sprite, (round(x), round(y)), sprite)
     return canvas
 
@@ -29,7 +29,7 @@ def frame(pose, index, title, x=220, y=65):
     return compose(f'{pose}-{index % 24:02d}.png', title, x, y)
 
 
-gesture = json.loads((renders / 'pickup-r3-gesture.json').read_text())
+gesture = json.loads((renders / 'pickup-gemini-gesture.json').read_text())
 pickup = []
 for i, step in enumerate(gesture):
     title = ('拎起：肩膀先起，身體與腳跟上' if step['pose'] == 'carried'
@@ -40,7 +40,7 @@ for i, step in enumerate(gesture):
         # An illustrative pointer at the fixture's fixed grip offset. The cat
         # pixels are still rendered by the same native view used by the App.
         draw = ImageDraw.Draw(picture)
-        cx, cy = round(x + 128), round(y + 128)
+        cx, cy = round(x + 156), round(y + 96)
         shape = [(cx, cy), (cx + 3, cy + 22), (cx + 8, cy + 16),
                  (cx + 13, cy + 24), (cx + 17, cy + 21), (cx + 12, cy + 14), (cx + 20, cy + 13)]
         draw.polygon(shape, fill='#fafaf9', outline='#252526', width=2)
@@ -80,5 +80,5 @@ for name, images in sequences.items():
         receipts.append({'file': name, 'frames': encoded.n_frames,
                          'sha256': hashlib.sha256(target.read_bytes()).hexdigest()})
 (output / 'verification.json').write_text(json.dumps(receipts, ensure_ascii=False, indent=2) + '\n')
-frame('carried', 12, 'R3 · 側身懸空').save(output / '04_側身姿勢.png')
+frame('carried', 12, 'Gemini · 補間懸空').save(output / '04_側身姿勢.png')
 print(f'Encoded and decoded {len(receipts)} GIFs from native preview frames: {output}')

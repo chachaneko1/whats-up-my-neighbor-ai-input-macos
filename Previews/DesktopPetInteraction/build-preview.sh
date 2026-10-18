@@ -7,6 +7,9 @@ APP="$OUTPUT/小黑貓互動預覽.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/DesktopPet" "$OUTPUT/renders"
 ditto "$ROOT/Resources/DesktopPet" "$APP/Contents/Resources/DesktopPet"
 cp "$SOURCE"/ExtraArtwork/*.svg "$APP/Contents/Resources/DesktopPet/"
+mkdir -p "$APP/Contents/Resources/DesktopPet/Pickup"
+rm -f "$APP/Contents/Resources/DesktopPet/Pickup/"*.png
+cp "$SOURCE"/GeminiArtwork/Frames/*.png "$APP/Contents/Resources/DesktopPet/Pickup/"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

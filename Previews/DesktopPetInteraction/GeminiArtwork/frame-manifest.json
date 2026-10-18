@@ -1,0 +1,179 @@
+{
+  "frames": 18,
+  "carry_frame": 8,
+  "landing_frame": 17,
+  "size": [
+    416,
+    384
+  ],
+  "source_sha256": "301c4f3a51989fbe46288c94e12e0ae6177ed655bd30fd18ce88128002c985c8",
+  "method": "16 directly generated Gemini in-betweens; chroma key, connected matte, uniform scale and face anchoring; canonical idle endpoints",
+  "source_order": [
+    1,
+    2,
+    3,
+    6,
+    4,
+    7,
+    8,
+    9,
+    5,
+    10,
+    11,
+    13,
+    12,
+    14,
+    15,
+    16
+  ],
+  "alignment": [
+    {
+      "cell": 1,
+      "scale": 1.4018691588785046,
+      "offset": [
+        145,
+        8
+      ]
+    },
+    {
+      "cell": 2,
+      "scale": 1.8987341772151898,
+      "offset": [
+        16,
+        -9
+      ]
+    },
+    {
+      "cell": 3,
+      "scale": 1.875,
+      "offset": [
+        24,
+        1
+      ]
+    },
+    {
+      "cell": 4,
+      "scale": 1.530612244897959,
+      "offset": [
+        47,
+        33
+      ]
+    },
+    {
+      "cell": 5,
+      "scale": 1.7241379310344827,
+      "offset": [
+        19,
+        21
+      ]
+    },
+    {
+      "cell": 6,
+      "scale": 1.8987341772151898,
+      "offset": [
+        15,
+        12
+      ]
+    },
+    {
+      "cell": 7,
+      "scale": 1.7045454545454546,
+      "offset": [
+        21,
+        33
+      ]
+    },
+    {
+      "cell": 8,
+      "scale": 1.5463917525773196,
+      "offset": [
+        35,
+        37
+      ]
+    },
+    {
+      "cell": 9,
+      "scale": 1.6853932584269662,
+      "offset": [
+        23,
+        30
+      ]
+    },
+    {
+      "cell": 10,
+      "scale": 1.5625,
+      "offset": [
+        50,
+        -6
+      ]
+    },
+    {
+      "cell": 11,
+      "scale": 1.5151515151515151,
+      "offset": [
+        55,
+        -32
+      ]
+    },
+    {
+      "cell": 12,
+      "scale": 1.530612244897959,
+      "offset": [
+        68,
+        -31
+      ]
+    },
+    {
+      "cell": 13,
+      "scale": 1.5625,
+      "offset": [
+        69,
+        -44
+      ]
+    },
+    {
+      "cell": 14,
+      "scale": 1.5625,
+      "offset": [
+        67,
+        -17
+      ]
+    },
+    {
+      "cell": 15,
+      "scale": 1.5463917525773196,
+      "offset": [
+        81,
+        -17
+      ]
+    },
+    {
+      "cell": 16,
+      "scale": 1.3513513513513513,
+      "offset": [
+        148,
+        12
+      ]
+    }
+  ],
+  "sha256": [
+    "4c7198a53c4026ae5fef891dc1839b94ac045a1998bad3c6407cdd5eb8b7ff18",
+    "7a013ad531445d92cd7da600a0bbebe2d1e1d863ccea2c60fa6c2e2d3fb1c6dd",
+    "cf5c35367a096c19d43d54902aac2ac4e317ccc4ff34deffd185970da9499692",
+    "33743dbd8c83774457725c446090424b88437e1f240065a08b22ff0724cac133",
+    "8e71cfb717dcdde04e61b0880995ff55c1db074ca78d471c5640d94e6e01107d",
+    "4bfb70a3e2a289c33889dd37526da7e7f88017ce1a18100e1dcdb1d5d3800411",
+    "3e74d8fe5b9d1da204632c4a449d3553a8dde5423084d575d5fb10b718a6e688",
+    "21be4ec21348992e9985301677b541da5729202974aaf2588b9e899427199d61",
+    "4acd8cae2daf387510a3e46e4b570f5d4cc07fd988c7f11f8a3d812c3ab37082",
+    "6475d7966b7b6ca2381a1e878513aa17e8dfe817154d1a0b44ba9dde1398216c",
+    "0bc304f9d1cea05d8462a9459e12b1d5d985ae39729e9e2c6bb319f5ff769654",
+    "a0c29e1d029dd2f3cb5c1351b96835ee0610d9db9b7daa1bd93a343434a74c8e",
+    "1a998fb68abfa1de9e5aa676daf458e916e8d24376a008238c6bb80f39b72975",
+    "825f1a6e7b036a86b273d227873f22ab78591e6774e4776fde4dca2514ca4988",
+    "324241a0da8307a7d10e2d35e3db1b947909502db16af364e746a997be318b15",
+    "82b4f55cd71831e57f03ccffd03d2f00a5c0875baef4f76fcbeaf2456a1b7828",
+    "82370d0619a84bef58a8702017d6c33dce4fef515e0d661d0474e6bc17bc3b97",
+    "4c7198a53c4026ae5fef891dc1839b94ac045a1998bad3c6407cdd5eb8b7ff18"
+  ]
+}
