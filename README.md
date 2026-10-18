@@ -1,8 +1,10 @@
 # What's up my neighbor AI Input — macOS
 
+[![Build](https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/actions/workflows/build.yml/badge.svg)](https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/actions/workflows/build.yml) [![Latest release](https://img.shields.io/github/v/release/yuipan0611/whats-up-my-neighbor-ai-input-macos)](https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/releases/latest) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 Windows 測試版已獨立至 [Windows repo](https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-windows)，功能、測試與發佈各自維護。拆分與舊網址相容說明見 [repo 搬遷紀錄](docs/REPOSITORY_MIGRATION.md)。
 
-一個輕量的原生 macOS 選單列語音輸入 App。按下自訂全域快捷鍵開始錄音，再按一次停止；音訊會送到 Groq `whisper-large-v3`，轉成繁體中文後貼到原本游標位置。也可與配套 iPhone App 在附近直接連線，從手機修改轉錄文字並明確選擇「只貼上」或「貼上並送出」。
+一個輕量的原生 macOS 選單列語音輸入 App。按下自訂全域快捷鍵開始錄音，再按一次停止；音訊會送到 Groq `whisper-large-v3`，轉成繁體中文後貼到原本游標位置。也可與配套 iPhone App 在附近直接連線，從手機修改轉錄文字並明確選擇「只貼上」或「貼上並送出」（iPhone App 仍在開發中，尚未發布）。
 
 ## 更新與自動發佈
 
@@ -23,6 +25,8 @@ macOS 版加入 Sparkle：每日偵測新版並通知，由使用者自行選擇
 
 ## 桌面小黑貓
 
+<img src="docs/media/desktop-pet-walking.gif" alt="桌面小黑貓散步的動畫" width="128">
+
 從選單點「放出小黑貓」，就能讓牠待在桌面；想專心時點「收回小黑貓」。App 會記住這個選擇，第一次使用預設收回。
 
 你操作電腦時牠會安靜坐在螢幕邊緣；約 12 秒沒操作後，牠會散步、站起來、偶爾冒問號、舔舔前掌、打哈欠，再趴下睡覺。桌面資料夾的圖示可見且位置可讀時，也會走去趴在上面；否則就在邊緣休息。滑鼠可直接點穿，錄音、選取剪貼簿、全螢幕工作、鎖定或休眠時會暫停。牠不會讓電腦保持喚醒。
@@ -40,6 +44,8 @@ macOS 版加入 Sparkle：每日偵測新版並通知，由使用者自行選擇
 想了解錄音、辨識、文字處理與貼上之間怎麼串起來，以及為什麼不會隨便按 Enter，請閱讀 [架構與資料流](docs/ARCHITECTURE.md)。想參與開發，從 [開發者文件](#開發者文件) 開始。
 
 ## 貓咪錄音與招呼彩蛋
+
+<img src="docs/media/greeting.gif" alt="對小黑貓說 what's up，她回覆 what's up! 的動畫" width="330">
 
 錄音時顯示原生黑貓浮窗，平常保持靜態的 `ω` 貓嘴；左眼取消、右眼完成，不搶走原本輸入框的焦點。結束一段錄音後，辨識結果若整句是 `what’s up`、`whats up` 或 `what is up`，貓咪會用右上角微斜氣泡回覆 `what’s up!` 約三秒，並無聲地動一下小貓嘴。這句口令不會貼入輸入框；五秒冷卻期間也會被消費。包含口令的長句仍照常輸入。
 
