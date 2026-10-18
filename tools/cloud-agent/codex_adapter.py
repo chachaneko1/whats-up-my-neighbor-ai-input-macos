@@ -58,6 +58,8 @@ def run(task_file, repo):
             env=env, cwd=repo, capture_output=True, timeout=15, **IDENTITY)
         if probe.returncode:
             raise ValueError('Sandbox preflight failed. Use a compatible GCP Linux runtime; do not bypass the sandbox.')
+        subprocess.run(['codex', 'sandbox', '-P', ':workspace', '-C', str(repo),
+                        '--', '/bin/true'], env=env, cwd=repo, check=True, timeout=20, **IDENTITY)
         info = private / 'server-info.json'
         # Never place the real key in process arguments or a child environment.
         secret_parent = Path('/run/private')
@@ -108,6 +110,23 @@ if __name__ == '__main__':
             subprocess.run(['bwrap', '--unshare-user', '--unshare-pid', '--unshare-net',
                 '--ro-bind', '/', '/', '--dev', '/dev', '--proc', '/proc', '--', '/bin/true'],
                 check=True, **IDENTITY)
+            home = Path('/home/agent')
+            outside = Path('/outside-sandbox-probe')
+            outside.mkdir(mode=0o777)
+            outside.chmod(0o777)
+            # The outside directory is OS-writable by the agent, so a rejected
+            # write demonstrates the Codex filesystem sandbox, not Unix ownership.
+            check = ('from pathlib import Path; import socket\n'
+                'Path("sandbox-allowed.txt").write_text("ok")\n'
+                'try:\n Path("/outside-sandbox-probe/denied.txt").write_text("bad")\n'
+                'except OSError: pass\n'
+                'else: raise RuntimeError("filesystem sandbox did not block outside write")\n'
+                'try:\n socket.create_connection(("example.com",443),timeout=3)\n'
+                'except OSError: pass\n'
+                'else: raise RuntimeError("sandbox did not block outbound connection")\n')
+            subprocess.run(['codex', 'sandbox', '-P', ':workspace', '-C', str(home),
+                '--', 'python3', '-c', check], env=child_environment(home), cwd=home,
+                check=True, timeout=30, **IDENTITY)
             print('Pinned CLI and sandbox self-check passed; no model call was made.')
         else:
             run(*sys.argv[1:])
