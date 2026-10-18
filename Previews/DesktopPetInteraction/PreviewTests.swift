@@ -179,7 +179,7 @@ struct PreviewTests {
         }
 
         let view = DesktopPetView(resources: resources)
-        expect(view.loadedPickupFrames == 273, "all Gemini interpolation assets load into the native renderer")
+        expect(view.loadedPickupFrames == 32, "all direct Gemini source assets load into the native renderer")
         expect(!view.containsCat(CGPoint(x: 1, y: 1)), "alpha mask rejects transparent padding")
         expect(view.containsCat(CGPoint(x: 104, y: 63)), "alpha mask accepts central body")
         expect(view.renderPNG(pose: .carried, phase: 0) == view.renderPNG(pose: .sitting, phase: 0),
@@ -244,8 +244,8 @@ struct PreviewTests {
         model.pointerUp(now: 2.7, world: world)
         expect(view.renderPNG(pose: .sitting, isSettling: true, lift: model.lift) == heldPNG,
                "a fully lifted release also preserves head, body, paws and lean")
-        model.tick(now: 3.19, world: world)
-        expect(!model.isSettling && model.lift == DesktopPetLift(), "landing finishes without a residual pose")
+        model.tick(now: 2.7 + held.returnDuration + 0.01, world: world)
+        expect(!model.isSettling && model.lift.shoulder == 0 && model.lift.paws == 0, "landing finishes without residual articulated motion")
 
         // Full pickup follows the Gemini landing sequence, while a short drag
         // returns along the partial pickup. Re-grab retains the selected image.
@@ -255,10 +255,10 @@ struct PreviewTests {
         model.pointerDown(at: spriteGrip, now: 10, world: world)
         model.pointerDragged(to: CGPoint(x: spriteGrip.x - 40, y: spriteGrip.y + 100), now: 10.01, world: world)
         model.tick(now: 10.8, world: world)
-        expect(model.lift.spriteFrame == 8, "full pickup reaches the generated hanging pose")
+        expect(model.lift.spriteFrame == DesktopPetLift.carryFrame, "full pickup reaches the generated hanging pose")
         model.pointerUp(now: 10.8, world: world)
         model.tick(now: 10.87, world: world)
-        expect(model.lift.spriteFrame > 8 && model.lift.spriteFrame < 17,
+        expect(model.lift.spriteFrame > DesktopPetLift.carryFrame && model.lift.spriteFrame < DesktopPetLift.lastFrame,
                "fully lifted drop traverses the generated support and crouch frames")
         let dropImage = model.lift
         model.pointerDown(at: spriteGrip, now: 10.87, world: world)
@@ -266,7 +266,7 @@ struct PreviewTests {
         expect(model.lift == dropImage, "re-grab preserves the exact Gemini frame and captured lean")
         for i in 1...24 {
             model.tick(now: 10.88 + Double(i) / 60, world: world)
-            expect(model.lift.spriteFrame >= 0 && model.lift.spriteFrame <= 17, "interrupted frame path stays within the atlas")
+            expect(model.lift.spriteFrame >= 0 && model.lift.spriteFrame <= DesktopPetLift.lastFrame, "interrupted frame path stays within the atlas")
         }
         model.cancelPointer(now: 11.5)
         model.pointerDown(at: spriteGrip, now: 11.6, world: world)
@@ -289,61 +289,89 @@ struct PreviewTests {
         model.pointerDown(at: reGrip, now: 3.7, world: world)
         model.pointerUp(now: 3.72, world: world)
         expect(model.lift == clickedLanding && model.isSettling, "click during landing resumes that silhouette")
-        model.tick(now: 4.19, world: world)
-        expect(model.pose == .petted && !model.isSettling, "queued click response plays after landing")
-        model.pointerDown(at: reGrip, now: 4.2, world: world)
-        model.pointerDragged(to: CGPoint(x: reGrip.x - 30, y: reGrip.y + 10), now: 4.25, world: world)
-        model.tick(now: 4.65, world: world)
-        model.pointerUp(now: 4.65, world: world)
         model.tick(now: 4.7, world: world)
-        model.pointerDown(at: reGrip, now: 4.7, world: world)
+        expect(model.pose == .petted && !model.isSettling, "queued click response plays after landing")
+        model.pointerDown(at: reGrip, now: 5.2, world: world)
+        model.pointerDragged(to: CGPoint(x: reGrip.x - 30, y: reGrip.y + 10), now: 5.25, world: world)
+        model.tick(now: 5.65, world: world)
+        model.pointerUp(now: 5.65, world: world)
+        model.tick(now: 5.7, world: world)
+        model.pointerDown(at: reGrip, now: 5.7, world: world)
         world.reduceMotion = true
-        model.tick(now: 4.72, world: world)
+        model.tick(now: 5.72, world: world)
         world.reduceMotion = false
-        model.tick(now: 4.73, world: world)
+        model.tick(now: 5.73, world: world)
         expect(model.lift == DesktopPetLift() && !model.isSettling,
                "Reduce Motion toggle while pressing cannot revive a frozen landing")
-        model.pointerUp(now: 4.75, world: world)
+        model.pointerUp(now: 5.75, world: world)
 
-        // Equal wall-clock steps must advance equal measured pose distance:
-        // no global ease-in/out may accelerate the middle of a sprite strip.
-        for key in 1..<17 {
-            let x = DesktopPetLift.distance(at: CGFloat(key)), epsilon: CGFloat = 0.00001
-            let left = (DesktopPetLift.frame(at: x) - DesktopPetLift.frame(at: x - epsilon)) / epsilon
-            let right = (DesktopPetLift.frame(at: x + epsilon) - DesktopPetLift.frame(at: x)) / epsilon
-            expect(abs(left - right) < 0.0001, "key-pose boundary preserves instantaneous playback velocity")
+        // The original drawings must have a constant 50ms dwell, independent
+        // of motion-report frequency and without skipped source poses.
+        for step in 0...100 {
+            let now = Double(step) / 100
+            let state = DesktopPetLift.lifting(elapsed: now, lean: 0)
+            expect(state.spriteFrame == min(15, CGFloat(step / 5)),
+                   "pickup shows each source frame for the same 50ms")
         }
-        var lastFrame: CGFloat = -1
-        for step in 0...2000 {
-            let x = DesktopPetLift.distance(at: 17) * CGFloat(step) / 2000
-            let f = DesktopPetLift.frame(at: x)
-            expect(f >= lastFrame && f <= 17, "continuous pose timing stays monotone without overshoot")
-            expect(abs(DesktopPetLift.distance(at: f) - x) < 0.00001, "captured partial frames retain their timing on interruption")
-            lastFrame = f
+        let fullPose = DesktopPetLift(shoulder: 1, hip: 1, paws: 1, spriteFrame: DesktopPetLift.carryFrame)
+        for step in 0...90 {
+            let state = fullPose.landing(elapsed: Double(step) / 100)
+            expect(state.spriteFrame == min(31, CGFloat(15 + step / 5)),
+                   "landing advances one original drawing per 50ms and retains its last frame")
         }
-        let fullPose = DesktopPetLift(shoulder: 1, hip: 1, paws: 1, spriteFrame: 8)
-        let pickupSpeed = DesktopPetLift.distance(at: 8) / CGFloat(DesktopPetLift.pickupDuration)
-        var previousTravel: CGFloat = 0
-        for i in 1...28 {
-            let state = DesktopPetLift.lifting(elapsed: Double(i) / 60, lean: 0)
-            let travel = DesktopPetLift.distance(at: state.spriteFrame)
-            expect(abs((travel - previousTravel) - pickupSpeed / 60) < 0.0001,
-                   "pickup advances constant pose distance per display interval")
-            previousTravel = travel
+        let almostLifted = DesktopPetLift(shoulder: 1, hip: 1, paws: 1, spriteFrame: 14)
+        expect(almostLifted.landing(elapsed: 0.32).spriteFrame > 0, "partial return is not cut off")
+        expect(almostLifted.landing(elapsed: almostLifted.returnDuration) == DesktopPetLift(),
+               "partial pickup returns to its actual first drawing")
+        let landed = fullPose.landing(elapsed: fullPose.returnDuration)
+        expect(landed.spriteFrame == 31 && landed.shoulder == 0, "full landing keeps the actual terminal Gemini drawing")
+        expect(view.renderPNG(pose: .sitting, lift: landed) == view.renderPNG(pose: .sitting, isSettling: true, lift: landed),
+               "finishing landing does not replace the last source drawing")
+        expect(view.renderPNG(pose: .carried, lift: fullPose) == view.renderPNG(pose: .carried,
+               lift: DesktopPetLift(shoulder: 1, hip: 1, paws: 1, lean: 5, spriteFrame: 15)),
+               "direct-original comparison adds no angular sway")
+        for frame in 0..<32 {
+            let png = view.renderPNG(pose: .carried, lift: DesktopPetLift(spriteFrame: CGFloat(frame)))
+            let bitmap = NSBitmapImageRep(data: png)!
+            var clearBorder = true
+            for y in 0..<bitmap.pixelsHigh {
+                for x in 0..<bitmap.pixelsWide where x < 10 || y < 10 || x >= bitmap.pixelsWide - 10 || y >= bitmap.pixelsHigh - 10 {
+                    if (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0 { clearBorder = false }
+                }
+            }
+            expect(clearBorder, "every directly rendered source drawing retains a clear border around all limbs and ears")
+            try png.write(to: output.appendingPathComponent(String(format: "direct-source-%02d.png", frame)))
         }
-        let almostLifted = DesktopPetLift(shoulder: 1, hip: 1, paws: 1, spriteFrame: 7.8)
-        expect(almostLifted.landing(elapsed: 0.32).spriteFrame > 0,
-               "partial return is not cut off by the full-landing timeout")
-        expect(almostLifted.landing(elapsed: almostLifted.returnDuration + 0.001) == DesktopPetLift(),
-               "partial return reaches the canonical sit at its own duration")
-        let landingSpeed = (DesktopPetLift.distance(at: 17) - DesktopPetLift.distance(at: 8)) / CGFloat(DesktopPetLift.landingDuration)
-        previousTravel = DesktopPetLift.distance(at: 8)
-        for i in 1...18 {
-            let state = fullPose.landing(elapsed: Double(i) / 60)
-            let travel = DesktopPetLift.distance(at: state.spriteFrame)
-            expect(abs((travel - previousTravel) - landingSpeed / 60) < 0.0001,
-                   "landing has no middle-of-strip speed burst")
-            previousTravel = travel
+        model = DesktopPetModel(seed: 42)
+        model.setReleased(true, now: 20, world: world)
+        let finalGrip = CGPoint(x: model.frame.midX, y: model.frame.midY)
+        model.pointerDown(at: finalGrip, now: 20, world: world)
+        model.pointerDragged(to: CGPoint(x: finalGrip.x - 40, y: finalGrip.y + 20), now: 20.01, world: world)
+        model.tick(now: 21, world: world)
+        model.pointerUp(now: 21, world: world)
+        model.tick(now: 21.81, world: world)
+        expect(!model.isSettling && model.lift.spriteFrame == 31,
+               "the actual model preserves its terminal source drawing after full release")
+        let terminalPNG = view.renderPNG(pose: .sitting, lift: model.lift)
+        let finalRegrip = CGPoint(x: model.frame.midX, y: model.frame.midY)
+        model.pointerDown(at: finalRegrip, now: 21.9, world: world)
+        model.pointerDragged(to: CGPoint(x: finalRegrip.x - 40, y: finalRegrip.y + 20), now: 21.91, world: world)
+        expect(view.renderPNG(pose: .carried, lift: model.lift) == terminalPNG,
+               "picking up again starts from the visible terminal drawing without resetting to source 0")
+        model.tick(now: 21.96, world: world)
+        expect(model.lift.spriteFrame == 30, "a later pickup reverses one source frame per 50ms from the actual idle drawing")
+        for rate in [30, 60, 120] {
+            var cadence = DesktopPetModel(seed: 42)
+            cadence.setReleased(true, now: 30, world: world)
+            let point = CGPoint(x: cadence.frame.midX, y: cadence.frame.midY)
+            cadence.pointerDown(at: point, now: 30, world: world)
+            cadence.pointerDragged(to: CGPoint(x: point.x - 10, y: point.y + 20), now: 30.01, world: world)
+            for i in 1...(rate * 3 / 5) {
+                let t = Double(i) / Double(rate)
+                cadence.pointerDragged(to: CGPoint(x: point.x - 10 - t * 100, y: point.y + 20), now: 30.01 + t, world: world)
+                cadence.tick(now: 30.01 + t, world: world)
+            }
+            expect(cadence.lift.spriteFrame == 12, "30/60/120Hz pointer reports select the same original drawing at the same wall time")
         }
         func tiltAfterDrag(rate: Int) -> CGFloat {
             var fixture = DesktopPetModel(seed: 42)
@@ -360,7 +388,7 @@ struct PreviewTests {
         }
         expect(abs(tiltAfterDrag(rate: 60) - tiltAfterDrag(rate: 120)) < 0.01,
                "drag inertia is independent of mouse report frequency")
-        expect(DesktopPetLift.lifting(elapsed: 2, lean: 0).spriteFrame == 8,
+        expect(DesktopPetLift.lifting(elapsed: 2, lean: 0).spriteFrame == DesktopPetLift.carryFrame,
                "completed pickup holds a stable image without cycling")
 
         for pose in DesktopPetPose.allCases {

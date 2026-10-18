@@ -28,7 +28,7 @@ final class PreviewApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         controller = DesktopPetController(resources: resources)
         window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 430, height: 280),
                           styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
-        window.title = "小黑貓・Gemini 高幀試玩"
+        window.title = "小黑貓・Gemini 原畫試玩"
         window.isReleasedWhenClosed = false
         window.delegate = self
         let stack = NSStackView()
@@ -36,7 +36,7 @@ final class PreviewApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         stack.alignment = .leading
         stack.spacing = 14
         stack.translatesAutoresizingMaskIntoConstraints = false
-        let title = NSTextField(labelWithString: "Gemini 小黑貓・高幀試玩")
+        let title = NSTextField(labelWithString: "Gemini 小黑貓・原畫試玩")
         title.font = .systemFont(ofSize: 22, weight: .semibold)
         stack.addArrangedSubview(title)
         let hint = NSTextField(wrappingLabelWithString: "點一下，牠會回應你。\n按住拖曳，就能把牠拎起放下。\n平常安靜待機，閒置後洗臉、散步。")

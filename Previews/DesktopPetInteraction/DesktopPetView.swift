@@ -6,7 +6,7 @@ final class DesktopPetView: NSView {
     private let images: [String: NSImage]
     private let pickupFrames: [URL]
     private let pickupCache = NSCache<NSNumber, NSImage>()
-    static let pickupSampleCount = 273
+    static let pickupSampleCount = 32
 
     private func pickupImage(at index: Int) -> NSImage? {
         let key = NSNumber(value: index)
@@ -129,8 +129,7 @@ final class DesktopPetView: NSView {
             drawResponseBubble()
             NSGraphicsContext.restoreGraphicsState()
         }
-        if (pose == .carried || (pose == .sitting && isSettling)),
-           lift.spriteFrame > 0.001, lift.spriteFrame < 16.999, pickupFrames.count == Self.pickupSampleCount {
+        if [.sitting, .carried].contains(pose), pickupFrames.count == Self.pickupSampleCount {
             drawPickupFrame()
             return
         }
@@ -163,13 +162,9 @@ final class DesktopPetView: NSView {
     private let ink = NSColor(srgbRed: 250 / 255, green: 250 / 255, blue: 249 / 255, alpha: 1)
 
     private func drawPickupFrame() {
-        NSGraphicsContext.saveGraphicsState()
-        defer { NSGraphicsContext.restoreGraphicsState() }
-        let tilt = NSAffineTransform()
-        tilt.translateX(by: 104, yBy: 65)
-        tilt.rotate(byDegrees: reduceMotion ? 0 : lift.lean * lift.shoulder)
-        tilt.translateX(by: -104, yBy: -65); tilt.concat()
-        let index = max(0, min(Self.pickupSampleCount - 1, Int((lift.spriteFrame * 16).rounded())))
+        // No sway, morph, blended image, or per-frame scale: show the sliced
+        // Gemini drawing at its fixed grip anchor, including both idle ends.
+        let index = max(0, min(Self.pickupSampleCount - 1, Int(lift.spriteFrame.rounded())))
         pickupImage(at: index)?.draw(in: CGRect(origin: .zero, size: Self.panelSize), from: .zero,
                                  operation: .sourceOver, fraction: 1, respectFlipped: true,
                                  hints: [.interpolation: NSImageInterpolation.high])

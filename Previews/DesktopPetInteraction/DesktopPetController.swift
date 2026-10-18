@@ -136,7 +136,7 @@ final class DesktopPetController {
         if #available(macOS 14.0, *) {
             let animating = model.released && suspended.isEmpty && !environment.reduceMotion &&
                 (model.isDragging || model.isSettling) &&
-                !(model.isDragging && model.lift.spriteFrame == 8 && abs(model.carryLean) < 0.05)
+                !(model.isDragging && model.lift.spriteFrame == DesktopPetLift.carryFrame)
             if animating {
                 timer?.invalidate(); timer = nil; interval = 0
                 if displayPulse == nil { displayPulse = PreviewDisplayPulse(owner: self, view: artwork) }
@@ -147,7 +147,7 @@ final class DesktopPetController {
         let delay: TimeInterval
         if !model.released || !suspended.isEmpty { delay = 0 }
         else if !environment.reduceMotion && (model.isDragging || model.isSettling) {
-            let heldStill = model.isDragging && model.lift.spriteFrame == 8 && abs(model.carryLean) < 0.05
+            let heldStill = model.isDragging && model.lift.spriteFrame == DesktopPetLift.carryFrame
             delay = heldStill ? 1 / 30 : 1 / 60
         }
         else if model.isPressed || [.walking, .grooming, .yawning].contains(model.pose) { delay = 1 / 12 }

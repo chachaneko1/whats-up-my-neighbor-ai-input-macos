@@ -42,52 +42,18 @@ struct DesktopPetLift: Equatable {
     var lean: CGFloat = 0
     var spriteFrame: CGFloat = 0
 
-    static let pickupDuration: Double = 0.72
-    static let landingDuration: Double = 0.48
-    // Measured silhouette travel: a large pose change gets more time, rather
-    // than racing through the same number of milliseconds as a near duplicate.
-    static let poseTravel: [CGFloat] = [4.768, 20.299, 2.565, 2.516, 24, 11.435, 12.924, 10.547,
-                                       10.444, 17.106, 3.891, 7.653, 5.704, 7.319, 3.348, 17.993, 4.597]
-    private static let knots: [CGFloat] = poseTravel.reduce(into: [CGFloat(0)]) { $0.append($0.last! + $1) }
-    // Monotone Hermite slopes share a derivative at each key pose. The former
-    // piecewise linear inverse changed speed instantly at every segment edge.
-    private static let slopes: [CGFloat] = {
-        let d = poseTravel.map { 1 / $0 }
-        var m = [d[0]]
-        for i in 1..<17 {
-            let a = poseTravel[i - 1], b = poseTravel[i]
-            let w1 = 2 * b + a, w2 = b + 2 * a
-            m.append((w1 + w2) / (w1 / d[i - 1] + w2 / d[i]))
-        }
-        m.append(d[16]); return m
-    }()
-    static func frame(at distance: CGFloat) -> CGFloat {
-        let x = max(0, min(knots[17], distance))
-        let i = (0..<17).first(where: { x <= knots[$0 + 1] }) ?? 16
-        let h = poseTravel[i], t = (x - knots[i]) / h
-        let t2 = t * t, t3 = t2 * t
-        return (2 * t3 - 3 * t2 + 1) * CGFloat(i)
-            + (t3 - 2 * t2 + t) * h * slopes[i]
-            + (-2 * t3 + 3 * t2) * CGFloat(i + 1)
-            + (t3 - t2) * h * slopes[i + 1]
-    }
-    static func distance(at frame: CGFloat) -> CGFloat {
-        let f = max(0, min(17, frame))
-        if f == f.rounded() { return knots[Int(f)] }
-        let i = min(16, Int(f))
-        var low = knots[i], high = knots[i + 1]
-        for _ in 0..<36 {
-            let mid = (low + high) / 2
-            if Self.frame(at: mid) < f { low = mid } else { high = mid }
-        }
-        return (low + high) / 2
-    }
-    static func travel(from start: CGFloat, to end: CGFloat, elapsed: Double, speed: CGFloat) -> CGFloat {
-        if elapsed <= 0 { return start }
-        let a = distance(at: start), b = distance(at: end)
-        let step = min(abs(b - a), max(0, CGFloat(elapsed)) * speed)
-        if step >= abs(b - a) { return end }
-        return frame(at: a + (b >= a ? step : -step))
+    static let frameInterval: Double = 0.05
+    static let carryFrame: CGFloat = 15
+    static let lastFrame: CGFloat = 31
+    static let pickupDuration: Double = 0.75
+    static let landingDuration: Double = 0.80
+
+    // Direct Gemini drawings only. Wall-clock steps choose one whole source
+    // frame every 50ms, equally in either direction, without a pose-speed curve.
+    static func travel(from start: CGFloat, to end: CGFloat, elapsed: Double) -> CGFloat {
+        let steps = CGFloat(floor(max(0, elapsed) / frameInterval + 0.0000001))
+        let step = min(abs(end - start), steps)
+        return start + (end >= start ? step : -step)
     }
 
     static func ease(_ elapsed: Double, delay: Double = 0, duration: Double) -> CGFloat {
@@ -100,25 +66,21 @@ struct DesktopPetLift: Equatable {
              hip: start.hip + (1 - start.hip) * ease(elapsed, delay: 0.04, duration: 0.21),
              paws: start.paws + (1 - start.paws) * ease(elapsed, delay: 0.085, duration: 0.23),
              lean: lean,
-             spriteFrame: travel(from: start.spriteFrame, to: 8, elapsed: elapsed,
-                                 speed: distance(at: 8) / CGFloat(pickupDuration)))
+             spriteFrame: travel(from: start.spriteFrame, to: carryFrame, elapsed: elapsed))
     }
 
-    var returnDuration: Double {
-        let end: CGFloat = spriteFrame >= 7.999 ? 17 : 0
-        let speed = (Self.distance(at: 17) - Self.distance(at: 8)) / CGFloat(Self.landingDuration)
-        return Double(abs(Self.distance(at: end) - Self.distance(at: spriteFrame)) / speed)
-    }
+    var returnFrame: CGFloat { spriteFrame >= Self.carryFrame ? Self.lastFrame : 0 }
+    var returnDuration: Double { Double(abs(returnFrame - spriteFrame)) * Self.frameInterval }
     func landing(elapsed: Double) -> Self {
         let duration = returnDuration
-        if elapsed >= duration { return Self() }
-        let endpoint: CGFloat = spriteFrame >= 7.999 ? 17 : 0
+        // Keep the actual last Gemini drawing at rest. Swapping it for source
+        // frame 0 at the end would introduce a new jump between two drawings.
+        if elapsed >= duration { return Self(spriteFrame: returnFrame) }
         return Self(shoulder: shoulder * (1 - Self.ease(elapsed, duration: duration)),
              hip: hip * (1 - Self.ease(elapsed, duration: duration)),
              paws: paws * (1 - Self.ease(elapsed, duration: duration)),
              lean: lean * (1 - Self.ease(elapsed, duration: duration)),
-             spriteFrame: Self.travel(from: spriteFrame, to: endpoint, elapsed: elapsed,
-                                     speed: (Self.distance(at: 17) - Self.distance(at: 8)) / CGFloat(Self.landingDuration)))
+             spriteFrame: Self.travel(from: spriteFrame, to: returnFrame, elapsed: elapsed))
     }
 }
 
@@ -199,7 +161,7 @@ struct DesktopPetModel {
         origin = Self.clamp(CGPoint(x: pressOrigin.x + point.x - pressPoint.x,
                                    y: pressOrigin.y + point.y - pressPoint.y), to: area)
         phase = world.reduceMotion ? 0 : max(0, now - poseStarted)
-        lift = world.reduceMotion ? DesktopPetLift(shoulder: 1, hip: 1, paws: 1, spriteFrame: 8)
+        lift = world.reduceMotion ? DesktopPetLift(shoulder: 1, hip: 1, paws: 1, spriteFrame: DesktopPetLift.carryFrame)
             : .lifting(from: liftStart, elapsed: phase, lean: carryLean)
     }
 
@@ -322,7 +284,7 @@ struct DesktopPetModel {
                     carryLean *= CGFloat(exp(-delta * 7))
                 }
                 phase = world.reduceMotion ? 0 : max(0, now - poseStarted)
-                lift = world.reduceMotion ? DesktopPetLift(shoulder: 1, hip: 1, paws: 1, spriteFrame: 8)
+                lift = world.reduceMotion ? DesktopPetLift(shoulder: 1, hip: 1, paws: 1, spriteFrame: DesktopPetLift.carryFrame)
                     : .lifting(from: liftStart, elapsed: phase, lean: carryLean)
             }
             return
