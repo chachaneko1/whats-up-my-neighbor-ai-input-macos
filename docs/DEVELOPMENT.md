@@ -30,6 +30,8 @@ cd whats-up-my-neighbor-ai-input-macos
 
 Windows 版在另一個 repo：<https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-windows>。
 
+雲端文件與變更準備流程見 [Codex Cloud 開發指南](CLOUD_DEVELOPMENT.md)。
+
 ## 跑離線測試
 
 更新相關的測試會用 Sparkle 附的工具驗證簽章，所以第一次跑之前要先下載 Sparkle。先建置一次（見下一節）也會順便下載；只想下載的話：
