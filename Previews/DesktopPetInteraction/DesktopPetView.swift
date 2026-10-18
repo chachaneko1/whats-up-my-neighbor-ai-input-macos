@@ -39,7 +39,7 @@ final class DesktopPetView: NSView {
             if name == "walk-front-face" { image.cacheMode = .never }
             return (name, image)
         })
-        pickupFrames = (0...17).compactMap { index in
+        pickupFrames = (0...68).compactMap { index in
             guard let url = resources?.appendingPathComponent("Pickup/" + String(format: "%02d.png", index)) else { return nil }
             return NSImage(contentsOf: url)
         }
@@ -114,8 +114,8 @@ final class DesktopPetView: NSView {
             drawResponseBubble()
             NSGraphicsContext.restoreGraphicsState()
         }
-        if (pose == .carried || (pose == .sitting && isSettling && phase < 0.22)),
-           lift.spriteFrame > 0.001, lift.spriteFrame < 16.999, pickupFrames.count == 18 {
+        if (pose == .carried || (pose == .sitting && isSettling)),
+           lift.spriteFrame > 0.001, lift.spriteFrame < 16.999, pickupFrames.count == 69 {
             drawPickupFrame()
             return
         }
@@ -154,7 +154,7 @@ final class DesktopPetView: NSView {
         tilt.translateX(by: 104, yBy: 65)
         tilt.rotate(byDegrees: reduceMotion ? 0 : lift.lean * lift.shoulder)
         tilt.translateX(by: -104, yBy: -65); tilt.concat()
-        let index = max(0, min(17, Int(lift.spriteFrame.rounded())))
+        let index = max(0, min(68, Int((lift.spriteFrame * 4).rounded())))
         pickupFrames[index].draw(in: CGRect(origin: .zero, size: Self.panelSize), from: .zero,
                                  operation: .sourceOver, fraction: 1, respectFlipped: true,
                                  hints: [.interpolation: NSImageInterpolation.high])
@@ -318,7 +318,8 @@ final class DesktopPetView: NSView {
     }
 
     private func drawSettling() {
-        if !reduceMotion && phase < 0.22 {
+        if pickupFrames.count == 69 { drawImage("sit"); return }
+        if !reduceMotion && phase < DesktopPetLift.landingDuration {
             drawLift(lift)
             return
         }

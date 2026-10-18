@@ -42,6 +42,32 @@ struct DesktopPetLift: Equatable {
     var lean: CGFloat = 0
     var spriteFrame: CGFloat = 0
 
+    static let pickupDuration: Double = 0.48
+    static let landingDuration: Double = 0.32
+    // Measured silhouette travel: a large pose change gets more time, rather
+    // than racing through the same number of milliseconds as a near duplicate.
+    static let poseTravel: [CGFloat] = [4.768, 20.299, 2.565, 2.516, 24, 11.435, 12.924, 10.547,
+                                       10.444, 17.106, 3.891, 7.653, 5.704, 7.319, 3.348, 17.993, 4.597]
+    static func distance(at frame: CGFloat) -> CGFloat {
+        let f = max(0, min(17, frame)), index = min(16, Int(f))
+        return poseTravel.prefix(index).reduce(0, +) + (f - CGFloat(index)) * poseTravel[index]
+    }
+    static func frame(at distance: CGFloat) -> CGFloat {
+        var remaining = max(0, distance)
+        for (index, span) in poseTravel.enumerated() {
+            if remaining <= span { return CGFloat(index) + remaining / span }
+            remaining -= span
+        }
+        return 17
+    }
+    static func travel(from start: CGFloat, to end: CGFloat, elapsed: Double, speed: CGFloat) -> CGFloat {
+        if elapsed <= 0 { return start }
+        let a = distance(at: start), b = distance(at: end)
+        let step = min(abs(b - a), max(0, CGFloat(elapsed)) * speed)
+        if step >= abs(b - a) { return end }
+        return frame(at: a + (b >= a ? step : -step))
+    }
+
     static func ease(_ elapsed: Double, delay: Double = 0, duration: Double) -> CGFloat {
         let t = max(0, min(1, (elapsed - delay) / duration))
         return CGFloat(t * t * (3 - 2 * t))
@@ -52,17 +78,25 @@ struct DesktopPetLift: Equatable {
              hip: start.hip + (1 - start.hip) * ease(elapsed, delay: 0.04, duration: 0.21),
              paws: start.paws + (1 - start.paws) * ease(elapsed, delay: 0.085, duration: 0.23),
              lean: lean,
-             spriteFrame: start.spriteFrame + (8 - start.spriteFrame) * ease(elapsed, duration: 0.42))
+             spriteFrame: travel(from: start.spriteFrame, to: 8, elapsed: elapsed,
+                                 speed: distance(at: 8) / CGFloat(pickupDuration)))
     }
 
+    var returnDuration: Double {
+        let end: CGFloat = spriteFrame >= 7.999 ? 17 : 0
+        let speed = (Self.distance(at: 17) - Self.distance(at: 8)) / CGFloat(Self.landingDuration)
+        return Double(abs(Self.distance(at: end) - Self.distance(at: spriteFrame)) / speed)
+    }
     func landing(elapsed: Double) -> Self {
-        if elapsed >= 0.22 { return Self() }
+        let duration = returnDuration
+        if elapsed >= duration { return Self() }
         let endpoint: CGFloat = spriteFrame >= 7.999 ? 17 : 0
-        return Self(shoulder: shoulder * (1 - Self.ease(elapsed, duration: 0.22)),
-             hip: hip * (1 - Self.ease(elapsed, duration: 0.22)),
-             paws: paws * (1 - Self.ease(elapsed, duration: 0.22)),
-             lean: lean * (1 - Self.ease(elapsed, duration: 0.22)),
-             spriteFrame: spriteFrame + (endpoint - spriteFrame) * Self.ease(elapsed, duration: 0.22))
+        return Self(shoulder: shoulder * (1 - Self.ease(elapsed, duration: duration)),
+             hip: hip * (1 - Self.ease(elapsed, duration: duration)),
+             paws: paws * (1 - Self.ease(elapsed, duration: duration)),
+             lean: lean * (1 - Self.ease(elapsed, duration: duration)),
+             spriteFrame: Self.travel(from: spriteFrame, to: endpoint, elapsed: elapsed,
+                                     speed: (Self.distance(at: 17) - Self.distance(at: 8)) / CGFloat(Self.landingDuration)))
     }
 }
 
@@ -133,7 +167,8 @@ struct DesktopPetModel {
         if !startingDrag, let previous = lastDragTime, now > previous, now - previous <= 0.3, !world.reduceMotion {
             let speed = (point.x - lastDragPoint.x) / CGFloat(now - previous)
             let target = max(-5, min(5, speed / 160))
-            carryLean = carryLean * 0.6 + target * 0.4
+            let blend = CGFloat(1 - exp(-(now - previous) * 12))
+            carryLean += (target - carryLean) * blend
         } else if world.reduceMotion { carryLean = 0 }
         lastDragPoint = point
         lastDragTime = now
@@ -260,7 +295,10 @@ struct DesktopPetModel {
                 setPose(.sitting, now: now, duration: 2)
             }
             if isDragging {
-                carryLean = world.reduceMotion ? 0 : carryLean * CGFloat(exp(-delta * 7))
+                if world.reduceMotion { carryLean = 0 }
+                else if lastDragTime.map({ now - $0 > 0.04 }) ?? true {
+                    carryLean *= CGFloat(exp(-delta * 7))
+                }
                 phase = world.reduceMotion ? 0 : max(0, now - poseStarted)
                 lift = world.reduceMotion ? DesktopPetLift(shoulder: 1, hip: 1, paws: 1, spriteFrame: 8)
                     : .lifting(from: liftStart, elapsed: phase, lean: carryLean)
@@ -272,7 +310,7 @@ struct DesktopPetModel {
                 phase = world.reduceMotion ? 0 : max(0, now - poseStarted)
                 if isSettling {
                     lift = world.reduceMotion ? DesktopPetLift() : liftStart.landing(elapsed: phase)
-                    if world.reduceMotion || phase >= 0.36 {
+                    if world.reduceMotion || phase >= liftStart.returnDuration {
                         isSettling = false
                         if petAfterLanding {
                             petAfterLanding = false

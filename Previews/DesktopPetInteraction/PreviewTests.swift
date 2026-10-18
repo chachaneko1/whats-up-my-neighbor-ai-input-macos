@@ -151,7 +151,7 @@ struct PreviewTests {
         controller.dispose()
 
         let view = DesktopPetView(resources: resources)
-        expect(view.loadedPickupFrames == 18, "all Gemini interpolation assets load into the native renderer")
+        expect(view.loadedPickupFrames == 69, "all Gemini interpolation assets load into the native renderer")
         expect(!view.containsCat(CGPoint(x: 1, y: 1)), "alpha mask rejects transparent padding")
         expect(view.containsCat(CGPoint(x: 104, y: 63)), "alpha mask accepts central body")
         expect(view.renderPNG(pose: .carried, phase: 0) == view.renderPNG(pose: .sitting, phase: 0),
@@ -277,6 +277,50 @@ struct PreviewTests {
                "Reduce Motion toggle while pressing cannot revive a frozen landing")
         model.pointerUp(now: 4.75, world: world)
 
+        // Equal wall-clock steps must advance equal measured pose distance:
+        // no global ease-in/out may accelerate the middle of a sprite strip.
+        let fullPose = DesktopPetLift(shoulder: 1, hip: 1, paws: 1, spriteFrame: 8)
+        let pickupSpeed = DesktopPetLift.distance(at: 8) / CGFloat(DesktopPetLift.pickupDuration)
+        var previousTravel: CGFloat = 0
+        for i in 1...28 {
+            let state = DesktopPetLift.lifting(elapsed: Double(i) / 60, lean: 0)
+            let travel = DesktopPetLift.distance(at: state.spriteFrame)
+            expect(abs((travel - previousTravel) - pickupSpeed / 60) < 0.0001,
+                   "pickup advances constant pose distance per display interval")
+            previousTravel = travel
+        }
+        let almostLifted = DesktopPetLift(shoulder: 1, hip: 1, paws: 1, spriteFrame: 7.8)
+        expect(almostLifted.landing(elapsed: 0.32).spriteFrame > 0,
+               "partial return is not cut off by the full-landing timeout")
+        expect(almostLifted.landing(elapsed: 0.5) == DesktopPetLift(),
+               "partial return reaches the canonical sit at its own duration")
+        let landingSpeed = (DesktopPetLift.distance(at: 17) - DesktopPetLift.distance(at: 8)) / CGFloat(DesktopPetLift.landingDuration)
+        previousTravel = DesktopPetLift.distance(at: 8)
+        for i in 1...18 {
+            let state = fullPose.landing(elapsed: Double(i) / 60)
+            let travel = DesktopPetLift.distance(at: state.spriteFrame)
+            expect(abs((travel - previousTravel) - landingSpeed / 60) < 0.0001,
+                   "landing has no middle-of-strip speed burst")
+            previousTravel = travel
+        }
+        func tiltAfterDrag(rate: Int) -> CGFloat {
+            var fixture = DesktopPetModel(seed: 42)
+            fixture.setReleased(true, now: 20, world: world)
+            let point = CGPoint(x: fixture.frame.midX, y: fixture.frame.midY)
+            fixture.pointerDown(at: point, now: 20, world: world)
+            fixture.pointerDragged(to: CGPoint(x: point.x - 10, y: point.y + 80), now: 20.01, world: world)
+            for i in 1...rate {
+                let t = Double(i) / Double(rate)
+                fixture.pointerDragged(to: CGPoint(x: point.x - 10 - 120 * t, y: point.y + 80), now: 20.01 + t, world: world)
+                fixture.tick(now: 20.01 + t, world: world)
+            }
+            return fixture.carryLean
+        }
+        expect(abs(tiltAfterDrag(rate: 60) - tiltAfterDrag(rate: 120)) < 0.01,
+               "drag inertia is independent of mouse report frequency")
+        expect(DesktopPetLift.lifting(elapsed: 2, lean: 0).spriteFrame == 8,
+               "completed pickup holds a stable image without cycling")
+
         for pose in DesktopPetPose.allCases {
             for frame in 0..<24 {
                 let phase = Double(frame) / 12
@@ -294,15 +338,15 @@ struct PreviewTests {
         let start = model.origin
         let startGrip = CGPoint(x: model.frame.midX, y: model.frame.midY)
         var frames: [[String: Any]] = []
-        for i in 0..<96 {
-            let now = Double(i) / 24
-            if i == 8 { model.pointerDown(at: startGrip, now: now, world: world) }
-            if (9...60).contains(i) {
-                let p = Double(i - 9) / 51
+        for i in 0..<240 {
+            let now = Double(i) / 60
+            if i == 20 { model.pointerDown(at: startGrip, now: now, world: world) }
+            if (23...150).contains(i) {
+                let p = Double(i - 23) / 127
                 model.pointerDragged(to: CGPoint(x: startGrip.x - 180 * sin(p * .pi / 2),
                                                   y: startGrip.y + 100 * sin(p * .pi * 0.7)), now: now, world: world)
             }
-            if i == 72 { model.pointerUp(now: now, world: world) }
+            if i == 180 { model.pointerUp(now: now, world: world) }
             model.tick(now: now, world: world)
             expect(abs(model.carryLean) <= 5 && area.contains(model.frame), "scripted gesture stays bounded")
             view.update(model, reduceMotion: false)

@@ -33,7 +33,7 @@ gesture = json.loads((renders / 'pickup-gemini-gesture.json').read_text())
 pickup = []
 for i, step in enumerate(gesture):
     title = ('拎起：肩膀先起，身體與腳跟上' if step['pose'] == 'carried'
-             else '放手，輕輕坐回原處' if i >= 72 else '按住拖曳，拎起小黑貓')
+             else '放手，輕輕坐回原處' if i >= 180 else '按住拖曳，拎起小黑貓')
     x, y = 300 + step['x'] * 0.45, 65 - step['y'] * 0.45
     picture = compose(step['file'], title, x=x, y=y)
     if step['pressed']:
@@ -61,14 +61,14 @@ overview_duration = []
 for name, sequence in sequences.items():
     if name == '02b_動作慢看.gif': continue
     overview.extend(sequence)
-    overview_duration.extend([84 if name == '02b_動作慢看.gif' else 42 if name == '02_拎起放下.gif' else 83] * len(sequence))
+    overview_duration.extend(([20, 20, 10] * 80) if name == '02_拎起放下.gif' else [83] * len(sequence))
 overview.extend(frame('walking', i, '閒置時散步，滑鼠移動不會吸引牠', x=130+i*9) for i in range(24))
 overview_duration.extend([83] * 24)
 sequences['00_互動總覽.gif'] = overview
 receipts = []
 for name, images in sequences.items():
     target = output / name
-    duration = overview_duration if name == '00_互動總覽.gif' else 84 if name == '02b_動作慢看.gif' else 42 if name == '02_拎起放下.gif' else 83
+    duration = overview_duration if name == '00_互動總覽.gif' else ([30, 40, 30] * 80) if name == '02b_動作慢看.gif' else ([20, 20, 10] * 80) if name == '02_拎起放下.gif' else 83
     images[0].save(target, save_all=True, append_images=images[1:], duration=duration,
                    loop=0, disposal=2, optimize=False)
     with Image.open(target) as encoded:

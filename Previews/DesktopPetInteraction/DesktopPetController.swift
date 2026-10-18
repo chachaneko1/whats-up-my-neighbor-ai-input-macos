@@ -111,8 +111,9 @@ final class DesktopPetController {
         guard automatic else { return }
         let delay: TimeInterval
         if !model.released || !suspended.isEmpty { delay = 0 }
-        else if !environment.reduceMotion && (model.isDragging || (model.isSettling && model.phase < 0.36)) {
-            delay = model.isSettling || model.phase < 0.45 ? 1 / 60 : 1 / 30
+        else if !environment.reduceMotion && (model.isDragging || model.isSettling) {
+            let heldStill = model.isDragging && model.lift.spriteFrame == 8 && abs(model.carryLean) < 0.05
+            delay = heldStill ? 1 / 30 : 1 / 60
         }
         else if model.isPressed || [.walking, .grooming, .yawning].contains(model.pose) { delay = 1 / 12 }
         else if [.petted, .carried].contains(model.pose) || environment.idleSeconds >= 12 { delay = 1 / 4 }
