@@ -33,6 +33,34 @@ struct DesktopPetWorld {
     var reduceMotion = false
 }
 
+/// Articulated pose amounts shared by the model and native renderer. Capturing
+/// these on release/re-grab preserves the exact silhouette, even mid-pickup.
+struct DesktopPetLift: Equatable {
+    var shoulder: CGFloat = 0
+    var hip: CGFloat = 0
+    var paws: CGFloat = 0
+    var lean: CGFloat = 0
+
+    static func ease(_ elapsed: Double, delay: Double = 0, duration: Double) -> CGFloat {
+        let t = max(0, min(1, (elapsed - delay) / duration))
+        return CGFloat(t * t * (3 - 2 * t))
+    }
+
+    static func lifting(from start: Self = Self(), elapsed: Double, lean: CGFloat) -> Self {
+        Self(shoulder: start.shoulder + (1 - start.shoulder) * ease(elapsed, duration: 0.14),
+             hip: start.hip + (1 - start.hip) * ease(elapsed, delay: 0.04, duration: 0.21),
+             paws: start.paws + (1 - start.paws) * ease(elapsed, delay: 0.085, duration: 0.23),
+             lean: lean)
+    }
+
+    func landing(elapsed: Double) -> Self {
+        Self(shoulder: shoulder * (1 - Self.ease(elapsed, duration: 0.22)),
+             hip: hip * (1 - Self.ease(elapsed, duration: 0.22)),
+             paws: paws * (1 - Self.ease(elapsed, duration: 0.22)),
+             lean: lean * (1 - Self.ease(elapsed, duration: 0.22)))
+    }
+}
+
 /// A local animation model: no input events, file access, microphone or network.
 struct DesktopPetModel {
     static let size = CGSize(width: 128, height: 128)
@@ -57,6 +85,9 @@ struct DesktopPetModel {
     private(set) var isDragging = false
     private(set) var carryLean: CGFloat = 0
     private(set) var isSettling = false
+    private(set) var lift = DesktopPetLift()
+    private var liftStart = DesktopPetLift()
+    private var petAfterLanding = false
     private var lastDragPoint = CGPoint.zero
     private var lastDragTime: TimeInterval?
     private var pressPoint = CGPoint.zero
@@ -70,8 +101,10 @@ struct DesktopPetModel {
         guard released, visible, !world.hidden, point.x.isFinite, point.y.isFinite, now.isFinite else { return }
         isPressed = true
         isDragging = false
-        carryLean = 0
-        isSettling = false
+        // A press during landing freezes that exact silhouette until click or
+        // drag decides the next state. It must not snap to the sitting asset.
+        carryLean = lift.lean
+        petAfterLanding = false
         lastDragPoint = point
         lastDragTime = now
         pressPoint = point
@@ -86,8 +119,13 @@ struct DesktopPetModel {
               let area = validAreas(world).first(where: { $0.contains(point) })
                 ?? validAreas(world).min(by: { distance($0.center, point) < distance($1.center, point) }) else { return }
         guard isDragging || distance(point, pressPoint) >= Self.dragThreshold else { return }
-        if !isDragging { setPose(.carried, now: now, duration: .infinity) }
-        if let previous = lastDragTime, now > previous, now - previous <= 0.3, !world.reduceMotion {
+        let startingDrag = !isDragging
+        if startingDrag {
+            liftStart = lift
+            isSettling = false
+            setPose(.carried, now: now, duration: .infinity)
+        }
+        if !startingDrag, let previous = lastDragTime, now > previous, now - previous <= 0.3, !world.reduceMotion {
             let speed = (point.x - lastDragPoint.x) / CGFloat(now - previous)
             let target = max(-5, min(5, speed / 160))
             carryLean = carryLean * 0.6 + target * 0.4
@@ -99,16 +137,23 @@ struct DesktopPetModel {
         origin = Self.clamp(CGPoint(x: pressOrigin.x + point.x - pressPoint.x,
                                    y: pressOrigin.y + point.y - pressPoint.y), to: area)
         phase = world.reduceMotion ? 0 : max(0, now - poseStarted)
+        lift = world.reduceMotion ? DesktopPetLift(shoulder: 1, hip: 1, paws: 1)
+            : .lifting(from: liftStart, elapsed: phase, lean: carryLean)
     }
 
     mutating func pointerUp(now: TimeInterval, world: DesktopPetWorld) {
         guard isPressed else { return }
         let wasDragging = isDragging
+        let resumeLanding = !wasDragging && isSettling && lift != DesktopPetLift() && !world.reduceMotion
+        let releasedLift = lift
         cancelPointer(now: now)
         guard released, !world.hidden else { return }
-        setPose(wasDragging ? .sitting : .petted, now: now, duration: wasDragging ? 2 : 1.6)
-        isSettling = wasDragging && !world.reduceMotion
-        interactionUntil = now + (wasDragging ? 2 : 1.6)
+        let landing = wasDragging || resumeLanding
+        setPose(landing ? .sitting : .petted, now: now, duration: landing ? 2 : 1.6)
+        isSettling = landing && !world.reduceMotion
+        if isSettling { liftStart = releasedLift; lift = releasedLift }
+        petAfterLanding = resumeLanding
+        interactionUntil = now + (landing ? 2 : 1.6)
         lastTick = now
         wasPaused = false
     }
@@ -118,6 +163,9 @@ struct DesktopPetModel {
         isDragging = false
         carryLean = 0
         isSettling = false
+        lift = DesktopPetLift()
+        liftStart = DesktopPetLift()
+        petAfterLanding = false
         lastDragTime = nil
         interactionUntil = nil
         setPose(.sitting, now: now, duration: 2)
@@ -126,6 +174,9 @@ struct DesktopPetModel {
     /// A preview control, never called by hover or cursor tracking.
     mutating func demonstrate(_ pose: DesktopPetPose, now: TimeInterval, world: DesktopPetWorld) {
         guard released, !world.hidden, !isPressed else { return }
+        lift = DesktopPetLift()
+        isSettling = false
+        petAfterLanding = false
         journey = nil
         wasPaused = false
         wasActive = true
@@ -196,13 +247,35 @@ struct DesktopPetModel {
         // the opaque cat silhouette receive mouse events; padding passes through.
         visible = true
         if isPressed {
-            carryLean = world.reduceMotion ? 0 : carryLean * CGFloat(exp(-delta * 7))
-            phase = world.reduceMotion ? 0 : max(0, now - poseStarted)
+            if world.reduceMotion && !isDragging && isSettling {
+                lift = DesktopPetLift()
+                liftStart = DesktopPetLift()
+                isSettling = false
+                petAfterLanding = false
+                setPose(.sitting, now: now, duration: 2)
+            }
+            if isDragging {
+                carryLean = world.reduceMotion ? 0 : carryLean * CGFloat(exp(-delta * 7))
+                phase = world.reduceMotion ? 0 : max(0, now - poseStarted)
+                lift = world.reduceMotion ? DesktopPetLift(shoulder: 1, hip: 1, paws: 1)
+                    : .lifting(from: liftStart, elapsed: phase, lean: carryLean)
+            }
             return
         }
         if let until = interactionUntil {
             if now < until, journey == nil {
                 phase = world.reduceMotion ? 0 : max(0, now - poseStarted)
+                if isSettling {
+                    lift = world.reduceMotion ? DesktopPetLift() : liftStart.landing(elapsed: phase)
+                    if world.reduceMotion || phase >= 0.36 {
+                        isSettling = false
+                        if petAfterLanding {
+                            petAfterLanding = false
+                            setPose(.petted, now: now, duration: 1.6)
+                            interactionUntil = now + 1.6
+                        }
+                    }
+                }
                 return
             }
             if now >= until {

@@ -157,9 +157,10 @@ struct PreviewTests {
         let pickup = CGPoint(x: model.frame.midX, y: model.frame.midY)
         model.pointerDown(at: pickup, now: 0, world: world)
         model.pointerDragged(to: CGPoint(x: pickup.x - 40, y: pickup.y + 10), now: 0.1, world: world)
+        model.pointerDragged(to: CGPoint(x: pickup.x - 60, y: pickup.y + 10), now: 0.14, world: world)
         expect(model.carryLean < 0 && model.carryLean >= -5, "left drag creates bounded side-body inertia")
         let tilt = abs(model.carryLean)
-        for i in 1...10 { model.tick(now: 0.1 + Double(i) / 24, world: world) }
+        for i in 1...10 { model.tick(now: 0.14 + Double(i) / 24, world: world) }
         expect(abs(model.carryLean) < tilt * 0.1, "held still settles quickly instead of swaying forever")
         model.pointerUp(now: 0.6, world: world)
         expect(model.isSettling && model.carryLean == 0, "drop starts a bounded settle and clears carried tilt")
@@ -177,6 +178,67 @@ struct PreviewTests {
         model.pointerUp(now: 1.2, world: world)
         expect(!model.isSettling, "reduce motion disables drop compression")
         view.reduceMotion = false
+
+        // R3: release and rapid re-grab must preserve the rendered silhouette,
+        // including when pickup has not reached its hanging pose yet.
+        world.reduceMotion = false
+        model.setReleased(true, now: 2, world: world)
+        let quickGrip = CGPoint(x: model.frame.midX, y: model.frame.midY)
+        model.pointerDown(at: quickGrip, now: 2, world: world)
+        model.pointerDragged(to: CGPoint(x: quickGrip.x - 20, y: quickGrip.y + 20), now: 2.02, world: world)
+        model.tick(now: 2.1, world: world)
+        expect(model.lift.shoulder > model.lift.hip && model.lift.hip > model.lift.paws,
+               "shoulders lead hips and paws during pickup")
+        let beforeRelease = model.lift
+        let beforePNG = view.renderPNG(pose: .carried, lift: beforeRelease)
+        model.pointerUp(now: 2.1, world: world)
+        expect(model.lift == beforeRelease, "release preserves an unfinished pickup instead of swapping images")
+        expect(view.renderPNG(pose: model.pose, isSettling: true, lift: model.lift) == beforePNG,
+               "first landing frame is pixel-identical to the last held silhouette")
+        model.tick(now: 2.18, world: world)
+        let midLanding = model.lift
+        expect(midLanding.shoulder < beforeRelease.shoulder, "landing continuously returns toward sitting")
+        let reGrip = CGPoint(x: model.frame.midX, y: model.frame.midY)
+        model.pointerDown(at: reGrip, now: 2.18, world: world)
+        model.tick(now: 2.19, world: world)
+        expect(model.lift == midLanding, "pressing during landing holds the current silhouette")
+        model.pointerDragged(to: CGPoint(x: reGrip.x + 20, y: reGrip.y + 10), now: 2.2, world: world)
+        expect(model.lift == midLanding, "re-grab starts from the exact partial landing silhouette including lean")
+        for i in 1...12 { model.tick(now: 2.2 + Double(i) / 24, world: world) }
+        let held = model.lift
+        let heldPNG = view.renderPNG(pose: .carried, lift: held)
+        model.pointerUp(now: 2.7, world: world)
+        expect(view.renderPNG(pose: .sitting, isSettling: true, lift: model.lift) == heldPNG,
+               "a fully lifted release also preserves head, body, paws and lean")
+        model.tick(now: 3.1, world: world)
+        expect(!model.isSettling && model.lift == DesktopPetLift(), "landing finishes without a residual pose")
+
+        // A click interrupting a landing waits for the remaining visual return;
+        // switching Reduce Motion while that press is held clears stale motion.
+        model.pointerDown(at: reGrip, now: 3.2, world: world)
+        model.pointerDragged(to: CGPoint(x: reGrip.x + 30, y: reGrip.y + 10), now: 3.25, world: world)
+        model.tick(now: 3.65, world: world)
+        model.pointerUp(now: 3.65, world: world)
+        model.tick(now: 3.7, world: world)
+        let clickedLanding = model.lift
+        model.pointerDown(at: reGrip, now: 3.7, world: world)
+        model.pointerUp(now: 3.72, world: world)
+        expect(model.lift == clickedLanding && model.isSettling, "click during landing resumes that silhouette")
+        model.tick(now: 4.12, world: world)
+        expect(model.pose == .petted && !model.isSettling, "queued click response plays after landing")
+        model.pointerDown(at: reGrip, now: 4.2, world: world)
+        model.pointerDragged(to: CGPoint(x: reGrip.x - 30, y: reGrip.y + 10), now: 4.25, world: world)
+        model.tick(now: 4.65, world: world)
+        model.pointerUp(now: 4.65, world: world)
+        model.tick(now: 4.7, world: world)
+        model.pointerDown(at: reGrip, now: 4.7, world: world)
+        world.reduceMotion = true
+        model.tick(now: 4.72, world: world)
+        world.reduceMotion = false
+        model.tick(now: 4.73, world: world)
+        expect(model.lift == DesktopPetLift() && !model.isSettling,
+               "Reduce Motion toggle while pressing cannot revive a frozen landing")
+        model.pointerUp(now: 4.75, world: world)
 
         for pose in DesktopPetPose.allCases {
             for frame in 0..<24 {
@@ -208,15 +270,16 @@ struct PreviewTests {
             expect(abs(model.carryLean) <= 5 && area.contains(model.frame), "scripted gesture stays bounded")
             view.update(model, reduceMotion: false)
             let image = view.renderPNG(pose: model.pose, phase: model.phase, carryLean: model.carryLean,
-                                       isSettling: model.isSettling)
-            let file = String(format: "pickup-r2-%03d.png", i)
+                                       isSettling: model.isSettling, lift: model.lift)
+            let file = String(format: "pickup-r3-%03d.png", i)
             try image.write(to: output.appendingPathComponent(file))
-            frames.append(["file": file, "pose": model.pose.rawValue,
+            frames.append(["file": file, "pose": model.pose.rawValue, "pressed": model.isPressed,
                            "x": model.origin.x - start.x, "y": model.origin.y - start.y,
-                           "phase": model.phase, "lean": model.carryLean, "settling": model.isSettling])
+                           "phase": model.phase, "lean": model.carryLean, "settling": model.isSettling,
+                           "shoulder": model.lift.shoulder, "hip": model.lift.hip, "paws": model.lift.paws])
         }
         let data = try JSONSerialization.data(withJSONObject: frames, options: [.prettyPrinted, .sortedKeys])
-        try data.write(to: output.appendingPathComponent("pickup-r2-gesture.json"))
+        try data.write(to: output.appendingPathComponent("pickup-r3-gesture.json"))
         print("Interaction preview: \(checks) checks passed; ten native poses rendered.")
     }
 }
