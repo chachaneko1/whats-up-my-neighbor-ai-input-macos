@@ -17,7 +17,9 @@ concurrency:
 
 jobs:
   validate:
-    runs-on: ubuntu-24.04
+    # Noble's host AppArmor user-namespace policy blocks nested bwrap networking.
+    # Jammy tests the image without changing host-wide security policy.
+    runs-on: ubuntu-22.04
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
