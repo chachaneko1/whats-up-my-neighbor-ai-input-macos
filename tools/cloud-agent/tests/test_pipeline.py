@@ -161,7 +161,7 @@ class PipelineTests(unittest.TestCase):
             def fake_command(args, **kwargs):
                 if 'describe' in args:
                     return subprocess.CompletedProcess(args, 1, b'', b'not found')
-                if 'cp' in args and args[-2].startswith('gs://'):
+                if 'cp' in args and args[args.index('cp') + 1].startswith('gs://'):
                     task = json.loads((self.results / 'task.json').read_text())
                     self.assertEqual(task['mode'], 'audit')
                     self.assertNotIn('--set-secrets', args)
