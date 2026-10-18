@@ -1,5 +1,6 @@
 """Fail closed on mismatched release metadata, layout, URLs or missing signatures."""
 import base64
+import os
 from pathlib import Path
 import plistlib
 import re
@@ -9,7 +10,8 @@ import xml.etree.ElementTree as ET
 import zipfile
 
 SPARKLE = "{http://www.andymatuschak.org/xml-namespaces/sparkle}"
-REPOSITORY = "https://github.com/yuipan0611/groq-ai-voice-input-macos"
+REPOSITORY = "https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos"
+LEGACY_REPOSITORY = "https://github.com/yuipan0611/groq-ai-voice-input-macos"
 
 
 def require(condition: bool, message: str) -> None:
@@ -17,10 +19,15 @@ def require(condition: bool, message: str) -> None:
         raise ValueError(message)
 
 
-def validate_release(app: Path, feed: Path, archive: Path) -> None:
+def validate_release(app: Path, feed: Path, archive: Path, *, allow_legacy_repository: bool = False) -> None:
     info = plistlib.loads((app / "Contents/Info.plist").read_bytes())
     require(info['CFBundleIdentifier'] == 'tw.panh.FreeVoiceType', 'Bundle identity changed')
-    require(info['SUFeedURL'] == REPOSITORY + '/releases/latest/download/appcast.xml', 'Release contract validation failed')
+    # New packages use the canonical URL. Explicitly allow the original URL only
+    # when verifying immutable releases published before the repository rename.
+    repositories = [REPOSITORY, LEGACY_REPOSITORY] if allow_legacy_repository else [REPOSITORY]
+    repository = next((url for url in repositories
+                       if info['SUFeedURL'] == url + '/releases/latest/download/appcast.xml'), None)
+    require(repository is not None, 'Unexpected update repository')
     require(info['SUAllowsAutomaticUpdates'] is False, 'Silent updates must be disabled')
     require(info['SUAutomaticallyUpdate'] is False, 'Release contract validation failed')
     require(info['SURequireSignedFeed'] is True, 'Release contract validation failed')
@@ -40,7 +47,7 @@ def validate_release(app: Path, feed: Path, archive: Path) -> None:
     require(item.findtext(SPARKLE + 'shortVersionString') == info['CFBundleShortVersionString'], 'Release contract validation failed')
     enclosure = item.find("enclosure")
     require(enclosure is not None, 'Release contract validation failed')
-    require(enclosure.attrib['url'] == REPOSITORY + '/releases/download/v' + info['CFBundleShortVersionString'] + '/' + archive.name, 'Release contract validation failed')
+    require(enclosure.attrib['url'] == repository + '/releases/download/v' + info['CFBundleShortVersionString'] + '/' + archive.name, 'Release contract validation failed')
     require(int(enclosure.attrib['length']) == archive.stat().st_size, 'Release contract validation failed')
     require(len(base64.b64decode(enclosure.attrib[SPARKLE + 'edSignature'], validate=True)) == 64, 'Release contract validation failed')
     with zipfile.ZipFile(archive) as zipped:
@@ -67,6 +74,7 @@ def verify_signatures(app: Path, feed: Path, archive: Path) -> None:
 
 
 if __name__ == "__main__":
-    validate_release(*(Path(arg) for arg in sys.argv[1:]))
+    validate_release(*(Path(arg) for arg in sys.argv[1:]),
+                     allow_legacy_repository=os.environ.get("NEIGHBOR_ALLOW_LEGACY_REPOSITORY") == "1")
     verify_signatures(*(Path(arg) for arg in sys.argv[1:]))
     print("Release metadata, approval policy, app-only archive and Ed25519 signatures verified")

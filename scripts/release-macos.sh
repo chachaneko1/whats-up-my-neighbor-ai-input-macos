@@ -49,7 +49,7 @@ cp "$ROOT/RELEASE_NOTES.md" "${UPDATE_ARCHIVE:r}.md"
 SPARKLE_ROOT="$ROOT/build/Sparkle-2.10.0"
 print -rn -- "$SPARKLE_PRIVATE_KEY" > "$RELEASE_TEMP/sparkle.key"
 "$SPARKLE_ROOT/bin/generate_appcast" --ed-key-file "$RELEASE_TEMP/sparkle.key" \
-  --download-url-prefix "https://github.com/yuipan0611/groq-ai-voice-input-macos/releases/download/v$RELEASE_VERSION/" \
+  --download-url-prefix "https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/releases/download/v$RELEASE_VERSION/" \
   --maximum-deltas 0 --embed-release-notes "$ROOT/dist/update"
 python3 "$ROOT/scripts/validate-release.py" "$APP" "$ROOT/dist/update/appcast.xml" "$UPDATE_ARCHIVE"
 PACKAGE_EXISTING_BUILD=1 "$ROOT/scripts/package-release.sh" "$RELEASE_VERSION"
