@@ -1,5 +1,23 @@
 import AppKit
 import ApplicationServices
+import QuartzCore
+
+@available(macOS 14.0, *)
+private final class PreviewDisplayPulse: NSObject {
+    weak var owner: DesktopPetController?
+    private var link: CADisplayLink?
+    init(owner: DesktopPetController, view: NSView) {
+        self.owner = owner
+        super.init()
+        let link = view.displayLink(target: self, selector: #selector(tick(_:)))
+        link.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 60, preferred: 60)
+        self.link = link
+        link.add(to: .main, forMode: .common)
+    }
+    @objc private func tick(_ link: CADisplayLink) { owner?.refresh() }
+    func stop() { link?.invalidate(); link = nil }
+}
+
 
 private final class PreviewPetPanel: NSPanel {
     override var canBecomeKey: Bool { false }
@@ -14,6 +32,9 @@ final class DesktopPetController {
     let artwork: DesktopPetView
     var onStateChange: ((String) -> Void)?
     private var timer: Timer?
+    private var displayPulse: AnyObject?
+    var usesDisplaySynchronization: Bool { displayPulse != nil }
+    private var lastStateDescription: String?
     private var interval: TimeInterval = 0
     private var globalMouse: Any?
     private var localMouse: Any?
@@ -107,8 +128,22 @@ final class DesktopPetController {
             panel.ignoresMouseEvents = true
             panel.orderOut(nil)
         }
-        onStateChange?(model.pose.description)
+        if lastStateDescription != model.pose.description {
+            lastStateDescription = model.pose.description
+            onStateChange?(model.pose.description)
+        }
         guard automatic else { return }
+        if #available(macOS 14.0, *) {
+            let animating = model.released && suspended.isEmpty && !environment.reduceMotion &&
+                (model.isDragging || model.isSettling) &&
+                !(model.isDragging && model.lift.spriteFrame == 8 && abs(model.carryLean) < 0.05)
+            if animating {
+                timer?.invalidate(); timer = nil; interval = 0
+                if displayPulse == nil { displayPulse = PreviewDisplayPulse(owner: self, view: artwork) }
+                return
+            }
+            (displayPulse as? PreviewDisplayPulse)?.stop(); displayPulse = nil
+        }
         let delay: TimeInterval
         if !model.released || !suspended.isEmpty { delay = 0 }
         else if !environment.reduceMotion && (model.isDragging || model.isSettling) {
@@ -146,6 +181,8 @@ final class DesktopPetController {
     func dispose() {
         guard !disposed else { return }
         disposed = true
+        if #available(macOS 14.0, *) { (displayPulse as? PreviewDisplayPulse)?.stop() }
+        displayPulse = nil
         timer?.invalidate(); timer = nil
         if let globalMouse { NSEvent.removeMonitor(globalMouse) }
         if let localMouse { NSEvent.removeMonitor(localMouse) }

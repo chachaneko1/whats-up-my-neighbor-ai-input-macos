@@ -150,8 +150,36 @@ struct PreviewTests {
         expect(!controller.panel.isVisible, "recalled preview panel stays hidden")
         controller.dispose()
 
+        // Exercise a real screen callback as well as deterministic model time.
+        // No synthetic OS mouse events are posted; button state is a fixture.
+        if #available(macOS 14.0, *), let screen = NSScreen.main {
+            var pulseTime: Double = 0
+            let pulseWorld = DesktopPetWorld(areas: [screen.visibleFrame], cursor: screen.visibleFrame.origin)
+            let pulse = DesktopPetController(resources: resources, world: { pulseWorld },
+                clock: { pulseTime }, pressedButtons: { 1 })
+            pulse.setReleased(true)
+            let point = CGPoint(x: pulse.model.frame.midX, y: pulse.model.frame.midY)
+            pulse.pointerDown(at: point)
+            pulseTime = 0.01
+            pulse.pointerDragged(to: CGPoint(x: point.x - 30, y: point.y + 40))
+            expect(pulse.usesDisplaySynchronization, "active pickup uses the screen display link")
+            pulseTime = 0.11
+            let deadline = Date(timeIntervalSinceNow: 0.5)
+            while pulse.model.phase < 0.09 && Date() < deadline {
+                RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
+            }
+            expect(pulse.model.phase >= 0.09, "a real display callback advances pickup without a timer or manual refresh")
+            pulse.suspend(true)
+            expect(!pulse.usesDisplaySynchronization && !pulse.panel.isVisible,
+                   "suspending the preview stops the screen callback and hides its panel")
+            pulse.suspend(false)
+            pulse.setReleased(false)
+            expect(!pulse.usesDisplaySynchronization, "recall leaves no active display link")
+            pulse.dispose()
+        }
+
         let view = DesktopPetView(resources: resources)
-        expect(view.loadedPickupFrames == 69, "all Gemini interpolation assets load into the native renderer")
+        expect(view.loadedPickupFrames == 273, "all Gemini interpolation assets load into the native renderer")
         expect(!view.containsCat(CGPoint(x: 1, y: 1)), "alpha mask rejects transparent padding")
         expect(view.containsCat(CGPoint(x: 104, y: 63)), "alpha mask accepts central body")
         expect(view.renderPNG(pose: .carried, phase: 0) == view.renderPNG(pose: .sitting, phase: 0),
@@ -216,7 +244,7 @@ struct PreviewTests {
         model.pointerUp(now: 2.7, world: world)
         expect(view.renderPNG(pose: .sitting, isSettling: true, lift: model.lift) == heldPNG,
                "a fully lifted release also preserves head, body, paws and lean")
-        model.tick(now: 3.1, world: world)
+        model.tick(now: 3.19, world: world)
         expect(!model.isSettling && model.lift == DesktopPetLift(), "landing finishes without a residual pose")
 
         // Full pickup follows the Gemini landing sequence, while a short drag
@@ -226,29 +254,29 @@ struct PreviewTests {
         let spriteGrip = CGPoint(x: model.frame.midX, y: model.frame.midY)
         model.pointerDown(at: spriteGrip, now: 10, world: world)
         model.pointerDragged(to: CGPoint(x: spriteGrip.x - 40, y: spriteGrip.y + 100), now: 10.01, world: world)
-        model.tick(now: 10.5, world: world)
+        model.tick(now: 10.8, world: world)
         expect(model.lift.spriteFrame == 8, "full pickup reaches the generated hanging pose")
-        model.pointerUp(now: 10.5, world: world)
-        model.tick(now: 10.57, world: world)
+        model.pointerUp(now: 10.8, world: world)
+        model.tick(now: 10.87, world: world)
         expect(model.lift.spriteFrame > 8 && model.lift.spriteFrame < 17,
                "fully lifted drop traverses the generated support and crouch frames")
         let dropImage = model.lift
-        model.pointerDown(at: spriteGrip, now: 10.57, world: world)
-        model.pointerDragged(to: CGPoint(x: spriteGrip.x + 40, y: spriteGrip.y + 100), now: 10.58, world: world)
+        model.pointerDown(at: spriteGrip, now: 10.87, world: world)
+        model.pointerDragged(to: CGPoint(x: spriteGrip.x + 40, y: spriteGrip.y + 100), now: 10.88, world: world)
         expect(model.lift == dropImage, "re-grab preserves the exact Gemini frame and captured lean")
         for i in 1...24 {
-            model.tick(now: 10.58 + Double(i) / 60, world: world)
+            model.tick(now: 10.88 + Double(i) / 60, world: world)
             expect(model.lift.spriteFrame >= 0 && model.lift.spriteFrame <= 17, "interrupted frame path stays within the atlas")
         }
-        model.cancelPointer(now: 11.1)
-        model.pointerDown(at: spriteGrip, now: 11.2, world: world)
-        model.pointerDragged(to: CGPoint(x: spriteGrip.x - 40, y: spriteGrip.y + 100), now: 11.21, world: world)
-        model.tick(now: 11.3, world: world)
+        model.cancelPointer(now: 11.5)
+        model.pointerDown(at: spriteGrip, now: 11.6, world: world)
+        model.pointerDragged(to: CGPoint(x: spriteGrip.x - 40, y: spriteGrip.y + 100), now: 11.61, world: world)
+        model.tick(now: 11.7, world: world)
         let earlyFrame = model.lift.spriteFrame
-        model.pointerUp(now: 11.3, world: world)
-        model.tick(now: 11.35, world: world)
+        model.pointerUp(now: 11.7, world: world)
+        model.tick(now: 11.75, world: world)
         expect(model.lift.spriteFrame < earlyFrame, "short pickup returns along its current path without jumping to landing")
-        model.cancelPointer(now: 11.4)
+        model.cancelPointer(now: 11.8)
 
         // A click interrupting a landing waits for the remaining visual return;
         // switching Reduce Motion while that press is held clears stale motion.
@@ -261,7 +289,7 @@ struct PreviewTests {
         model.pointerDown(at: reGrip, now: 3.7, world: world)
         model.pointerUp(now: 3.72, world: world)
         expect(model.lift == clickedLanding && model.isSettling, "click during landing resumes that silhouette")
-        model.tick(now: 4.12, world: world)
+        model.tick(now: 4.19, world: world)
         expect(model.pose == .petted && !model.isSettling, "queued click response plays after landing")
         model.pointerDown(at: reGrip, now: 4.2, world: world)
         model.pointerDragged(to: CGPoint(x: reGrip.x - 30, y: reGrip.y + 10), now: 4.25, world: world)
@@ -279,6 +307,20 @@ struct PreviewTests {
 
         // Equal wall-clock steps must advance equal measured pose distance:
         // no global ease-in/out may accelerate the middle of a sprite strip.
+        for key in 1..<17 {
+            let x = DesktopPetLift.distance(at: CGFloat(key)), epsilon: CGFloat = 0.00001
+            let left = (DesktopPetLift.frame(at: x) - DesktopPetLift.frame(at: x - epsilon)) / epsilon
+            let right = (DesktopPetLift.frame(at: x + epsilon) - DesktopPetLift.frame(at: x)) / epsilon
+            expect(abs(left - right) < 0.0001, "key-pose boundary preserves instantaneous playback velocity")
+        }
+        var lastFrame: CGFloat = -1
+        for step in 0...2000 {
+            let x = DesktopPetLift.distance(at: 17) * CGFloat(step) / 2000
+            let f = DesktopPetLift.frame(at: x)
+            expect(f >= lastFrame && f <= 17, "continuous pose timing stays monotone without overshoot")
+            expect(abs(DesktopPetLift.distance(at: f) - x) < 0.00001, "captured partial frames retain their timing on interruption")
+            lastFrame = f
+        }
         let fullPose = DesktopPetLift(shoulder: 1, hip: 1, paws: 1, spriteFrame: 8)
         let pickupSpeed = DesktopPetLift.distance(at: 8) / CGFloat(DesktopPetLift.pickupDuration)
         var previousTravel: CGFloat = 0
@@ -292,7 +334,7 @@ struct PreviewTests {
         let almostLifted = DesktopPetLift(shoulder: 1, hip: 1, paws: 1, spriteFrame: 7.8)
         expect(almostLifted.landing(elapsed: 0.32).spriteFrame > 0,
                "partial return is not cut off by the full-landing timeout")
-        expect(almostLifted.landing(elapsed: 0.5) == DesktopPetLift(),
+        expect(almostLifted.landing(elapsed: almostLifted.returnDuration + 0.001) == DesktopPetLift(),
                "partial return reaches the canonical sit at its own duration")
         let landingSpeed = (DesktopPetLift.distance(at: 17) - DesktopPetLift.distance(at: 8)) / CGFloat(DesktopPetLift.landingDuration)
         previousTravel = DesktopPetLift.distance(at: 8)

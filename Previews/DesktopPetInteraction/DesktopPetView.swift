@@ -4,7 +4,20 @@ import AppKit
 /// The SVG files remain unchanged; no temporary Figma URLs are used at runtime.
 final class DesktopPetView: NSView {
     private let images: [String: NSImage]
-    private let pickupFrames: [NSImage]
+    private let pickupFrames: [URL]
+    private let pickupCache = NSCache<NSNumber, NSImage>()
+    static let pickupSampleCount = 273
+
+    private func pickupImage(at index: Int) -> NSImage? {
+        let key = NSNumber(value: index)
+        if let cached = pickupCache.object(forKey: key) { return cached }
+        guard let data = try? Data(contentsOf: pickupFrames[index]),
+              let bitmap = NSBitmapImageRep(data: data) else { return nil }
+        let image = NSImage(size: Self.panelSize)
+        image.addRepresentation(bitmap)
+        pickupCache.setObject(image, forKey: key, cost: bitmap.bytesPerRow * bitmap.pixelsHigh)
+        return image
+    }
     // Padding expands only the visual panel. Model/grip coordinates retain the
     // original 128pt nominal frame, and sitting feet keep their world position.
     static let panelSize = CGSize(width: 208, height: 192)
@@ -39,11 +52,13 @@ final class DesktopPetView: NSView {
             if name == "walk-front-face" { image.cacheMode = .never }
             return (name, image)
         })
-        pickupFrames = (0...68).compactMap { index in
+        pickupFrames = (0..<Self.pickupSampleCount).compactMap { index in
             guard let url = resources?.appendingPathComponent("Pickup/" + String(format: "%02d.png", index)) else { return nil }
-            return NSImage(contentsOf: url)
+            return FileManager.default.fileExists(atPath: url.path) ? url : nil
         }
         super.init(frame: CGRect(origin: .zero, size: Self.panelSize))
+        pickupCache.countLimit = 16
+        pickupCache.totalCostLimit = 12 * 1024 * 1024
         setAccessibilityElement(true)
         setAccessibilityRole(.button)
         setAccessibilityLabel("小黑貓桌面夥伴")
@@ -115,7 +130,7 @@ final class DesktopPetView: NSView {
             NSGraphicsContext.restoreGraphicsState()
         }
         if (pose == .carried || (pose == .sitting && isSettling)),
-           lift.spriteFrame > 0.001, lift.spriteFrame < 16.999, pickupFrames.count == 69 {
+           lift.spriteFrame > 0.001, lift.spriteFrame < 16.999, pickupFrames.count == Self.pickupSampleCount {
             drawPickupFrame()
             return
         }
@@ -154,8 +169,8 @@ final class DesktopPetView: NSView {
         tilt.translateX(by: 104, yBy: 65)
         tilt.rotate(byDegrees: reduceMotion ? 0 : lift.lean * lift.shoulder)
         tilt.translateX(by: -104, yBy: -65); tilt.concat()
-        let index = max(0, min(68, Int((lift.spriteFrame * 4).rounded())))
-        pickupFrames[index].draw(in: CGRect(origin: .zero, size: Self.panelSize), from: .zero,
+        let index = max(0, min(Self.pickupSampleCount - 1, Int((lift.spriteFrame * 16).rounded())))
+        pickupImage(at: index)?.draw(in: CGRect(origin: .zero, size: Self.panelSize), from: .zero,
                                  operation: .sourceOver, fraction: 1, respectFlipped: true,
                                  hints: [.interpolation: NSImageInterpolation.high])
     }
@@ -318,7 +333,7 @@ final class DesktopPetView: NSView {
     }
 
     private func drawSettling() {
-        if pickupFrames.count == 69 { drawImage("sit"); return }
+        if pickupFrames.count == Self.pickupSampleCount { drawImage("sit"); return }
         if !reduceMotion && phase < DesktopPetLift.landingDuration {
             drawLift(lift)
             return

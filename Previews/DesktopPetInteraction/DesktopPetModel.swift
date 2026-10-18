@@ -42,23 +42,45 @@ struct DesktopPetLift: Equatable {
     var lean: CGFloat = 0
     var spriteFrame: CGFloat = 0
 
-    static let pickupDuration: Double = 0.48
-    static let landingDuration: Double = 0.32
+    static let pickupDuration: Double = 0.72
+    static let landingDuration: Double = 0.48
     // Measured silhouette travel: a large pose change gets more time, rather
     // than racing through the same number of milliseconds as a near duplicate.
     static let poseTravel: [CGFloat] = [4.768, 20.299, 2.565, 2.516, 24, 11.435, 12.924, 10.547,
                                        10.444, 17.106, 3.891, 7.653, 5.704, 7.319, 3.348, 17.993, 4.597]
-    static func distance(at frame: CGFloat) -> CGFloat {
-        let f = max(0, min(17, frame)), index = min(16, Int(f))
-        return poseTravel.prefix(index).reduce(0, +) + (f - CGFloat(index)) * poseTravel[index]
-    }
-    static func frame(at distance: CGFloat) -> CGFloat {
-        var remaining = max(0, distance)
-        for (index, span) in poseTravel.enumerated() {
-            if remaining <= span { return CGFloat(index) + remaining / span }
-            remaining -= span
+    private static let knots: [CGFloat] = poseTravel.reduce(into: [CGFloat(0)]) { $0.append($0.last! + $1) }
+    // Monotone Hermite slopes share a derivative at each key pose. The former
+    // piecewise linear inverse changed speed instantly at every segment edge.
+    private static let slopes: [CGFloat] = {
+        let d = poseTravel.map { 1 / $0 }
+        var m = [d[0]]
+        for i in 1..<17 {
+            let a = poseTravel[i - 1], b = poseTravel[i]
+            let w1 = 2 * b + a, w2 = b + 2 * a
+            m.append((w1 + w2) / (w1 / d[i - 1] + w2 / d[i]))
         }
-        return 17
+        m.append(d[16]); return m
+    }()
+    static func frame(at distance: CGFloat) -> CGFloat {
+        let x = max(0, min(knots[17], distance))
+        let i = (0..<17).first(where: { x <= knots[$0 + 1] }) ?? 16
+        let h = poseTravel[i], t = (x - knots[i]) / h
+        let t2 = t * t, t3 = t2 * t
+        return (2 * t3 - 3 * t2 + 1) * CGFloat(i)
+            + (t3 - 2 * t2 + t) * h * slopes[i]
+            + (-2 * t3 + 3 * t2) * CGFloat(i + 1)
+            + (t3 - t2) * h * slopes[i + 1]
+    }
+    static func distance(at frame: CGFloat) -> CGFloat {
+        let f = max(0, min(17, frame))
+        if f == f.rounded() { return knots[Int(f)] }
+        let i = min(16, Int(f))
+        var low = knots[i], high = knots[i + 1]
+        for _ in 0..<36 {
+            let mid = (low + high) / 2
+            if Self.frame(at: mid) < f { low = mid } else { high = mid }
+        }
+        return (low + high) / 2
     }
     static func travel(from start: CGFloat, to end: CGFloat, elapsed: Double, speed: CGFloat) -> CGFloat {
         if elapsed <= 0 { return start }

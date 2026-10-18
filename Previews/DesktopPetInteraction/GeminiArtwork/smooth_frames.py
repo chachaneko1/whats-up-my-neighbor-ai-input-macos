@@ -3,7 +3,9 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import numpy as np,json,hashlib
 root=Path(__file__).resolve().parent
-output=root/'SmoothFrames';output.mkdir(exist_ok=True)
+SAMPLES=16
+COUNT=17*SAMPLES+1
+output=root/'DenseFrames';output.mkdir(exist_ok=True)
 keys=[Image.open(root/'Frames'/f'{i:02}.png').convert('RGBA') for i in range(18)]
 
 def dt1(f):
@@ -67,9 +69,9 @@ for i,key in enumerate(keys):
 
 frames=[keys[0]]
 for i in range(17):
- for sub in range(1,5):
-  t=sub/4
-  if sub==4:im=keys[i+1]
+ for sub in range(1,SAMPLES+1):
+  t=sub/SAMPLES
+  if sub==SAMPLES:im=keys[i+1]
   else:
    field=fields[i]*(1-t)+fields[i+1]*t
    alpha=np.clip(.5-field/1.5,0,1)
@@ -95,19 +97,19 @@ for i in range(17):
     rgb[y:y+48,x:x+48]=rgb[y:y+48,x:x+48]*(1-glyph[:,:,None])+255*glyph[:,:,None]
    im=Image.fromarray(np.uint8(np.dstack([np.clip(rgb,0,255),alpha*255])))
   frames.append(im)
-assert len(frames)==69
+assert len(frames)==COUNT
 for i,im in enumerate(frames):
  bbox=im.getbbox();assert bbox and bbox[0]>0 and bbox[1]>0 and bbox[2]<416 and bbox[3]<384
  im.save(output/f'{i:02}.png')
 weights=np.clip(np.array(costs),2,24);weights=np.round(weights,3)
-manifest={'frames':69,'samples_per_interval':4,'weights':weights.tolist(),
- 'method':'Signed-distance silhouette and separately aligned facial glyph interpolation; original Gemini poses at every fourth frame',
- 'sha256':[hashlib.sha256((output/f'{i:02}.png').read_bytes()).hexdigest() for i in range(69)]}
-(root/'smooth-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
+manifest={'frames':COUNT,'samples_per_interval':SAMPLES,'weights':weights.tolist(),
+ 'method':'Signed-distance silhouette and separately aligned facial glyph interpolation; original Gemini poses at every sixteenth frame',
+ 'sha256':[hashlib.sha256((output/f'{i:02}.png').read_bytes()).hexdigest() for i in range(COUNT)]}
+(root/'dense-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
 print('WEIGHTS',weights.tolist(),flush=True)
 board=Image.new('RGB',(1248,960),'#f4f2ed');d=ImageDraw.Draw(board);font=ImageFont.truetype('/System/Library/Fonts/STHeiti Medium.ttc',16)
 for i,n in enumerate([0,6,12,16,17,18,19,20,24,28,31,32,36,40,44,48,52,56,60,64,66,67,68]):
- x=i%6*208;y=i//6*240;d.text((x+8,y+8),str(n),font=font,fill='#252526')
- im=frames[n].resize((208,192),Image.Resampling.LANCZOS);board.paste(im,(x,y+30),im)
-board.save(root/'順接影格檢視.png')
-print('Generated 69 opaque smooth frames; original key poses retained.',flush=True)
+ x=i%6*208;y=i//6*240;d.text((x+8,y+8),str(n*4),font=font,fill='#252526')
+ im=frames[n*4].resize((208,192),Image.Resampling.LANCZOS);board.paste(im,(x,y+30),im)
+board.save(root/'高幀影格檢視.png')
+print(f'Generated {COUNT} opaque dense frames; original key poses retained.',flush=True)

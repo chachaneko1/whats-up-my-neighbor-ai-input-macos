@@ -9,7 +9,7 @@ ditto "$ROOT/Resources/DesktopPet" "$APP/Contents/Resources/DesktopPet"
 cp "$SOURCE"/ExtraArtwork/*.svg "$APP/Contents/Resources/DesktopPet/"
 mkdir -p "$APP/Contents/Resources/DesktopPet/Pickup"
 rm -f "$APP/Contents/Resources/DesktopPet/Pickup/"*.png
-cp "$SOURCE"/GeminiArtwork/SmoothFrames/*.png "$APP/Contents/Resources/DesktopPet/Pickup/"
+cp "$SOURCE"/GeminiArtwork/DenseFrames/*.png "$APP/Contents/Resources/DesktopPet/Pickup/"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -23,11 +23,11 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 </dict></plist>
 PLIST
-swiftc -swift-version 5 -framework AppKit -framework ApplicationServices \
+swiftc -swift-version 5 -framework AppKit -framework ApplicationServices -framework QuartzCore \
   "$SOURCE/DesktopPetModel.swift" "$SOURCE/DesktopPetView.swift" \
   "$SOURCE/DesktopPetController.swift" "$SOURCE/PreviewMain.swift" \
   -o "$APP/Contents/MacOS/NekoInteractionPreview"
-swiftc -swift-version 5 -D DESKTOP_PET_TESTS -framework AppKit -framework ApplicationServices \
+swiftc -swift-version 5 -D DESKTOP_PET_TESTS -framework AppKit -framework ApplicationServices -framework QuartzCore \
   "$SOURCE/DesktopPetModel.swift" "$SOURCE/DesktopPetView.swift" \
   "$SOURCE/DesktopPetController.swift" "$SOURCE/PreviewTests.swift" \
   -o "$OUTPUT/PreviewTests"
