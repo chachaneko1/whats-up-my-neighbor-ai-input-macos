@@ -31,7 +31,7 @@ jobs:
         run: docker build -t neko-codex-pilot tools/cloud-agent
       - name: Validate CLI arguments and unprivileged sandbox
         run: |
-          docker run --rm --security-opt seccomp=unconfined --security-opt apparmor=unconfined --entrypoint python3 neko-codex-pilot /app/codex_adapter.py --self-check
+          docker run --rm --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined --entrypoint python3 neko-codex-pilot /app/codex_adapter.py --self-check
 
   generate:
     needs: validate
