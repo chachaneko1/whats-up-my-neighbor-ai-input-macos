@@ -148,6 +148,36 @@ struct PreviewTests {
         let view = DesktopPetView(resources: resources)
         expect(!view.containsCat(CGPoint(x: 1, y: 1)), "alpha mask rejects transparent padding")
         expect(view.containsCat(CGPoint(x: 64, y: 63)), "alpha mask accepts central body")
+        expect(view.renderPNG(pose: .carried, phase: 0) == view.renderPNG(pose: .sitting, phase: 0),
+               "pickup starts from the original sitting image without a double silhouette")
+
+        world = DesktopPetWorld(areas: [area], idleSeconds: 0)
+        model = DesktopPetModel(seed: 42)
+        model.setReleased(true, now: 0, world: world)
+        let pickup = CGPoint(x: model.frame.midX, y: model.frame.midY)
+        model.pointerDown(at: pickup, now: 0, world: world)
+        model.pointerDragged(to: CGPoint(x: pickup.x - 40, y: pickup.y + 10), now: 0.1, world: world)
+        expect(model.carryLean < 0 && model.carryLean >= -5, "left drag creates bounded side-body inertia")
+        let tilt = abs(model.carryLean)
+        for i in 1...10 { model.tick(now: 0.1 + Double(i) / 24, world: world) }
+        expect(abs(model.carryLean) < tilt * 0.1, "held still settles quickly instead of swaying forever")
+        model.pointerUp(now: 0.6, world: world)
+        expect(model.isSettling && model.carryLean == 0, "drop starts a bounded settle and clears carried tilt")
+        world.hidden = true
+        model.tick(now: 0.7, world: world)
+        expect(!model.isSettling, "suspension cancels landing feedback")
+        world.hidden = false; world.reduceMotion = true
+        model.setReleased(true, now: 1, world: world)
+        model.pointerDown(at: pickup, now: 1, world: world)
+        model.pointerDragged(to: CGPoint(x: pickup.x - 40, y: pickup.y + 10), now: 1.1, world: world)
+        expect(model.isDragging && model.carryLean == 0 && model.phase == 0, "reduce motion keeps explicit dragging without secondary movement")
+        view.reduceMotion = true
+        expect(view.renderPNG(pose: .carried, phase: 0) == view.renderPNG(pose: .carried, phase: 1),
+               "reduce motion has one static carried image with no arrival or sway")
+        model.pointerUp(now: 1.2, world: world)
+        expect(!model.isSettling, "reduce motion disables drop compression")
+        view.reduceMotion = false
+
         for pose in DesktopPetPose.allCases {
             for frame in 0..<24 {
                 let phase = Double(frame) / 12
@@ -156,6 +186,37 @@ struct PreviewTests {
                 try image.write(to: output.appendingPathComponent("\(pose.rawValue)-\(String(format: "%02d", frame)).png"))
             }
         }
+
+        // Export one complete gesture through the same model used by the App.
+        // All positions are synthetic fixture coordinates, never user input.
+        world = DesktopPetWorld(areas: [area], idleSeconds: 0)
+        model = DesktopPetModel(seed: 42)
+        model.setReleased(true, now: 0, world: world)
+        let start = model.origin
+        let startGrip = CGPoint(x: model.frame.midX, y: model.frame.midY)
+        var frames: [[String: Any]] = []
+        for i in 0..<96 {
+            let now = Double(i) / 24
+            if i == 8 { model.pointerDown(at: startGrip, now: now, world: world) }
+            if (9...60).contains(i) {
+                let p = Double(i - 9) / 51
+                model.pointerDragged(to: CGPoint(x: startGrip.x - 180 * sin(p * .pi / 2),
+                                                  y: startGrip.y + 100 * sin(p * .pi * 0.7)), now: now, world: world)
+            }
+            if i == 72 { model.pointerUp(now: now, world: world) }
+            model.tick(now: now, world: world)
+            expect(abs(model.carryLean) <= 5 && area.contains(model.frame), "scripted gesture stays bounded")
+            view.update(model, reduceMotion: false)
+            let image = view.renderPNG(pose: model.pose, phase: model.phase, carryLean: model.carryLean,
+                                       isSettling: model.isSettling)
+            let file = String(format: "pickup-r2-%03d.png", i)
+            try image.write(to: output.appendingPathComponent(file))
+            frames.append(["file": file, "pose": model.pose.rawValue,
+                           "x": model.origin.x - start.x, "y": model.origin.y - start.y,
+                           "phase": model.phase, "lean": model.carryLean, "settling": model.isSettling])
+        }
+        let data = try JSONSerialization.data(withJSONObject: frames, options: [.prettyPrinted, .sortedKeys])
+        try data.write(to: output.appendingPathComponent("pickup-r2-gesture.json"))
         print("Interaction preview: \(checks) checks passed; ten native poses rendered.")
     }
 }

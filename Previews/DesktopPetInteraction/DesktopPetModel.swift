@@ -55,6 +55,10 @@ struct DesktopPetModel {
     private var journey: Journey?
     private(set) var isPressed = false
     private(set) var isDragging = false
+    private(set) var carryLean: CGFloat = 0
+    private(set) var isSettling = false
+    private var lastDragPoint = CGPoint.zero
+    private var lastDragTime: TimeInterval?
     private var pressPoint = CGPoint.zero
     private var pressOrigin = CGPoint.zero
     private var interactionUntil: TimeInterval?
@@ -66,6 +70,10 @@ struct DesktopPetModel {
         guard released, visible, !world.hidden, point.x.isFinite, point.y.isFinite, now.isFinite else { return }
         isPressed = true
         isDragging = false
+        carryLean = 0
+        isSettling = false
+        lastDragPoint = point
+        lastDragTime = now
         pressPoint = point
         pressOrigin = origin
         journey = nil
@@ -79,6 +87,13 @@ struct DesktopPetModel {
                 ?? validAreas(world).min(by: { distance($0.center, point) < distance($1.center, point) }) else { return }
         guard isDragging || distance(point, pressPoint) >= Self.dragThreshold else { return }
         if !isDragging { setPose(.carried, now: now, duration: .infinity) }
+        if let previous = lastDragTime, now > previous, now - previous <= 0.3, !world.reduceMotion {
+            let speed = (point.x - lastDragPoint.x) / CGFloat(now - previous)
+            let target = max(-5, min(5, speed / 160))
+            carryLean = carryLean * 0.6 + target * 0.4
+        } else if world.reduceMotion { carryLean = 0 }
+        lastDragPoint = point
+        lastDragTime = now
         isDragging = true
         perchID = nil
         origin = Self.clamp(CGPoint(x: pressOrigin.x + point.x - pressPoint.x,
@@ -92,6 +107,7 @@ struct DesktopPetModel {
         cancelPointer(now: now)
         guard released, !world.hidden else { return }
         setPose(wasDragging ? .sitting : .petted, now: now, duration: wasDragging ? 2 : 1.6)
+        isSettling = wasDragging && !world.reduceMotion
         interactionUntil = now + (wasDragging ? 2 : 1.6)
         lastTick = now
         wasPaused = false
@@ -100,6 +116,9 @@ struct DesktopPetModel {
     mutating func cancelPointer(now: TimeInterval) {
         isPressed = false
         isDragging = false
+        carryLean = 0
+        isSettling = false
+        lastDragTime = nil
         interactionUntil = nil
         setPose(.sitting, now: now, duration: 2)
     }
@@ -165,6 +184,7 @@ struct DesktopPetModel {
         if let id = perchID, !world.perches.contains(where: { $0.id == id }) {
             landOnEdge(area)
         }
+        let delta = lastTick.map { max(0, min(0.2, now - $0)) } ?? 0
         let gap = lastTick.map { now < $0 || now - $0 > 2 } ?? false
         lastTick = now
         if wasPaused || gap {
@@ -176,6 +196,7 @@ struct DesktopPetModel {
         // the opaque cat silhouette receive mouse events; padding passes through.
         visible = true
         if isPressed {
+            carryLean = world.reduceMotion ? 0 : carryLean * CGFloat(exp(-delta * 7))
             phase = world.reduceMotion ? 0 : max(0, now - poseStarted)
             return
         }
@@ -186,6 +207,7 @@ struct DesktopPetModel {
             }
             if now >= until {
                 interactionUntil = nil
+                isSettling = false
                 if journey == nil { setPose(.sitting, now: now, duration: 2) }
             }
         }

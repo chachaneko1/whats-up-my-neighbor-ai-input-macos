@@ -9,6 +9,8 @@ final class DesktopPetView: NSView {
     var walkDistance: CGFloat = 0
     var facingLeft = false
     var reduceMotion = false
+    var carryLean: CGFloat = 0
+    var isSettling = false
     var onPointerDown: ((CGPoint) -> Void)?
     var onPointerDragged: ((CGPoint) -> Void)?
     var onPointerUp: (() -> Void)?
@@ -78,7 +80,8 @@ final class DesktopPetView: NSView {
 
     func update(_ model: DesktopPetModel, reduceMotion: Bool) {
         if pose != model.pose || phase != model.phase || facingLeft != model.facingLeft ||
-           walkDistance != model.walkDistance || self.reduceMotion != reduceMotion {
+           walkDistance != model.walkDistance || self.reduceMotion != reduceMotion ||
+           carryLean != model.carryLean || isSettling != model.isSettling {
             hitBitmap = nil
         }
         if pose != model.pose { setAccessibilityValue(model.pose.description) }
@@ -87,6 +90,8 @@ final class DesktopPetView: NSView {
         walkDistance = model.walkDistance
         facingLeft = model.facingLeft
         self.reduceMotion = reduceMotion
+        carryLean = model.carryLean
+        isSettling = model.isSettling
         needsDisplay = true
     }
 
@@ -103,7 +108,8 @@ final class DesktopPetView: NSView {
         transform.concat()
         switch pose {
         case .sitting, .curious:
-            breathe { drawImage(pose == .curious ? "reply" : "sit") }
+            if pose == .sitting && isSettling { drawSettling() }
+            else { breathe { drawImage(pose == .curious ? "reply" : "sit") } }
         case .standing: drawImage("walk")
         case .walking: drawWalking()
         case .grooming: drawGrooming()
@@ -156,32 +162,105 @@ final class DesktopPetView: NSView {
     }
 
     private func drawCarried() {
-        let sway: CGFloat = reduceMotion ? 0 : sin(phase * 4) * 3
-        // Recompose the approved body, head and original rounded paws. No
-        // stretched face or newly drawn paw contours are introduced.
-        drawImage("tail", in: CGRect(x: 277 + sway, y: 239, width: 83, height: 83))
-        let feet: [(CGFloat, CGFloat, CGFloat, CGFloat)] = [
-            (102, 310, 139, 334), (163, 331, 178, 342),
-            (271, 331, 221, 342), (321, 318, 260, 334)
-        ]
-        for (index, foot) in feet.enumerated() {
-            let leg = NSBezierPath()
-            leg.move(to: CGPoint(x: 161 + CGFloat(index) * 25 + sway, y: 271))
-            leg.line(to: CGPoint(x: foot.2 + sway, y: foot.3))
-            fur.setStroke(); leg.lineWidth = 21; leg.lineCapStyle = .round; leg.stroke()
-            NSGraphicsContext.saveGraphicsState()
-            let shift = NSAffineTransform()
-            shift.translateX(by: foot.2 + sway - foot.0 * 0.72, yBy: foot.3 - foot.1 * 0.72)
-            shift.scale(by: 0.72)
-            shift.concat()
-            drawImage("walk-foot-\(index)")
-            NSGraphicsContext.restoreGraphicsState()
+        let t = reduceMotion ? 1 : max(0, min(1, phase / 0.22))
+        let arrival = 1 - pow(1 - t, 3)
+        guard arrival > 0 else { drawImage("sit"); return }
+        func point(_ rest: CGPoint, _ lifted: CGPoint) -> CGPoint {
+            CGPoint(x: rest.x + (lifted.x - rest.x) * arrival,
+                    y: rest.y + (lifted.y - rest.y) * arrival)
         }
-        drawImage("body", in: CGRect(x: 137 + sway, y: 196, width: 126, height: 120))
-        images["sit"]?.draw(in: CGRect(x: 0, y: 0, width: 400, height: 226),
+        func p(_ x: CGFloat, _ y: CGFloat, _ lx: CGFloat, _ ly: CGFloat) -> CGPoint {
+            point(CGPoint(x: x, y: y), CGPoint(x: lx, y: ly))
+        }
+        NSGraphicsContext.saveGraphicsState()
+        let tilt: CGFloat = reduceMotion ? 0 : carryLean
+        let settle: CGFloat = reduceMotion ? 0 : CGFloat(sin(phase * 10) * exp(-phase * 8)) * 1.5
+        let body = NSAffineTransform()
+        body.translateX(by: 202, yBy: 199)
+        body.rotate(byDegrees: (tilt + settle) * arrival)
+        body.translateX(by: -202, yBy: -199)
+        body.concat()
+
+        // Side-on silhouette: rear legs behind the rounded torso, one long
+        // near foreleg and a bent near hindleg. Feet never form a four-finger row.
+        drawImage("tail", in: CGRect(x: 272 + 11 * arrival, y: 247 + 13 * arrival,
+                                    width: 102 - 24 * arrival, height: 79 - 19 * arrival))
+        drawLimb(from: p(160, 270, 212, 224), through: p(166, 315, 208, 278),
+                 to: p(166, 343, 196, 319), width: 21)
+        drawOriginalPaw(1, at: p(166, 343, 196, 319), scale: 0.58)
+        drawLimb(from: p(277, 281, 266, 275), through: p(293, 313, 298, 302),
+                 to: p(290, 335, 284, 323), width: 22)
+        drawOriginalPaw(3, at: p(290, 335, 284, 323), scale: 0.62)
+
+        let torso = NSBezierPath()
+        torso.move(to: p(152, 203, 196, 187))
+        torso.curve(to: p(247, 203, 276, 218), controlPoint1: p(185, 203, 231, 183),
+                    controlPoint2: p(214, 203, 264, 195))
+        torso.curve(to: p(323, 290, 302, 291), controlPoint1: p(285, 205, 295, 243),
+                    controlPoint2: p(314, 245, 310, 269))
+        torso.curve(to: p(254, 366, 272, 326), controlPoint1: p(333, 338, 302, 314),
+                    controlPoint2: p(312, 365, 292, 328))
+        torso.curve(to: p(149, 366, 211, 305), controlPoint1: p(218, 366, 246, 333),
+                    controlPoint2: p(185, 366, 221, 324))
+        torso.curve(to: p(77, 289, 179, 233), controlPoint1: p(92, 365, 194, 279),
+                    controlPoint2: p(66, 338, 181, 256))
+        torso.curve(to: p(152, 203, 196, 187), controlPoint1: p(86, 243, 171, 210),
+                    controlPoint2: p(114, 205, 178, 193))
+        torso.close(); fur.setFill(); torso.fill()
+
+        drawLimb(from: p(148, 283, 196, 220), through: p(148, 322, 179, 283),
+                 to: p(148, 343, 173, 340), width: 27)
+        drawOriginalPaw(0, at: p(148, 343, 173, 340), scale: 0.64)
+        drawLimb(from: p(253, 283, 266, 282), through: p(260, 322, 301, 311),
+                 to: p(254, 343, 254, 341), width: 27)
+        drawOriginalPaw(2, at: p(254, 343, 254, 341), scale: 0.66)
+        // One short armpit crease makes the near foreleg readable in black fur.
+        let crease = NSBezierPath()
+        crease.move(to: p(148, 283, 200, 251))
+        crease.curve(to: p(148, 335, 187, 299), controlPoint1: p(143, 303, 192, 265),
+                     controlPoint2: p(144, 321, 188, 283))
+        ink.withAlphaComponent(0.45).setStroke()
+        crease.lineWidth = 3; crease.lineCapStyle = .round; crease.stroke()
+        NSGraphicsContext.restoreGraphicsState()
+
+        // The whole original face is scaled uniformly; X/check and mouth keep
+        // their handedness and proportions while the body turns to the side.
+        NSGraphicsContext.saveGraphicsState()
+        images["sit"]?.draw(in: CGRect(x: -3 * arrival, y: 2 * arrival,
+                                       width: 400 - 28 * arrival, height: 226 - 15.82 * arrival),
                              from: CGRect(x: 0, y: 174, width: 400, height: 226),
                              operation: .sourceOver, fraction: 1, respectFlipped: true,
                              hints: [.interpolation: NSImageInterpolation.high])
+        NSGraphicsContext.restoreGraphicsState()
+    }
+
+    private func drawLimb(from root: CGPoint, through bend: CGPoint, to foot: CGPoint, width: CGFloat) {
+        let leg = NSBezierPath()
+        leg.move(to: root)
+        leg.curve(to: foot, controlPoint1: bend, controlPoint2: bend)
+        fur.setStroke(); leg.lineWidth = width; leg.lineCapStyle = .round; leg.stroke()
+    }
+
+    private func drawOriginalPaw(_ index: Int, at point: CGPoint, scale: CGFloat) {
+        let anchors = [CGPoint(x: 102, y: 310), CGPoint(x: 163, y: 331),
+                       CGPoint(x: 271, y: 331), CGPoint(x: 321, y: 318)]
+        NSGraphicsContext.saveGraphicsState()
+        let move = NSAffineTransform()
+        move.translateX(by: point.x - anchors[index].x * scale, yBy: point.y - anchors[index].y * scale)
+        move.scale(by: scale); move.concat()
+        drawImage("walk-foot-\(index)")
+        NSGraphicsContext.restoreGraphicsState()
+    }
+
+    private func drawSettling() {
+        let pulse = reduceMotion || phase >= 0.24 ? 0 : sin(max(0, phase) / 0.24 * .pi)
+        NSGraphicsContext.saveGraphicsState()
+        let land = NSAffineTransform()
+        land.translateX(by: 200, yBy: 367)
+        land.scaleX(by: 1 + 0.018 * pulse, yBy: 1 - 0.028 * pulse)
+        land.translateX(by: -200, yBy: -367); land.concat()
+        drawImage("sit")
+        NSGraphicsContext.restoreGraphicsState()
     }
 
     private func drawImage(_ name: String, in rect: CGRect = CGRect(x: 0, y: 0, width: 400, height: 400)) {
@@ -374,11 +453,14 @@ final class DesktopPetView: NSView {
     }
 
     #if DESKTOP_PET_TESTS
-    func renderPNG(pose: DesktopPetPose, phase: Double = 0, facingLeft: Bool = false, walkDistance: CGFloat = 0) -> Data {
+    func renderPNG(pose: DesktopPetPose, phase: Double = 0, facingLeft: Bool = false, walkDistance: CGFloat = 0,
+                   carryLean: CGFloat = 0, isSettling: Bool = false) -> Data {
         self.pose = pose
         self.phase = phase
         self.facingLeft = facingLeft
         self.walkDistance = walkDistance
+        self.carryLean = carryLean
+        self.isSettling = isSettling
         let image = NSImage(size: bounds.size, flipped: true) { _ in self.draw(self.bounds); return true }
         let bitmap = NSBitmapImageRep(data: image.tiffRepresentation!)!
         return bitmap.representation(using: .png, properties: [:])!
