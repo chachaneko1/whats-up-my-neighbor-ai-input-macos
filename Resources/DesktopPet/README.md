@@ -11,6 +11,9 @@ https://www.figma.com/design/9GCLMgCKB0DnkDUDCrN7eN?node-id=3-39
 - `walk-body.svg`: unchanged tail/body paths extracted from `walk.svg`
 - `walk-paws.svg`: unchanged four-paw path extracted from `walk.svg`
 - `walk-head.svg`: unchanged round head outline extracted from `walk.svg`
+- `walk-front-face.svg`: original round head and complete front-facing expression
+
+The selected application logo (proposal A) places the original round face from `walk-front-face.svg` on a pure white rounded-square tile with a soft shadow. The tile has a 6% outer margin and the original face canvas has a 6.5% inset within the tile. Its unused body canvas is cropped and all face paths and proportions are preserved. Run `swift scripts/generate-app-icon.swift` to regenerate `Resources/AppIcon-source.png` and every size in `Resources/AppIcon.icns`. The elongated `Resources/neko-base.png` remains the recording artwork.
 
 SVG exports are kept unchanged. The native view composes the original parts for loafing/sleeping and adds small native expression marks. Black fur remains #101114. All artwork is bundled locally; no temporary Figma asset URLs are used at runtime. Custom cat.config.json PNGs retain their existing recording/greeting behavior.
 
