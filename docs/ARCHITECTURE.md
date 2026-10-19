@@ -20,7 +20,7 @@ App 是選單列常駐程式（`LSUIElement`），沒有主視窗、沒有自己
 | 步驟 | 負責的檔案 | 說明 |
 |---|---|---|
 | 註冊全域快捷鍵 | `HotKeyManager.swift` | Carbon hot key；主快捷鍵預設 `⌥↑`，iPhone 接力 `⌃⌥↑`，剪貼簿歷史 `⌃⌥V` |
-| 串起所有元件 | `VoiceTypeController.swift` | `NSApplicationDelegate`；啟動時建立各服務、請求權限、顯示首次引導 |
+| 串起所有元件 | `main.swift`、`VoiceTypeController.swift` | `main.swift` 只建立 `NSApplication` 並交給 `VoiceTypeController`（`NSApplicationDelegate`）；啟動時建立各服務、請求權限、顯示首次引導 |
 | 錄音狀態機 | `DictationCoordinator.swift` | 一次只管一段錄音；狀態 `idle → starting → recording → finalizing → transcribing → delivering`，失敗時進 `awaitingRetry` |
 | 鎖定輸入目標 | `FocusTargetService.swift` | 記下當下前景 App、視窗與焦點元素的身分（不讀文字內容、不截圖） |
 | 選麥克風 | `AudioInputPolicy.swift`、`AudioInputDevices.swift` | 沿用系統輸入，但排除 iPhone 連續互通麥克風；可固定電腦或外接麥克風 |
@@ -67,7 +67,7 @@ App 是選單列常駐程式（`LSUIElement`），沒有主視窗、沒有自己
 | 功能 | 檔案 | 資料停在哪裡 |
 |---|---|---|
 | 剪貼簿歷史 | `ClipboardHistoryMonitor.swift`、`ClipboardHistoryStore.swift`、`ClipboardPickerController.swift`、`ClipboardHistoryMenuController.swift` | 本機 `~/Library/Application Support/AI語音輸入/ClipboardHistory`，最多 10 筆、每筆 8 MiB |
-| 修正學習 | `PasteCorrectionMonitor.swift`、`MacVocabularyCorrection.swift`、`VocabularyLearningStore.swift`、`VocabularyLearningToastController.swift` | 貼上後最多觀察兩分鐘；候選只存修正片段，存在 `UserDefaults` |
+| 修正學習 | `PasteCorrectionMonitor.swift`、`MacVocabularyCorrection.swift`、`VocabularyLearningStore.swift`、`VocabularyLearningToastController.swift`、`VocabularyToastPresentation.swift`、`VocabularyLearningBubbleView.swift` | 貼上後最多觀察兩分鐘；提示泡泡與選單裡的預覽共用同一套顯示流程，但預覽不會建立或刪除詞條；候選只存修正片段，存在 `UserDefaults` |
 | 詞典管理 | `VocabularyWindowController.swift`、`MacVocabularyStore.swift` | `UserDefaults` 的 `smartVocabulary.entries.v1` |
 | 錄音浮窗 | `NekoRecordingHUD.swift`、`NekoSignalMeter.swift` | 不搶焦點的面板；左眼取消、右眼完成；`cat.config.json` 指定圖片時改用該圖片 |
 | 選單列 | `StatusMenuController.swift`、`NekoMenuBarIcon.swift` | 黑貓圖示與所有設定入口 |
@@ -76,7 +76,7 @@ App 是選單列常駐程式（`LSUIElement`），沒有主視窗、沒有自己
 | 貓咪外觀（毛色，`main` 上尚未發布） | `CatAppearance.swift`、`CatAppearanceArtwork.swift`、`CatAnatomy.swift` | `cat.config.json` version 2 的 `appearance`；只重新上色隨 App 打包的原圖，保留原本輪廓與透明度，使用者 PNG 不進這個繪製器 |
 | 更新 | `AppUpdateController.swift`、`UpdateReminderPolicy.swift`、`UpdateDiagnostics.swift` | Sparkle 每日讀 GitHub 上的 appcast；由使用者決定安裝 |
 | iPhone 接力（選用） | `MacRemoteBridge.swift`、`RemoteTargetController.swift`、`RemoteTargetValidationPolicy.swift`、`RemoteMessages.swift`、`VocabularySyncModels.swift` | 加密 Multipeer Connectivity；每次啟動預設關閉，協定版本 1 只支援文字接力 |
-| 診斷 | `PasteDiagnostics.swift` | 不記錄剪貼內容與來源 App 名稱 |
+| 診斷 | `PasteDiagnostics.swift` | 只有明確開啟時才在本機寫入有大小上限的 JSON；欄位型別固定，不能記錄文字、剪貼內容、App 與視窗名稱、API Key 或路徑 |
 
 ## 修改時的界線
 

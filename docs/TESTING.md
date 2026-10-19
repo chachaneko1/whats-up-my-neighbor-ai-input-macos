@@ -48,8 +48,8 @@
 | `test-paste-correction-monitor.sh` | 貼上後修正的觀察範圍、時限、競態與診斷 |
 | `test-vocabulary-correction.sh`、`test-vocabulary-learning.sh` | 修正候選的萃取、六秒提示後加入、拒絕與提示額度 |
 | `test-vocabulary-toast.sh` | 學習提示的倒數、滑鼠停留暫停與畫面位置 |
-| `test-paste-diagnostics.sh` | 診斷記錄不包含剪貼內容與來源 App 名稱 |
-| `test-neko-hud.sh` | 錄音浮窗的狀態、首次引導與位置 |
+| `test-paste-diagnostics.sh` | 診斷記錄只在使用者開啟時寫入；不含轉錄文字、剪貼內容、App 與視窗名稱、API Key、路徑等識別資訊 |
+| `test-neko-hud.sh` | 錄音浮窗的狀態、首次引導與上方／下方位置；音量條只對真實訊號反應、靜音時保持平坦、減少動態效果；不搶焦點的浮動面板與眼睛點擊範圍 |
 | `test-cat.sh` | `cat.config.json` 的格式驗證（317 項）、招呼觸發與冷卻、浮窗與嘴型動畫 |
 | `test-desktop-pet.sh` | 桌面小黑貓的動作循環、資料夾停靠、減少動態效果、點擊穿透與焦點保留 |
 | `test-desktop-pet-interaction.sh` | 1.4.5 的點擊、抓起與放下：原生滑鼠事件路徑、座標換算、漏接放開、快速重新抓取、暫停與焦點保留 |
