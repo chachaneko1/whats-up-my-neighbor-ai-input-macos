@@ -11,9 +11,9 @@
 
 ## 本機實作與範圍
 
-`DesktopPetModel` 是可重現的動作／位置模型；`DesktopPetView` 使用打包 SVG 與原生 AppKit 繪圖，舔前掌的圓掌由 `DesktopPetGroomingPalm` 繪製；`DesktopPetController` 使用不可成為 key/main 的非啟動面板，滑鼠點擊穿透。步行／哈欠最高 12 fps，舔前掌 25 fps，其他閒置動作 4 fps，操作中與隱藏時只作每秒狀態檢查。資料夾幾何讀取在背景佇列，約 8 秒刷新；遮擋與全螢幕約 2 秒更新，因此視窗或圖示剛變動時可能短暫保留前一位置。拔除螢幕後限制在剩餘可見範圍。
+`DesktopPetModel` 是可重現的動作／位置模型；`DesktopPetView` 使用打包 SVG 與原生 AppKit 繪圖（被拎起來的動作另用 `Pickup/` 裡的 36 張 PNG 畫格），舔前掌的圓掌由 `DesktopPetGroomingPalm` 繪製；`DesktopPetController` 使用不可成為 key/main 的非啟動面板；平常滑鼠點擊穿透，指標移到貓咪輪廓上才接收點擊與拖曳。步行／哈欠最高 12 fps，舔前掌 25 fps，其他閒置動作 4 fps，操作中與隱藏時只作每秒狀態檢查。資料夾幾何讀取在背景佇列，約 8 秒刷新；遮擋與全螢幕約 2 秒更新，因此視窗或圖示剛變動時可能短暫保留前一位置。拔除螢幕後限制在剩餘可見範圍。
 
-只讀 Finder 桌面 AX 圖示位置及資料夾型別；不截圖、不讀文字／檔案內容，不新增服務或 AI 請求。位置只有記憶體快取，沒有檔案／路徑紀錄。`cat.config.json` version 1 仍可讀取；version 2 的 `appearance` 可套用整套毛色及部位覆蓋。錄音／問候的自訂圖仍優先，不觸動手機接力。詳見 `docs/appearance/README.md`。
+只讀 Finder 桌面 AX 圖示位置及資料夾型別；不截圖、不讀文字／檔案內容，不新增服務或 AI 請求。位置只有記憶體快取，沒有檔案／路徑紀錄。`cat.config.json` version 1 仍可讀取；version 2 的 `appearance` 可套用整套毛色及部位覆蓋（`main` 上尚未發布，1.4.5 只接受 version 1）。錄音／問候的自訂圖仍優先，不觸動手機接力。詳見 `docs/appearance/README.md`。
 
 ## 背景啟動
 
@@ -21,6 +21,6 @@
 
 ## 驗證
 
-`./scripts/test-desktop-pet.sh` 使用假資料夾與隔離的原生視窗，驗證動作循環、停靠接觸點、圖示移除、使用中靜止、減少動態效果、喚醒、螢幕邊界、收回、滑鼠穿透及焦點保留；產生七種姿勢 PNG，位於 `build/cat-render/desktop-pet/`。`test-settings-store.sh` 驗證首次關閉、跨 store 重讀及不改其他設定；`test-all.sh` 同時回歸既有功能。
+`./scripts/test-desktop-pet.sh` 使用假資料夾與隔離的原生視窗，驗證動作循環、停靠接觸點、圖示移除、使用中靜止、減少動態效果、喚醒、螢幕邊界、收回、滑鼠穿透及焦點保留；產生各姿勢 PNG 與七格姿勢總覽 `poses.png`，位於 `build/cat-render/desktop-pet/`；點擊與抓起由 `./scripts/test-desktop-pet-interaction.sh` 另外驗證。`test-settings-store.sh` 驗證首次關閉、跨 store 重讀及不改其他設定；`test-all.sh` 同時回歸既有功能。
 
 實體多螢幕切換、整晚耗電及長時間桌面圖示變動仍需要日常使用觀察；測試不會假稱已完成整晚驗收。
