@@ -391,9 +391,63 @@ struct PreviewTests {
         expect(DesktopPetLift.lifting(elapsed: 2, lean: 0).spriteFrame == DesktopPetLift.carryFrame,
                "completed pickup holds a stable image without cycling")
 
+        // Palm abstraction stays inside the original mascot, joins its loop
+        // without a jump, and remains static when reduced motion is requested.
+        var previousPalm: CGPoint?
+        for sample in 0...320 {
+            let pose = DesktopPetGroomingPalm.sample(time: Double(sample) / 100)
+            expect(pose.center.x.isFinite && pose.center.y.isFinite && pose.angle.isFinite,
+                   "grooming palm positions are finite")
+            expect(CGRect(x: 80, y: 130, width: 110, height: 240).contains(pose.center),
+                   "palm stays over the cat rather than floating outside its silhouette")
+            if let previousPalm {
+                expect(hypot(previousPalm.x - pose.center.x, previousPalm.y - pose.center.y) < 8,
+                       "grooming palm cannot jump between animation phases")
+            }
+            previousPalm = pose.center
+        }
+        let beginPalm = DesktopPetGroomingPalm.sample(time: 0)
+        let endPalm = DesktopPetGroomingPalm.sample(time: 3.2)
+        expect(beginPalm.center == endPalm.center && beginPalm.activity == endPalm.activity,
+               "grooming loop returns to its original paw position")
+        expect(DesktopPetGroomingPalm.sample(time: 0, reduceMotion: true).center ==
+               DesktopPetGroomingPalm.sample(time: 3, reduceMotion: true).center,
+               "reduce motion holds one fixed palm pose")
+        for time in [0.95, 1.35, 1.75, 2.15] {
+            let contact = DesktopPetGroomingPalm.sample(time: time)
+            expect(contact.lick > 0.99 && contact.center.y > 230 && abs(contact.center.x - 184) < 0.01,
+                   "each lick reaches a held paw below the muzzle instead of wiping the cheek")
+            let retracted = DesktopPetGroomingPalm.sample(time: time + 0.2)
+            expect(retracted.lick < 0.001, "tongue retracts between licks")
+        }
+        for time in [0.0, 0.65, 0.75, 2.35, 2.45, 3.2] {
+            expect(DesktopPetGroomingPalm.sample(time: time).lick < 0.001,
+                   "tongue stays hidden during paw lift and lowering")
+        }
+        expect(DesktopPetGroomingPalm.sample(time: 1, reduceMotion: true).lick == 0,
+               "reduce motion does not animate or expose the tongue")
+
+        for pair in 0...1 {
+            let first = DesktopPetView.pawOffset(distance: 0, pair: pair)
+            expect(abs(first.x) < 0.0001 && abs(first.y) < 0.0001,
+                   "the first walking frame must retain the original standing paw positions")
+        }
+        for distance: CGFloat in [1, 3, 6, 9] {
+            let foot = DesktopPetView.pawOffset(distance: distance, pair: 0)
+            expect(abs(foot.x * 0.28 - distance) < 0.001 && foot.y == 0,
+                   "initial planted paw stays on the ground instead of sliding as the body advances")
+        }
+        expect(DesktopPetView.pawOffset(distance: DesktopPetView.strideDistance * 0.08, pair: 1).y < -10,
+               "the other diagonal pair lifts smoothly during the first step")
+        for left in [false, true] {
+            let a = view.renderPNG(pose: .walking, facingLeft: left, walkDistance: DesktopPetView.strideDistance)
+            let b = view.renderPNG(pose: .walking, facingLeft: left, walkDistance: DesktopPetView.strideDistance * 2)
+            expect(a == b, "steady walking repeats the same pose after one full stride")
+        }
+
         for pose in DesktopPetPose.allCases {
             for frame in 0..<24 {
-                let phase = Double(frame) / 12
+                let phase = pose == .grooming ? Double(frame) / 23 * 3.2 : Double(frame) / 12
                 let image = view.renderPNG(pose: pose, phase: phase, walkDistance: CGFloat(frame) * 3.5)
                 expect(image.count > 1400, "each pose renders nonempty")
                 try image.write(to: output.appendingPathComponent("\(pose.rawValue)-\(String(format: "%02d", frame)).png"))

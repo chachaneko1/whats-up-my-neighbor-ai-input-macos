@@ -8,7 +8,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/DesktopPet" "$OUTPUT/ren
 ditto "$ROOT/Resources/DesktopPet" "$APP/Contents/Resources/DesktopPet"
 cp "$SOURCE"/ExtraArtwork/*.svg "$APP/Contents/Resources/DesktopPet/"
 mkdir -p "$APP/Contents/Resources/DesktopPet/Pickup"
-rm -f "$APP/Contents/Resources/DesktopPet/Pickup/"*.png
+rm -f "$APP/Contents/Resources/DesktopPet/Pickup/"*.png(N)
 cp "$SOURCE"/GeminiArtwork/Direct32/Frames/*.png "$APP/Contents/Resources/DesktopPet/Pickup/"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -18,7 +18,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleName</key><string>小黑貓互動預覽</string>
 <key>CFBundleExecutable</key><string>NekoInteractionPreview</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.1</string>
+<key>CFBundleShortVersionString</key><string>0.1.7</string>
+<key>CFBundleVersion</key><string>20261018.7</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 </dict></plist>

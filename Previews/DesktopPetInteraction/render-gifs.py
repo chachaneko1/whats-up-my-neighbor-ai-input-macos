@@ -54,21 +54,21 @@ sequences = {
         + [frame('sitting', i, '回應結束，繼續安靜待著') for i in range(12)],
     '02_拎起放下.gif': pickup,
     '02b_動作慢看.gif': pickup,
-    '03_洗臉.gif': [frame('grooming', i, '平常照自己的節奏洗洗臉') for i in range(24)],
+    '03_洗臉.gif': [frame('grooming', i, '抬起前掌，低頭輕輕舔一舔') for i in range(24)],
 }
 overview = []
 overview_duration = []
 for name, sequence in sequences.items():
     if name == '02b_動作慢看.gif': continue
     overview.extend(sequence)
-    overview_duration.extend(([20, 20, 10] * 80) if name == '02_拎起放下.gif' else [83] * len(sequence))
+    overview_duration.extend(([20, 20, 10] * 80) if name == '02_拎起放下.gif' else ([130, 130, 140] * 8) if name == '03_洗臉.gif' else [83] * len(sequence))
 overview.extend(frame('walking', i, '閒置時散步，滑鼠移動不會吸引牠', x=130+i*9) for i in range(24))
 overview_duration.extend([83] * 24)
 sequences['00_互動總覽.gif'] = overview
 receipts = []
 for name, images in sequences.items():
     target = output / name
-    duration = overview_duration if name == '00_互動總覽.gif' else ([30, 40, 30] * 80) if name == '02b_動作慢看.gif' else ([20, 20, 10] * 80) if name == '02_拎起放下.gif' else 83
+    duration = overview_duration if name == '00_互動總覽.gif' else ([30, 40, 30] * 80) if name == '02b_動作慢看.gif' else ([20, 20, 10] * 80) if name == '02_拎起放下.gif' else ([130, 130, 140] * 8) if name == '03_洗臉.gif' else 83
     images[0].save(target, save_all=True, append_images=images[1:], duration=duration,
                    loop=0, disposal=2, optimize=False)
     with Image.open(target) as encoded:

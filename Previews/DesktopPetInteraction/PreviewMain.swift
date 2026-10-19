@@ -28,7 +28,7 @@ final class PreviewApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         controller = DesktopPetController(resources: resources)
         window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 430, height: 280),
                           styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
-        window.title = "小黑貓・Gemini 原畫試玩"
+        window.title = "小黑貓・舔前掌預覽"
         window.isReleasedWhenClosed = false
         window.delegate = self
         let stack = NSStackView()
@@ -36,10 +36,10 @@ final class PreviewApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         stack.alignment = .leading
         stack.spacing = 14
         stack.translatesAutoresizingMaskIntoConstraints = false
-        let title = NSTextField(labelWithString: "Gemini 小黑貓・原畫試玩")
+        let title = NSTextField(labelWithString: "Gemini 小黑貓・舔前掌預覽")
         title.font = .systemFont(ofSize: 22, weight: .semibold)
         stack.addArrangedSubview(title)
-        let hint = NSTextField(wrappingLabelWithString: "點一下，牠會回應你。\n按住拖曳，就能把牠拎起放下。\n平常安靜待機，閒置後洗臉、散步。")
+        let hint = NSTextField(wrappingLabelWithString: "點一下，牠會回應你。\n按住拖曳，就能把牠拎起放下。\n平常安靜待機，閒置後舔前掌、散步。")
         hint.font = .systemFont(ofSize: 14)
         stack.addArrangedSubview(hint)
         state = NSTextField(labelWithString: "")
@@ -47,7 +47,7 @@ final class PreviewApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         stack.addArrangedSubview(state)
         let buttons = NSStackView()
         buttons.spacing = 8
-        for (text, selector) in [("逗一下", #selector(pet)), ("看洗臉", #selector(groom)),
+        for (text, selector) in [("逗一下", #selector(pet)), ("看舔手", #selector(groom)),
                                  ("看散步", #selector(walk)), ("重設位置", #selector(reset))] {
             buttons.addArrangedSubview(NSButton(title: text, target: self, action: selector))
         }
@@ -69,12 +69,9 @@ final class PreviewApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-        // Own-window IDs only, for binding native QA to the floating cat rather
-        // than guessing a screen coordinate or inspecting other applications.
-        let windows: [String: Int] = ["control": window.windowNumber, "cat": controller.panel.windowNumber]
-        if let data = try? JSONSerialization.data(withJSONObject: windows, options: [.sortedKeys]) {
-            try? data.write(to: Bundle.main.bundleURL.deletingLastPathComponent().appendingPathComponent("preview-windows.json"))
-        }
+        // Keep launch independent of Desktop file access. Writing a QA report
+        // synchronously here can block AppKit on macOS permission mediation.
+
     }
 
     @objc private func pet() { controller.pet() }
