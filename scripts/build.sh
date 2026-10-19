@@ -33,6 +33,7 @@ swiftc \
   -framework AppKit \
   -framework AVFoundation \
   -framework ApplicationServices \
+  -framework QuartzCore \
   -framework CoreAudio \
   -framework Carbon \
   -framework Security \

@@ -1,7 +1,7 @@
 import Foundation
 
 enum DesktopPetPose: String, CaseIterable {
-    case sitting, standing, walking, curious, grooming, yawning, loafing, sleeping
+    case sitting, standing, walking, curious, grooming, yawning, loafing, sleeping, petted, carried
 
     var description: String {
         switch self {
@@ -10,6 +10,8 @@ enum DesktopPetPose: String, CaseIterable {
         case .walking: return "散步中"
         case .curious: return "有點好奇？"
         case .grooming: return "舔舔前掌"
+        case .petted: return "呼嚕～"
+        case .carried: return "被拎起來了"
         case .yawning: return "打哈欠"
         case .loafing: return "趴著休息"
         case .sleeping: return "睡著了"
@@ -51,6 +53,96 @@ struct DesktopPetModel {
     private var cycle = 0
     private var seed: UInt64
     private var journey: Journey?
+    private(set) var isPressed = false
+    private(set) var isDragging = false
+    private(set) var carryLean: CGFloat = 0
+    private(set) var isSettling = false
+    private(set) var lift = DesktopPetLift()
+    private var liftStart = DesktopPetLift()
+    private var petAfterLanding = false
+    private var lastDragPoint = CGPoint.zero
+    private var lastDragTime: TimeInterval?
+    private var pressPoint = CGPoint.zero
+    private var pressOrigin = CGPoint.zero
+    private var interactionUntil: TimeInterval?
+    static let dragThreshold: CGFloat = 5
+
+    /// Only explicit pointer-down/up events call these methods. Mouse movement
+    /// alone never changes the origin, heading, or animation destination.
+    mutating func pointerDown(at point: CGPoint, now: TimeInterval, world: DesktopPetWorld) {
+        guard released, visible, !world.hidden, point.x.isFinite, point.y.isFinite, now.isFinite else { return }
+        isPressed = true
+        isDragging = false
+        // A press during landing freezes that exact silhouette until click or
+        // drag decides the next state. It must not snap to the sitting asset.
+        carryLean = lift.lean
+        petAfterLanding = false
+        lastDragPoint = point
+        lastDragTime = now
+        pressPoint = point
+        pressOrigin = origin
+        journey = nil
+        interactionUntil = nil
+        lastTick = now
+    }
+
+    mutating func pointerDragged(to point: CGPoint, now: TimeInterval, world: DesktopPetWorld) {
+        guard isPressed, !world.hidden, point.x.isFinite, point.y.isFinite, now.isFinite,
+              let area = validAreas(world).first(where: { $0.contains(point) })
+                ?? validAreas(world).min(by: { distance($0.center, point) < distance($1.center, point) }) else { return }
+        guard isDragging || distance(point, pressPoint) >= Self.dragThreshold else { return }
+        let startingDrag = !isDragging
+        if startingDrag {
+            liftStart = lift
+            isSettling = false
+            setPose(.carried, now: now, duration: .infinity)
+        }
+        if !startingDrag, let previous = lastDragTime, now > previous, now - previous <= 0.3, !world.reduceMotion {
+            let speed = (point.x - lastDragPoint.x) / CGFloat(now - previous)
+            let target = max(-5, min(5, speed / 160))
+            let blend = CGFloat(1 - exp(-(now - previous) * 12))
+            carryLean += (target - carryLean) * blend
+        } else if world.reduceMotion { carryLean = 0 }
+        lastDragPoint = point
+        lastDragTime = now
+        isDragging = true
+        perchID = nil
+        origin = Self.clamp(CGPoint(x: pressOrigin.x + point.x - pressPoint.x,
+                                   y: pressOrigin.y + point.y - pressPoint.y), to: area)
+        phase = world.reduceMotion ? 0 : max(0, now - poseStarted)
+        lift = world.reduceMotion ? DesktopPetLift(shoulder: 1, hip: 1, paws: 1, spriteFrame: DesktopPetLift.carryFrame)
+            : .lifting(from: liftStart, elapsed: phase, lean: carryLean)
+    }
+
+    mutating func pointerUp(now: TimeInterval, world: DesktopPetWorld) {
+        guard isPressed else { return }
+        let wasDragging = isDragging
+        let resumeLanding = !wasDragging && isSettling && lift != DesktopPetLift() && !world.reduceMotion
+        let releasedLift = lift
+        cancelPointer(now: now)
+        guard released, !world.hidden else { return }
+        let landing = wasDragging || resumeLanding
+        setPose(landing ? .sitting : .petted, now: now, duration: landing ? 2 : 1.6)
+        isSettling = landing && !world.reduceMotion
+        if isSettling { liftStart = releasedLift; lift = releasedLift }
+        petAfterLanding = resumeLanding
+        interactionUntil = now + (landing ? 2 : 1.6)
+        lastTick = now
+        wasPaused = false
+    }
+
+    mutating func cancelPointer(now: TimeInterval) {
+        isPressed = false
+        isDragging = false
+        carryLean = 0
+        isSettling = false
+        lift = DesktopPetLift()
+        liftStart = DesktopPetLift()
+        petAfterLanding = false
+        lastDragTime = nil
+        interactionUntil = nil
+        setPose(.sitting, now: now, duration: 2)
+    }
 
     private struct Journey {
         var from: CGPoint
@@ -67,6 +159,7 @@ struct DesktopPetModel {
 
     mutating func setReleased(_ value: Bool, now: TimeInterval, world: DesktopPetWorld) {
         released = value
+        cancelPointer(now: now)
         journey = nil
         perchID = nil
         lastTick = nil
@@ -83,6 +176,7 @@ struct DesktopPetModel {
         guard now.isFinite else { return }
         let areas = validAreas(world)
         guard released, !world.hidden, !areas.isEmpty else {
+            if isPressed || interactionUntil != nil { cancelPointer(now: now) }
             visible = false
             wasPaused = true
             lastTick = now
@@ -94,18 +188,61 @@ struct DesktopPetModel {
         if let id = perchID, !world.perches.contains(where: { $0.id == id }) {
             landOnEdge(area)
         }
+        let delta = lastTick.map { max(0, min(0.2, now - $0)) } ?? 0
         let gap = lastTick.map { now < $0 || now - $0 > 2 } ?? false
         lastTick = now
         if wasPaused || gap {
+            if gap { cancelPointer(now: now) }
             wasPaused = false
             if journey != nil || perchID != nil { landOnEdge(area) }
             setPose(.sitting, now: now, duration: 2)
         }
-        // Clicks always pass through. Hiding near the pointer also uncovers the
-        // folder artwork while the user is selecting or dragging desktop items.
-        visible = !(world.idleSeconds < 2 && frame.insetBy(dx: -28, dy: -18).contains(world.cursor))
+        // Remain available for an intentional click. The controller makes only
+        // the opaque cat silhouette receive mouse events; padding passes through.
+        visible = true
+        if isPressed {
+            if world.reduceMotion && !isDragging && isSettling {
+                lift = DesktopPetLift()
+                liftStart = DesktopPetLift()
+                isSettling = false
+                petAfterLanding = false
+                setPose(.sitting, now: now, duration: 2)
+            }
+            if isDragging {
+                if world.reduceMotion { carryLean = 0 }
+                else if lastDragTime.map({ now - $0 > 0.04 }) ?? true {
+                    carryLean *= CGFloat(exp(-delta * 7))
+                }
+                phase = world.reduceMotion ? 0 : max(0, now - poseStarted)
+                lift = world.reduceMotion ? DesktopPetLift(shoulder: 1, hip: 1, paws: 1, spriteFrame: DesktopPetLift.carryFrame)
+                    : .lifting(from: liftStart, elapsed: phase, lean: carryLean)
+            }
+            return
+        }
+        if let until = interactionUntil {
+            if now < until, journey == nil {
+                phase = world.reduceMotion ? 0 : max(0, now - poseStarted)
+                if isSettling {
+                    lift = world.reduceMotion ? DesktopPetLift() : liftStart.landing(elapsed: phase)
+                    if world.reduceMotion || phase >= liftStart.returnDuration {
+                        isSettling = false
+                        if petAfterLanding {
+                            petAfterLanding = false
+                            setPose(.petted, now: now, duration: 1.6)
+                            interactionUntil = now + 1.6
+                        }
+                    }
+                }
+                return
+            }
+            if now >= until {
+                interactionUntil = nil
+                isSettling = false
+                if journey == nil { setPose(.sitting, now: now, duration: 2) }
+            }
+        }
         let active = !world.idleSeconds.isFinite || world.idleSeconds < 12
-        if active || world.reduceMotion {
+        if (active && interactionUntil == nil) || world.reduceMotion {
             if journey != nil || perchID != nil { landOnEdge(area) }
             if !wasActive || world.reduceMotion {
                 cycle = 0
@@ -153,6 +290,7 @@ struct DesktopPetModel {
         case .yawning: setPose(.loafing, now: now, duration: 5)
         case .loafing: setPose(.sleeping, now: now, duration: 18 + random() * 16)
         case .sleeping: beginWalk(now: now, area: area, world: world)
+        case .petted, .carried: setPose(.sitting, now: now, duration: 2)
         }
     }
 
