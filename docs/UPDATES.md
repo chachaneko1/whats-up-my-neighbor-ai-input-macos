@@ -64,7 +64,7 @@ GitHub repository 或 `macos-release` environment 只需要：
 
 固定使用官方 Sparkle 2.10.0，版本及下載 SHA-256 固定，每次從驗證過的 archive 解開。`Resources/Info.plist` 是版本與 build 的唯一來源，選單、一般建置與正式更新包保持一致。已停止以 workflow 執行次數產生 build；正式版必須同時提高版本及 build，9999 前需明確遷移。黑貓選單顯示「版本 x.y.z（build）」；歷史紀錄見 `CHANGELOG.md`。
 
-清單網址為 `https://github.com/yuipan0611/groq-ai-voice-input-macos/releases/latest/download/appcast.xml`。公開 repository 的使用者不需 GitHub token。每個標記 latest 的正式 Release 都必須含 macOS appcast；Windows 或其他產品不可搶佔 latest。PR／CI 通過並不等於公開清單已上線，首次發佈前該網址可能 404。
+清單網址為 `https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/releases/latest/download/appcast.xml`。公開 repository 的使用者不需 GitHub token。每個標記 latest 的正式 Release 都必須含 macOS appcast；Windows 或其他產品不可搶佔 latest。PR／CI 通過並不等於公開清單已上線，首次發佈前該網址可能 404。
 
 ## 驗證範圍
 

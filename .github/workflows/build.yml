@@ -46,7 +46,7 @@ jobs:
     # Never expose publisher credentials to PR/fork code. This job only runs
     # after a trusted push to main or this implementation branch and publishes
     # no release/tag/feed. The PR job above remains entirely secret-free.
-    if: github.event_name == 'push' && github.repository == 'yuipan0611/groq-ai-voice-input-macos' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/neko-cicd-updates')
+    if: github.event_name == 'push' && github.repository == 'yuipan0611/whats-up-my-neighbor-ai-input-macos' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/neko-cicd-updates')
     runs-on: macos-14
     timeout-minutes: 25
     steps:

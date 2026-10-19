@@ -1,6 +1,6 @@
 # 小黑貓滑鼠互動預覽 — R4 Gemini 原畫 32 格
 
-獨立 macOS 試玩 checkpoint。點一下回應、按住拖曳超過 5pt 拎起、放手原處坐下；閒置後洗臉、散步。滑鼠靠近或經過不吸引牠。未整合、安裝或發布正式 YUI Neko。
+獨立 macOS 試玩 checkpoint。點一下回應、按住拖曳超過 5pt 拎起、放手原處坐下；閒置後舔前掌、散步。滑鼠靠近或經過不吸引牠。未整合、安裝或發布正式 YUI Neko。
 
 本輪依負責人要求，直接播放 Gemini 重畫的 32 張圖。素材來源是 `GeminiArtwork/Direct32/source.png`（1456×720，8 欄 × 4 列）；`prompt.txt` 保留生成提示詞。`slice_frames.py` 依原順序切格、去洋紅背景，全部只使用同一 1.46 倍縮放及眼睛中心平移對齊，不重畫或補間輪廓、不剪除獨立部位、不調整各格比例。原圖與前版素材均保留。
 
@@ -19,13 +19,15 @@
 
 ## 建置與驗證
 
+直接建置只需要 macOS／Swift 系統工具；已附切分影格。重新切圖需 Python、Pillow、NumPy，GIF 編碼需 Pillow，均為選用工具。
+
 ```sh
 python3 Previews/DesktopPetInteraction/GeminiArtwork/Direct32/slice_frames.py
 Previews/DesktopPetInteraction/build-preview.sh
 python3 Previews/DesktopPetInteraction/render-gifs.py
 ```
 
-執行建置出的 `build/desktop-pet-interaction/小黑貓互動預覽.app`。控制視窗可逗一下、看洗臉、看散步、重設、收回／放出及結束。關閉視窗或 Command-Q 可退出。
+執行建置出的 `build/desktop-pet-interaction/小黑貓互動預覽.app`。控制視窗可逗一下、看舔手、看散步、重設、收回／放出及結束。關閉視窗或 Command-Q 可退出。
 
 `DesktopPetModel` 管理手勢、固定影格節奏及中斷；`DesktopPetView` 播放本機 PNG 並用透明度判斷可點範圍；`DesktopPetController` 保持浮動面板不可取得鍵盤焦點。拖曳座標依滑鼠位移直接更新，不另加位置緩動。圖片按需解碼，NSCache 設 16 張／12MiB 成本門檻。
 
@@ -35,10 +37,10 @@ python3 Previews/DesktopPetInteraction/render-gifs.py
 
 可接手的練習：比較來源圖、切分總覽及原畫 GIF，指出最突兀的相鄰兩格。這次先學會區分「來源姿勢差異」與「程式播放變速」；尚未把 AI 實作完成當成負責人已學會。
 
-## 舔前掌預覽（0.1.7，待確認）
+## 舔前掌預覽（0.1.7，使用者已確認）
 
 依負責人最新要求，洗臉改成抬掌至嘴下、低頭輕舔四次、放下；圓掌和短腕部維持簡化，完整前臂藏在身體與臉部後方。舌頭改成更短、更寬、底部圓弧的小舌尖（最大長度由約 17 縮至 9 美術單位），短暫伸出碰到前掌上緣，每次舔完收回，手掌不再擦過臉頰。減少動態效果採固定托掌姿勢、不顯示舌頭。原始坐姿向量只拆分頭身與移除動作側落地前掌，Gemini 拎起原畫、順序與節奏保持不變；本次保留前輪走路銜接修正。
 
-預覽通過 5,035 項檢查，涵蓋掌部路徑連續性、四次舔掌和收舌、循環回到原位、減少動態效果及既有手勢、焦點與素材邊界。`RenderGroomingReview.swift` 匯出同一原生 renderer 的 80 張 3 倍解析度影格；GIF 合併相同停頓影格後為 77 格，總長仍為 3.2 秒，並非真人操作錄影。動畫尚待負責人接受，沒有 commit 或 push。預覽與驗證位於工作區 `reports/neko-grooming-clarity/lick-round-review/`。
+預覽通過 5,035 項檢查，涵蓋掌部路徑連續性、四次舔掌和收舌、循環回到原位、減少動態效果及既有手勢、焦點與素材邊界。`RenderGroomingReview.swift` 匯出同一原生 renderer 的 80 張 3 倍解析度影格；GIF 合併相同停頓影格後為 77 格，總長仍為 3.2 秒，並非真人操作錄影。2026-10-18 使用者已確認短圓舌尖版本並授權 commit／push；本次只保存獨立預覽，尚未整合或安裝正式 App。已確認動畫與驗證見 `Review/`。`BaseArtwork/` 固定保存此次核准的原始向量；建置不依賴其他分支的正式資源。
 
 啟動不再同步寫桌面 `preview-windows.json`，避免檔案 open 阻塞 AppKit 主執行緒。原有報告檔不會被讀取或刪除，預覽不需要桌面檔案存取。視窗名稱為「小黑貓・舔前掌預覽」，按「看舔手」播放。

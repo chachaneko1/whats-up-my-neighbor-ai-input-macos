@@ -1,0 +1,19 @@
+name: Desktop pet preview
+
+on:
+  push:
+    paths: ['Previews/DesktopPetInteraction/**', '.github/workflows/desktop-pet-preview.yml']
+  pull_request:
+    paths: ['Previews/DesktopPetInteraction/**', '.github/workflows/desktop-pet-preview.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: macos-14
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Build standalone preview and run offline checks
+        run: Previews/DesktopPetInteraction/build-preview.sh

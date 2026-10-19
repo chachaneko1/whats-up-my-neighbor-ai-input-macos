@@ -44,7 +44,7 @@ struct DesktopPetTests {
                        "feet contact the actual folder's top edge")
             }
         }
-        expect(poses == Set(DesktopPetPose.allCases), "idle cycle reaches all seven poses")
+        expect(poses == Set(DesktopPetPose.allCases), "idle cycle reaches all eight poses including approved paw licking")
         expect(perched && moving, "walks to a folder as well as the screen edge")
         expect(travelDirections == [true, false], "fixture exercises leftward and rightward travel")
 
@@ -141,7 +141,7 @@ struct DesktopPetTests {
         // acceleration: planted paws must not drift as the panel moves.
         for left in [false, true] {
             let initial = DesktopPetView.pawOffset(distance: 0, pair: 0)
-            for distance: CGFloat in [4, 8, 12, 16, 20] {
+            for distance: CGFloat in [1, 3, 6, 9, 12] {
                 let foot = DesktopPetView.pawOffset(distance: distance, pair: 0)
                 let panelX = left ? -distance : distance
                 let worldX = panelX + (left ? foot.x : -foot.x) * 0.28
@@ -149,12 +149,55 @@ struct DesktopPetTests {
                        "planted paw stays fixed on the desktop while the body advances")
             }
         }
-        let lifted = DesktopPetView.pawOffset(distance: DesktopPetView.strideDistance * 0.8, pair: 0)
+        let lifted = DesktopPetView.pawOffset(distance: DesktopPetView.strideDistance * 0.5, pair: 0)
         expect(lifted.y <= -27, "swing lifts a paw visibly above the ground")
-        let landed = DesktopPetView.pawOffset(distance: DesktopPetView.strideDistance, pair: 0)
+        let landed = DesktopPetView.pawOffset(distance: DesktopPetView.strideDistance * 0.7, pair: 0)
         expect(landed.y == 0 && abs(landed.x + 43) < 0.001, "swing returns to a planted leading paw")
-        let partner = DesktopPetView.pawOffset(distance: DesktopPetView.strideDistance * 0.3, pair: 1)
+        let partner = DesktopPetView.pawOffset(distance: DesktopPetView.strideDistance, pair: 1)
         expect(partner.y <= -27, "diagonal pairs alternate stance and swing")
+        for pair in 0...1 {
+            let first = DesktopPetView.pawOffset(distance: 0, pair: pair)
+            expect(abs(first.x) < 0.001 && abs(first.y) < 0.001, "first step starts at neutral standing paws")
+        }
+        expect(view.loadedAssets.isSuperset(of: ["groom-head", "groom-body", "walk-foot-0", "walk-foot-1", "walk-foot-2", "walk-foot-3"]),
+               "approved palm and original individual paws are bundled")
+        var lastPalm: CGPoint?
+        for i in 0...320 {
+            let palm = DesktopPetGroomingPalm.sample(time: Double(i) / 100)
+            expect(palm.center.x.isFinite && palm.center.y.isFinite && palm.lick.isFinite,
+                   "paw licking remains finite through the complete cycle")
+            if let lastPalm {
+                expect(hypot(lastPalm.x - palm.center.x, lastPalm.y - palm.center.y) < 8,
+                       "paw does not jump between lift, licking and lowering")
+            }
+            lastPalm = palm.center
+        }
+        for t in [0.95, 1.35, 1.75, 2.15] {
+            let palm = DesktopPetGroomingPalm.sample(time: t)
+            expect(palm.lick > 0.99 && palm.center.y > 230, "four licks touch a held paw below the muzzle")
+            expect(DesktopPetGroomingPalm.sample(time: t + 0.2).lick < 0.001, "tongue retracts between licks")
+        }
+        expect(DesktopPetGroomingPalm.sample(time: 0).center == DesktopPetGroomingPalm.sample(time: 3.2).center,
+               "grooming returns to the grounded paw position")
+        expect(DesktopPetGroomingPalm.sample(time: 1, reduceMotion: true).lick == 0,
+               "reduced motion hides the tongue and holds the palm still")
+        let lickingPixels = NSBitmapImageRep(data: view.renderPNG(pose: .grooming, phase: 0.95))!
+        var tonguePixels: [CGPoint] = []
+        for y in 0..<lickingPixels.pixelsHigh {
+            for x in 0..<lickingPixels.pixelsWide {
+                let color = lickingPixels.colorAt(x: x, y: y)!.usingColorSpace(.deviceRGB)!
+                if color.alphaComponent > 0.8 && color.redComponent > 0.7 &&
+                    color.greenComponent > 0.3 && color.greenComponent < 0.65 &&
+                    color.blueComponent > 0.35 && color.blueComponent < 0.7 {
+                    tonguePixels.append(CGPoint(x: x, y: y))
+                }
+            }
+        }
+        expect(tonguePixels.count > 2, "short tongue is visible in the actual native render")
+        if let minX = tonguePixels.map(\.x).min(), let maxX = tonguePixels.map(\.x).max(),
+           let minY = tonguePixels.map(\.y).min(), let maxY = tonguePixels.map(\.y).max() {
+            expect(maxX - minX >= maxY - minY, "approved tongue stays broad and short rather than long and thin")
+        }
         expect(view.loadedAssets.contains("sit") && view.loadedAssets.contains("walk") && view.loadedAssets.contains("reply"), "original artwork bundled")
         expect(view.loadedAssets.contains("walk-body") && view.loadedAssets.contains("walk-paws") &&
                view.loadedAssets.contains("walk-front-face"), "original directional walking components bundled")

@@ -5,7 +5,7 @@ SOURCE="$ROOT/Previews/DesktopPetInteraction"
 OUTPUT="$ROOT/build/desktop-pet-interaction"
 APP="$OUTPUT/小黑貓互動預覽.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/DesktopPet" "$OUTPUT/renders"
-ditto "$ROOT/Resources/DesktopPet" "$APP/Contents/Resources/DesktopPet"
+ditto "$SOURCE/BaseArtwork" "$APP/Contents/Resources/DesktopPet"
 cp "$SOURCE"/ExtraArtwork/*.svg "$APP/Contents/Resources/DesktopPet/"
 mkdir -p "$APP/Contents/Resources/DesktopPet/Pickup"
 rm -f "$APP/Contents/Resources/DesktopPet/Pickup/"*.png(N)
