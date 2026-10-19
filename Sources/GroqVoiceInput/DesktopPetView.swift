@@ -4,52 +4,150 @@ import AppKit
 /// The SVG files remain unchanged; no temporary Figma URLs are used at runtime.
 final class DesktopPetView: NSView {
     private let images: [String: NSImage]
+    private let pickupFrames: [URL]
+    private let pickupMaps: [CatAnatomy.PickupMap]?
+    private let coatArtwork: CatAppearanceArtwork
+    private let pickupCache = NSCache<NSNumber, NSImage>()
+    static let pickupSampleCount = 36
+
+    private func pickupImage(at index: Int) -> NSImage? {
+        let key = NSNumber(value: index)
+        if let cached = pickupCache.object(forKey: key) { return cached }
+        guard let data = try? Data(contentsOf: pickupFrames[index]),
+              let bitmap = NSBitmapImageRep(data: data) else { return nil }
+        let original = NSImage(size: Self.panelSize)
+        original.addRepresentation(bitmap)
+        let image: NSImage
+        if !coatArtwork.appearance.isOriginal, let maps = pickupMaps {
+            guard let colored = coatArtwork.image(original, layout: .pickup(maps[index])) else { return nil }
+            image = colored
+        } else { image = original }
+        pickupCache.setObject(image, forKey: key, cost: bitmap.bytesPerRow * bitmap.pixelsHigh)
+        return image
+    }
+    // Padding expands only the visual panel. Model/grip coordinates retain the
+    // original 128pt nominal frame, and sitting feet keep their world position.
+    static let panelSize = CGSize(width: 208, height: 192)
+    static let panelOffset = CGPoint(x: -40, y: -64)
     var pose: DesktopPetPose = .sitting
     var phase: Double = 0
     var walkDistance: CGFloat = 0
     var facingLeft = false
     var reduceMotion = false
+    var carryLean: CGFloat = 0
+    var isSettling = false
+    var lift = DesktopPetLift()
+    var onPointerDown: ((CGPoint) -> Void)?
+    var onPointerDragged: ((CGPoint) -> Void)?
+    var onPointerUp: (() -> Void)?
+    var onAccessibilityPress: (() -> Void)?
+    private var hitBitmap: NSBitmapImageRep?
+    private var hitPose: DesktopPetPose?
+    private var hitFacing = false
     override var isFlipped: Bool { true }
     override var isOpaque: Bool { false }
     override var acceptsFirstResponder: Bool { false }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-    init(resources: URL? = Bundle.main.resourceURL?.appendingPathComponent("DesktopPet")) {
+    init(resources: URL? = Bundle.main.resourceURL?.appendingPathComponent("DesktopPet"), appearance: CatAppearance = .original) {
+        let painter = CatAppearanceArtwork(appearance)
+        coatArtwork = painter
+        pickupMaps = CatAnatomy.pickupMaps(at: resources?.appendingPathComponent("Pickup/anatomy.json"))
         let names = ["sit", "walk", "reply", "body", "tail", "walk-body", "walk-paws", "walk-front-face", "walk-foot-0", "walk-foot-1", "walk-foot-2", "walk-foot-3", "groom-body", "groom-head"]
         images = Dictionary(uniqueKeysWithValues: names.compactMap { name in
             guard let url = resources?.appendingPathComponent(name + ".svg"),
-                  let image = NSImage(contentsOf: url) else { return nil }
-            // Render the original head and face together, without a reflected
-            // SVG cache moving their edges after direction changes.
-            if name == "walk-front-face" { image.cacheMode = .never }
+                  let image = painter.desktopImage(at: url, asset: name) else { return nil }
+            image.cacheMode = .never
             return (name, image)
         })
-        super.init(frame: CGRect(origin: .zero, size: DesktopPetModel.size))
+        pickupFrames = (0..<Self.pickupSampleCount).compactMap { index in
+            guard let url = resources?.appendingPathComponent("Pickup/" + String(format: "%02d.png", index)) else { return nil }
+            return FileManager.default.fileExists(atPath: url.path) ? url : nil
+        }
+        super.init(frame: CGRect(origin: .zero, size: Self.panelSize))
+        pickupCache.countLimit = 16
+        pickupCache.totalCostLimit = 12 * 1024 * 1024
         setAccessibilityElement(true)
-        setAccessibilityRole(.image)
-        setAccessibilityLabel("小黑貓桌面夥伴")
-        setAccessibilityHelp("可從選單列的小黑貓選擇收回。")
+        setAccessibilityRole(.button)
+        setAccessibilityLabel(appearance.title + "桌面夥伴")
+        setAccessibilityHelp("點一下逗逗牠，或按住拖曳，把牠拎起放下。")
     }
 
     required init?(coder: NSCoder) { nil }
 
+    override func mouseDown(with event: NSEvent) {
+        onPointerDown?(window?.convertPoint(toScreen: event.locationInWindow) ?? NSEvent.mouseLocation)
+    }
+    override func mouseDragged(with event: NSEvent) {
+        onPointerDragged?(window?.convertPoint(toScreen: event.locationInWindow) ?? NSEvent.mouseLocation)
+    }
+    override func mouseUp(with event: NSEvent) { onPointerUp?() }
+    override func accessibilityPerformPress() -> Bool {
+        guard let action = onAccessibilityPress else { return false }
+        action()
+        return true
+    }
+
+    /// Cache a native alpha mask per pose, rather than putting a rectangular
+    /// click target over the desktop. Motion only changes this silhouette a few
+    /// pixels; a 2pt tolerance keeps the boundary usable without a broad hotspot.
+    func containsCat(_ point: CGPoint) -> Bool {
+        guard bounds.contains(point), point.y >= 29 else { return false }
+        if hitBitmap == nil || hitPose != pose || hitFacing != facingLeft {
+            let image = NSImage(size: bounds.size, flipped: true) { _ in self.draw(self.bounds); return true }
+            hitBitmap = image.tiffRepresentation.flatMap(NSBitmapImageRep.init(data:))
+            hitPose = pose
+            hitFacing = facingLeft
+        }
+        guard let bitmap = hitBitmap else { return false }
+        for dy in -2...2 {
+            for dx in -2...2 {
+                let x = Int((point.x + CGFloat(dx)) / bounds.width * CGFloat(bitmap.pixelsWide))
+                let y = Int((point.y + CGFloat(dy)) / bounds.height * CGFloat(bitmap.pixelsHigh))
+                if x >= 0, y >= 0, x < bitmap.pixelsWide, y < bitmap.pixelsHigh,
+                   (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.3 { return true }
+            }
+        }
+        return false
+    }
+
     func update(_ model: DesktopPetModel, reduceMotion: Bool) {
+        if pose != model.pose || phase != model.phase || facingLeft != model.facingLeft ||
+           walkDistance != model.walkDistance || self.reduceMotion != reduceMotion ||
+           carryLean != model.carryLean || isSettling != model.isSettling || lift != model.lift {
+            hitBitmap = nil
+        }
         if pose != model.pose { setAccessibilityValue(model.pose.description) }
         pose = model.pose
         phase = model.phase
         walkDistance = model.walkDistance
         facingLeft = model.facingLeft
         self.reduceMotion = reduceMotion
+        carryLean = model.carryLean
+        isSettling = model.isSettling
+        lift = model.lift
         needsDisplay = true
     }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
+        if pose == .petted {
+            NSGraphicsContext.saveGraphicsState()
+            let bubble = NSAffineTransform(); bubble.translateX(by: 40, yBy: 0); bubble.concat()
+            drawResponseBubble()
+            NSGraphicsContext.restoreGraphicsState()
+        }
+        if [.sitting, .carried].contains(pose), pickupFrames.count == Self.pickupSampleCount,
+           coatArtwork.appearance.isOriginal || pickupMaps != nil {
+            drawPickupFrame()
+            return
+        }
         NSGraphicsContext.saveGraphicsState()
         defer { NSGraphicsContext.restoreGraphicsState() }
         let transform = NSAffineTransform()
         // The original 400-point artwork's feet (y=367) sit 2pt above the
         // panel's bottom. This is also the model's folder-perch contact point.
-        transform.translateX(by: 8, yBy: 128 - 2 - 367 * 0.28)
+        transform.translateX(by: 48, yBy: 128 - 2 - 367 * 0.28)
         transform.scale(by: 0.28)
         transform.concat()
         switch pose {
@@ -58,6 +156,9 @@ final class DesktopPetView: NSView {
         case .standing: drawImage("walk")
         case .walking: drawWalking()
         case .grooming: drawGrooming()
+        case .petted:
+            breathe { drawImage("reply"); closeEyes(inHeadAt: .zero, scale: 1) }
+        case .carried: drawImage("sit")
         case .yawning: drawYawning()
         case .loafing, .sleeping: drawLoaf(sleeping: pose == .sleeping)
         }
@@ -65,24 +166,29 @@ final class DesktopPetView: NSView {
         if pose == .sleeping { drawSleepMarks() }
     }
 
-    private let fur = NSColor(srgbRed: 16 / 255, green: 17 / 255, blue: 20 / 255, alpha: 1)
-    private let ink = NSColor(srgbRed: 250 / 255, green: 250 / 255, blue: 249 / 255, alpha: 1)
-
-    private func drawImage(_ name: String, in rect: CGRect = CGRect(x: 0, y: 0, width: 400, height: 400)) {
-        images[name]?.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1,
-                           respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high])
+    private var fur: NSColor { coatArtwork.color(.body) }
+    private var ink: NSColor {
+        coatArtwork.appearance.isOriginal ? NSColor(srgbRed: 250 / 255, green: 250 / 255, blue: 249 / 255, alpha: 1) : coatArtwork.ink()
     }
 
-    private func breathe(_ body: () -> Void) {
-        NSGraphicsContext.saveGraphicsState()
-        let breath = reduceMotion ? 0 : sin(phase * .pi / 2.8) * 0.006
-        let transform = NSAffineTransform()
-        transform.translateX(by: 200, yBy: 367)
-        transform.scaleX(by: 1 + breath * 0.35, yBy: 1 + breath)
-        transform.translateX(by: -200, yBy: -367)
-        transform.concat()
-        body()
-        NSGraphicsContext.restoreGraphicsState()
+    private func drawPickupFrame() {
+        // No sway, morph, blended image, or per-frame scale: show the sliced
+        // Gemini drawing at its fixed grip anchor, including both idle ends.
+        let index = max(0, min(Self.pickupSampleCount - 1, DesktopPetLift.imageIndex(for: lift.spriteFrame)))
+        pickupImage(at: index)?.draw(in: CGRect(origin: .zero, size: Self.panelSize), from: .zero,
+                                 operation: .sourceOver, fraction: 1, respectFlipped: true,
+                                 hints: [.interpolation: NSImageInterpolation.high])
+    }
+
+    private func drawResponseBubble() {
+        let fur = NSColor(srgbRed: 16 / 255, green: 17 / 255, blue: 20 / 255, alpha: 1)
+        let ink = NSColor(srgbRed: 250 / 255, green: 250 / 255, blue: 249 / 255, alpha: 1)
+        let bubble = NSBezierPath(roundedRect: CGRect(x: 66, y: 1, width: 59, height: 24), xRadius: 9, yRadius: 9)
+        ink.setFill(); bubble.fill()
+        fur.setStroke(); bubble.lineWidth = 1.1; bubble.stroke()
+        ("呼嚕～" as NSString).draw(at: CGPoint(x: 76, y: 5), withAttributes: [
+            .font: NSFont.systemFont(ofSize: 11), .foregroundColor: fur
+        ])
     }
 
     private func drawGrooming() {
@@ -93,7 +199,8 @@ final class DesktopPetView: NSView {
         let hiddenWrist = NSBezierPath()
         hiddenWrist.move(to: CGPoint(x: 149, y: 248))
         hiddenWrist.line(to: CGPoint(x: palm.center.x, y: palm.center.y + 15 * palm.activity))
-        fur.setStroke(); hiddenWrist.lineWidth = 29; hiddenWrist.lineCapStyle = .round; hiddenWrist.stroke()
+        coatArtwork.color(.frontLeftLeg).setStroke()
+        hiddenWrist.lineWidth = 29; hiddenWrist.lineCapStyle = .round; hiddenWrist.stroke()
 
         NSGraphicsContext.saveGraphicsState()
         let head = NSAffineTransform()
@@ -122,8 +229,14 @@ final class DesktopPetView: NSView {
         paw.curve(to: CGPoint(x: 13, y: 20), controlPoint1: CGPoint(x: 22, y: 13), controlPoint2: CGPoint(x: 19, y: 18))
         let rim = paw.copy() as! NSBezierPath
         paw.close()
-        let shade = fur.blended(withFraction: palm.activity, of: NSColor(srgbRed: 38/255, green: 40/255, blue: 45/255, alpha: 1)) ?? fur
+        let pawFur = coatArtwork.appearance.isOriginal ? fur : coatArtwork.color(.frontLeftPaw)
+        let shade = coatArtwork.appearance.isOriginal
+            ? (fur.blended(withFraction: palm.activity, of: NSColor(srgbRed: 38/255, green: 40/255, blue: 45/255, alpha: 1)) ?? fur)
+            : pawFur
         shade.setFill(); paw.fill()
+        if !coatArtwork.appearance.isOriginal {
+            coatArtwork.fill(paw, layout: .part(.frontLeftPaw), in: CGRect(x: -28, y: -30, width: 56, height: 60), cacheKey: "groom-paw")
+        }
         NSColor(calibratedWhite: 0.48, alpha: palm.activity).setStroke()
         rim.lineWidth = 3.5; rim.lineCapStyle = .round; rim.stroke()
         // A short dark wrist merges into the surrounding fur, without drawing
@@ -154,6 +267,23 @@ final class DesktopPetView: NSView {
             tongue.fill()
             NSGraphicsContext.restoreGraphicsState()
         }
+    }
+
+    private func drawImage(_ name: String, in rect: CGRect = CGRect(x: 0, y: 0, width: 400, height: 400)) {
+        images[name]?.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1,
+                           respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high])
+    }
+
+    private func breathe(_ body: () -> Void) {
+        NSGraphicsContext.saveGraphicsState()
+        let breath = reduceMotion ? 0 : sin(phase * .pi / 2.8) * 0.006
+        let transform = NSAffineTransform()
+        transform.translateX(by: 200, yBy: 367)
+        transform.scaleX(by: 1 + breath * 0.35, yBy: 1 + breath)
+        transform.translateX(by: -200, yBy: -367)
+        transform.concat()
+        body()
+        NSGraphicsContext.restoreGraphicsState()
     }
 
     private func drawWalking() {
@@ -194,7 +324,12 @@ final class DesktopPetView: NSView {
                        controlPoint1: CGPoint(x: neck.x + neckHalf, y: neck.y - height * 0.3),
                        controlPoint2: CGPoint(x: root.x + rootHalf, y: root.y + height * 0.4))
             join.close()
-            fur.setFill(); join.fill()
+            if coatArtwork.appearance.isOriginal { fur.setFill(); join.fill() }
+            else {
+                coatArtwork.fill(join, layout: .desktop("walk-foot-\(index)"),
+                    in: CGRect(x: 0, y: 0, width: 400, height: 400),
+                    cacheKey: "leg-\(index)")
+            }
             NSGraphicsContext.saveGraphicsState()
             let motion = NSAffineTransform()
             motion.translateX(by: step.x, yBy: step.y)
@@ -249,8 +384,7 @@ final class DesktopPetView: NSView {
     private func drawYawning() {
         drawImage("sit")
         let opening = reduceMotion ? 0.8 : sin(min(1, phase / 3.2) * .pi)
-        fur.setFill()
-        NSBezierPath(ovalIn: CGRect(x: 174, y: 168, width: 57, height: 43)).fill()
+        fillFacePatch(NSBezierPath(ovalIn: CGRect(x: 174, y: 168, width: 57, height: 43)))
         ink.setStroke()
         let mouth = NSBezierPath(ovalIn: CGRect(x: 187, y: 181 - opening * 3,
                                                width: 25, height: 8 + opening * 30))
@@ -281,11 +415,11 @@ final class DesktopPetView: NSView {
         transform.translateX(by: origin.x, yBy: origin.y)
         transform.scale(by: scale)
         transform.concat()
-        fur.setFill()
-        NSBezierPath(ovalIn: CGRect(x: 85, y: 130, width: 62, height: 59)).fill()
-        NSBezierPath(ovalIn: CGRect(x: 247, y: 129, width: 77, height: 57)).fill()
+        fillFacePatch(NSBezierPath(ovalIn: CGRect(x: 85, y: 130, width: 62, height: 59)))
+        fillFacePatch(NSBezierPath(ovalIn: CGRect(x: 247, y: 129, width: 77, height: 57)))
         ink.setStroke()
         for x: CGFloat in [99, 267] {
+            if !coatArtwork.appearance.isOriginal { coatArtwork.ink(.head, u: Double(x + 16 - 45) / 312, v: 0.68).setStroke() }
             let eyelid = NSBezierPath()
             eyelid.move(to: CGPoint(x: x, y: 159))
             eyelid.curve(to: CGPoint(x: x + 32, y: 159), controlPoint1: CGPoint(x: x + 9, y: 170),
@@ -297,7 +431,14 @@ final class DesktopPetView: NSView {
         NSGraphicsContext.restoreGraphicsState()
     }
 
+    private func fillFacePatch(_ path: NSBezierPath) {
+        if coatArtwork.appearance.isOriginal { fur.setFill(); path.fill() }
+        else { coatArtwork.fill(path, layout: .desktop("sit"), in: CGRect(x: 0, y: 0, width: 400, height: 400), cacheKey: "face") }
+    }
+
     private func drawQuestion() {
+        let fur = NSColor(srgbRed: 16 / 255, green: 17 / 255, blue: 20 / 255, alpha: 1)
+        let ink = NSColor(srgbRed: 250 / 255, green: 250 / 255, blue: 249 / 255, alpha: 1)
         let bob = reduceMotion ? 0 : sin(phase * 2) * 2
         let bubble = CGRect(x: 308, y: -44 + bob, width: 64, height: 65)
         fur.setFill()
@@ -316,6 +457,8 @@ final class DesktopPetView: NSView {
     }
 
     private func drawSleepMarks() {
+        let fur = NSColor(srgbRed: 16 / 255, green: 17 / 255, blue: 20 / 255, alpha: 1)
+        let ink = NSColor(srgbRed: 250 / 255, green: 250 / 255, blue: 249 / 255, alpha: 1)
         for i in 0..<3 {
             let opacity: CGFloat = reduceMotion ? 0.8 : 0.5 + 0.35 * CGFloat(sin(phase * 0.8 + Double(i)))
             let x = CGFloat(310 + i * 19), y = CGFloat(104 - i * 25)
@@ -336,15 +479,22 @@ final class DesktopPetView: NSView {
     }
 
     #if DESKTOP_PET_TESTS
-    func renderPNG(pose: DesktopPetPose, phase: Double = 0, facingLeft: Bool = false, walkDistance: CGFloat = 0) -> Data {
+    func renderPNG(pose: DesktopPetPose, phase: Double = 0, facingLeft: Bool = false, walkDistance: CGFloat = 0,
+                   carryLean: CGFloat = 0, isSettling: Bool = false, lift: DesktopPetLift? = nil) -> Data {
         self.pose = pose
         self.phase = phase
         self.facingLeft = facingLeft
         self.walkDistance = walkDistance
+        self.carryLean = carryLean
+        self.isSettling = isSettling
+        self.lift = lift ?? (pose == .carried
+            ? .lifting(elapsed: reduceMotion ? 1 : phase, lean: reduceMotion ? 0 : carryLean)
+            : DesktopPetLift())
         let image = NSImage(size: bounds.size, flipped: true) { _ in self.draw(self.bounds); return true }
         let bitmap = NSBitmapImageRep(data: image.tiffRepresentation!)!
         return bitmap.representation(using: .png, properties: [:])!
     }
     var loadedAssets: Set<String> { Set(images.keys) }
+    var loadedPickupFrames: Int { pickupFrames.count }
     #endif
 }

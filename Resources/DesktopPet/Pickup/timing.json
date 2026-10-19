@@ -1,0 +1,339 @@
+{
+  "count": 36,
+  "positions": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    7.333333333333333,
+    7.666666666666667,
+    8.0,
+    8.333333333333334,
+    8.666666666666666,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31
+  ],
+  "times": [
+    0.0,
+    0.05,
+    0.1,
+    0.15000000000000002,
+    0.2,
+    0.25,
+    0.30000000000000004,
+    0.35000000000000003,
+    0.41666666666666663,
+    0.4333333333333333,
+    0.44999999999999996,
+    0.4833333333333333,
+    0.5166666666666666,
+    0.55,
+    0.6,
+    0.65,
+    0.7000000000000001,
+    0.75,
+    0.8,
+    0.85,
+    0.9,
+    0.9500000000000001,
+    1.0,
+    1.05,
+    1.1,
+    1.1500000000000001,
+    1.2000000000000002,
+    1.2500000000000002,
+    1.3000000000000003,
+    1.35,
+    1.4000000000000001,
+    1.4500000000000002,
+    1.5000000000000002,
+    1.5500000000000003,
+    1.6,
+    1.6500000000000001
+  ],
+  "source_08_to_10_seconds": 0.2,
+  "pickup_seconds": 0.85,
+  "landing_seconds": 0.8,
+  "new_gemini_drawings": 5,
+  "unchanged_original_pngs": 31,
+  "method": "Copy original PNGs and five sliced Gemini drawings; show one complete PNG at a time. No morph or blended intermediate pixels.",
+  "records": [
+    {
+      "file": "00.png",
+      "source": "Direct32/Frames/00.png",
+      "position": 0,
+      "time_seconds": 0.0,
+      "sha256": "233fd4fe40784920a5a9715d00ddee6d0e3705d866d6dad47d344148285230a8"
+    },
+    {
+      "file": "01.png",
+      "source": "Direct32/Frames/01.png",
+      "position": 1,
+      "time_seconds": 0.05,
+      "sha256": "6a6fb86087b6c055f7deb88eef1e18b753110165745156b7e41335cde0596357"
+    },
+    {
+      "file": "02.png",
+      "source": "Direct32/Frames/02.png",
+      "position": 2,
+      "time_seconds": 0.1,
+      "sha256": "95e5785a952eccb6ea72853d1f46fdb8e1c423f2b9dc5677de6013b1fa15552a"
+    },
+    {
+      "file": "03.png",
+      "source": "Direct32/Frames/03.png",
+      "position": 3,
+      "time_seconds": 0.15000000000000002,
+      "sha256": "ef32d4e09cd3b8e3bd3d89c5e183327cd0872e16129f28336c63fdebdbf7a222"
+    },
+    {
+      "file": "04.png",
+      "source": "Direct32/Frames/04.png",
+      "position": 4,
+      "time_seconds": 0.2,
+      "sha256": "3023a70e735819d8e36d0f30e0ab093783fc0697568ec5aba2209cd770a474a0"
+    },
+    {
+      "file": "05.png",
+      "source": "Direct32/Frames/05.png",
+      "position": 5,
+      "time_seconds": 0.25,
+      "sha256": "ed890a242af661ac4410baf3d89efff6305e990fe064855a8420c71dd167e825"
+    },
+    {
+      "file": "06.png",
+      "source": "Direct32/Frames/06.png",
+      "position": 6,
+      "time_seconds": 0.30000000000000004,
+      "sha256": "300d78df358c0f6bd7a2c0d9c06ab66dbcdc80c1f2a1a1057236891e2758b43c"
+    },
+    {
+      "file": "07.png",
+      "source": "Direct32/Frames/07.png",
+      "position": 7,
+      "time_seconds": 0.35000000000000003,
+      "sha256": "1210663e9c1e834be03fe865a84b2973233f01946b5389c43f963dddf63646d6"
+    },
+    {
+      "file": "08.png",
+      "source": "Segment0810/Middle/09a.png",
+      "position": 7.333333333333333,
+      "time_seconds": 0.41666666666666663,
+      "sha256": "b2659b818611c78cf93d2ea2956ee6bd2f3b65ff729a8857c6c6e7defbe70967"
+    },
+    {
+      "file": "09.png",
+      "source": "Segment0810/Middle/09b.png",
+      "position": 7.666666666666667,
+      "time_seconds": 0.4333333333333333,
+      "sha256": "f49e65983422dbb3fff23cf730ed14525f3cbf97b9304221f706bb35535c9336"
+    },
+    {
+      "file": "10.png",
+      "source": "Segment0810/Middle/09c.png",
+      "position": 8.0,
+      "time_seconds": 0.44999999999999996,
+      "sha256": "a4282eabaa484bf9d73025e3b024fdbca97029554d9043aad939490e1b2ae2bc"
+    },
+    {
+      "file": "11.png",
+      "source": "Segment0810/Middle/09d.png",
+      "position": 8.333333333333334,
+      "time_seconds": 0.4833333333333333,
+      "sha256": "d7695640b1d2f53ea13517f2dd1fcb9fa472987cb2fd0c159a59281b89a2659f"
+    },
+    {
+      "file": "12.png",
+      "source": "Segment0810/Middle/09e.png",
+      "position": 8.666666666666666,
+      "time_seconds": 0.5166666666666666,
+      "sha256": "3e13fb803291c0ccee424dac37373922c194be3da63058aa0b14f3489308e650"
+    },
+    {
+      "file": "13.png",
+      "source": "Direct32/Frames/09.png",
+      "position": 9,
+      "time_seconds": 0.55,
+      "sha256": "e4c52a881b99c507d003321d41dd491a7245d0a5958ce4bcc6a0bf17d078527f"
+    },
+    {
+      "file": "14.png",
+      "source": "Direct32/Frames/10.png",
+      "position": 10,
+      "time_seconds": 0.6,
+      "sha256": "b1d39fc32d5e92676bd3b99639fcd898e68cc49b036f897509404c8eff66728c"
+    },
+    {
+      "file": "15.png",
+      "source": "Direct32/Frames/11.png",
+      "position": 11,
+      "time_seconds": 0.65,
+      "sha256": "dae6ef0b945052692397b59aded3314d126730225d41f05fc275e0cfcf18c768"
+    },
+    {
+      "file": "16.png",
+      "source": "Direct32/Frames/12.png",
+      "position": 12,
+      "time_seconds": 0.7000000000000001,
+      "sha256": "1845862e1409c8a985633b27b27378f3f112709b2c3371082cd917896cec28c7"
+    },
+    {
+      "file": "17.png",
+      "source": "Direct32/Frames/13.png",
+      "position": 13,
+      "time_seconds": 0.75,
+      "sha256": "ef974b75743b4c5200a509216b411ca0a6bd3ecd55edfbff856e74c2e89d7a2f"
+    },
+    {
+      "file": "18.png",
+      "source": "Direct32/Frames/14.png",
+      "position": 14,
+      "time_seconds": 0.8,
+      "sha256": "c3dab1adb3e709ac7507f46364bc855f174ac08fd6bf00551af2b20a7f8e1365"
+    },
+    {
+      "file": "19.png",
+      "source": "Direct32/Frames/15.png",
+      "position": 15,
+      "time_seconds": 0.85,
+      "sha256": "d42a0e02d13c6a1e88d2e4d7b5bfc770f1f3b82168b5b0f8f7aecd4baeb44c61"
+    },
+    {
+      "file": "20.png",
+      "source": "Direct32/Frames/16.png",
+      "position": 16,
+      "time_seconds": 0.9,
+      "sha256": "17444bd3e463fbd4ea81313cecfb308ef7591d4ca71dbeb31090bdcb0dff7ebe"
+    },
+    {
+      "file": "21.png",
+      "source": "Direct32/Frames/17.png",
+      "position": 17,
+      "time_seconds": 0.9500000000000001,
+      "sha256": "02c7ad77a3237be0606e427711a7020160dc529deeb661c92fc9bd4f994ace44"
+    },
+    {
+      "file": "22.png",
+      "source": "Direct32/Frames/18.png",
+      "position": 18,
+      "time_seconds": 1.0,
+      "sha256": "b3eac4f1016967ac3118b31f10f5b5f77e7d159e1df8595cf91a865ea4475389"
+    },
+    {
+      "file": "23.png",
+      "source": "Direct32/Frames/19.png",
+      "position": 19,
+      "time_seconds": 1.05,
+      "sha256": "65313dc5c2b46fedbb12a99924c204905e3abd482d032076d30987fbcd7ec535"
+    },
+    {
+      "file": "24.png",
+      "source": "Direct32/Frames/20.png",
+      "position": 20,
+      "time_seconds": 1.1,
+      "sha256": "e7b771becbc79795dc178745cf96ca68dbafbbe1d0319d77563494b3e5a77e8a"
+    },
+    {
+      "file": "25.png",
+      "source": "Direct32/Frames/21.png",
+      "position": 21,
+      "time_seconds": 1.1500000000000001,
+      "sha256": "401d12aacc89cc7a7265fcb0c82320f1506f78ce6d16fd91ca87dd01b7a59b80"
+    },
+    {
+      "file": "26.png",
+      "source": "Direct32/Frames/22.png",
+      "position": 22,
+      "time_seconds": 1.2000000000000002,
+      "sha256": "0d2740035113ec72c90f23475aa765a5e1853db32af9001158479bdde0a53fc2"
+    },
+    {
+      "file": "27.png",
+      "source": "Direct32/Frames/23.png",
+      "position": 23,
+      "time_seconds": 1.2500000000000002,
+      "sha256": "52b4372f0b8a3ff1cfd59c775f702ac99d6803ec8565ffe069b5f06eaf29abc8"
+    },
+    {
+      "file": "28.png",
+      "source": "Direct32/Frames/24.png",
+      "position": 24,
+      "time_seconds": 1.3000000000000003,
+      "sha256": "16e424bb40b43987a074f463f8412a08fee92b097c9ee7d7a34458ecaa621a1c"
+    },
+    {
+      "file": "29.png",
+      "source": "Direct32/Frames/25.png",
+      "position": 25,
+      "time_seconds": 1.35,
+      "sha256": "0b1a645228ae5ca60ed9031a71f06dbcc9af3df31acad34c51aa9793bb377738"
+    },
+    {
+      "file": "30.png",
+      "source": "Direct32/Frames/26.png",
+      "position": 26,
+      "time_seconds": 1.4000000000000001,
+      "sha256": "b073f4c3fadce330cdda615dbec63b201f4b1087ed867bd20b62e07b74083fbd"
+    },
+    {
+      "file": "31.png",
+      "source": "Direct32/Frames/27.png",
+      "position": 27,
+      "time_seconds": 1.4500000000000002,
+      "sha256": "9bb17f57158b5bd872b44d0982115d34cb8c3161258d75763acdd9edd80a8887"
+    },
+    {
+      "file": "32.png",
+      "source": "Direct32/Frames/28.png",
+      "position": 28,
+      "time_seconds": 1.5000000000000002,
+      "sha256": "518f6c7c91beb39e0bbaf9ff579fe71a946ef6f23acc227545200921e6dc3ce4"
+    },
+    {
+      "file": "33.png",
+      "source": "Direct32/Frames/29.png",
+      "position": 29,
+      "time_seconds": 1.5500000000000003,
+      "sha256": "21fd9d9e942371d2ac4ab95dff5b99e1bdc4efc59da7e9726b3c9a103f273a85"
+    },
+    {
+      "file": "34.png",
+      "source": "Direct32/Frames/30.png",
+      "position": 30,
+      "time_seconds": 1.6,
+      "sha256": "4bc592da92a0bb3bdcfae8962c451dde03fe3dcca73d540461e4be5123a624aa"
+    },
+    {
+      "file": "35.png",
+      "source": "Direct32/Frames/31.png",
+      "position": 31,
+      "time_seconds": 1.6500000000000001,
+      "sha256": "dbdb365a750e1b14666b588f7c41b34c175296202fdc2a37c126b4ab50ebd531"
+    }
+  ]
+}

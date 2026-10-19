@@ -44,7 +44,7 @@ struct DesktopPetTests {
                        "feet contact the actual folder's top edge")
             }
         }
-        expect(poses == Set(DesktopPetPose.allCases), "idle cycle reaches all eight poses including approved paw licking")
+        expect(poses == Set(DesktopPetPose.allCases.filter { $0 != .petted && $0 != .carried }), "idle cycle reaches all eight poses including approved paw licking")
         expect(perched && moving, "walks to a folder as well as the screen edge")
         expect(travelDirections == [true, false], "fixture exercises leftward and rightward travel")
 
@@ -64,7 +64,7 @@ struct DesktopPetTests {
         expect(model.pose == .sitting && model.origin == quiet && !model.isTravelling, "active typing keeps it still")
         world.cursor = CGPoint(x: model.frame.midX, y: model.frame.midY)
         model.tick(now: now + 21, world: world)
-        expect(!model.visible, "uncovers icons close to the active pointer")
+        expect(model.visible, "remains available for intentional clicks near the pointer")
         world.cursor = CGPoint(x: 10, y: 650)
         world.idleSeconds = 90; world.reduceMotion = true
         for step in 22...50 { model.tick(now: now + Double(step), world: world) }
@@ -212,8 +212,8 @@ struct DesktopPetTests {
         }
         func bitmap(_ data: Data) -> NSBitmapImageRep { NSBitmapImageRep(data: data)! }
         func color(_ bitmap: NSBitmapImageRep, artX: CGFloat, artY: CGFloat) -> NSColor {
-            let px = (8 + artX * 0.28) / 128 * CGFloat(bitmap.pixelsWide)
-            let py = (128 - 2 - 367 * 0.28 + artY * 0.28) / 128 * CGFloat(bitmap.pixelsHigh)
+            let px = (48 + artX * 0.28) / 208 * CGFloat(bitmap.pixelsWide)
+            let py = (128 - 2 - 367 * 0.28 + artY * 0.28) / 192 * CGFloat(bitmap.pixelsHigh)
             return bitmap.colorAt(x: Int(px), y: Int(py))!.usingColorSpace(.deviceRGB)!
         }
         func isInk(_ bitmap: NSBitmapImageRep, _ x: CGFloat, _ y: CGFloat) -> Bool {
@@ -224,10 +224,10 @@ struct DesktopPetTests {
             let width = pixels.pixelsWide, height = pixels.pixelsHigh
             var mask = [Bool](repeating: false, count: width * height)
             for y in 0..<height {
-                let artY = (CGFloat(y) * 128 / CGFloat(height) - (128 - 2 - 367 * 0.28)) / 0.28
+                let artY = (CGFloat(y) * 192 / CGFloat(height) - (128 - 2 - 367 * 0.28)) / 0.28
                 guard artY > 125 && artY < 180 else { continue }
                 for x in 0..<width {
-                    let artX = (CGFloat(x) * 128 / CGFloat(width) - 8) / 0.28
+                    let artX = (CGFloat(x) * 208 / CGFloat(width) - 48) / 0.28
                     guard left ? (60...310).contains(artX) : (100...350).contains(artX) else { continue }
                     let pixel = pixels.colorAt(x: x, y: y)!.usingColorSpace(.deviceRGB)!
                     mask[y * width + x] = pixel.alphaComponent > 0.5 && pixel.redComponent > 0.6
@@ -290,7 +290,12 @@ struct DesktopPetTests {
             try data.write(to: output.appendingPathComponent(left ? "walk-left.png" : "walk-right.png"))
             let step = view.renderPNG(pose: .walking, phase: 0.18, facingLeft: left, walkDistance: 12.6)
             expect(data != step, "walking paws articulate in both directions")
-            expect(data == view.renderPNG(pose: .walking, phase: 5, facingLeft: left),
+            let timeOnly = view.renderPNG(pose: .walking, phase: 5, facingLeft: left)
+            if data != timeOnly {
+                try data.write(to: output.appendingPathComponent("time-before.png"))
+                try timeOnly.write(to: output.appendingPathComponent("time-after.png"))
+            }
+            expect(data == timeOnly,
                    "elapsed time alone cannot slide paws when the cat has not moved")
             try step.write(to: output.appendingPathComponent(left ? "walk-left-step.png" : "walk-right-step.png"))
         }
@@ -309,7 +314,7 @@ struct DesktopPetTests {
                 let eyes = renderedEyeCenters(pixels, left: left)
                 expect(eyes.count == 2 && abs(eyes[0].y - eyes[1].y) <= 1,
                        "walking eyes share one rendered horizontal line in frame \(left)/\(index): \(eyes)")
-                expect(eyes.count == 2 && abs(eyes[1].x - eyes[0].x - 172.5 * 0.28 * CGFloat(width) / 128) <= 1,
+                expect(eyes.count == 2 && abs(eyes[1].x - eyes[0].x - 172.5 * 0.28 * CGFloat(width) / 208) <= 1,
                        "walking eye spacing stays consistent in either direction")
                 var solid = [Bool](repeating: false, count: width * height)
                 var clips = false

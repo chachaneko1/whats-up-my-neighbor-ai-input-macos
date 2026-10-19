@@ -9,7 +9,8 @@ import Darwin
 import Glibc
 #endif
 
-/// Version-one cat settings shared with the Windows app. Invalid configuration
+/// Version one remains portable; version two adds macOS anatomical appearance.
+/// Invalid configuration
 /// falls back as a whole; missing/undecodable artwork only falls back to the cat.
 /// Values are immutable snapshots and are loaded once at app startup.
 struct CatConfiguration {
@@ -36,17 +37,26 @@ struct CatConfiguration {
     private(set) var cooldownSeconds = 5.0
     private(set) var displaySeconds = 3.0
     private(set) var animateMouth = true
+    private(set) var appearance = CatAppearance.original
     private(set) var loadError: String?
     private var normalizedTriggers: Set<String> = ["what's up", "whats up", "what is up"]
 
     private static let knownFields: Set<String> = [
         "version", "image", "triggers", "reply", "fontFamily", "fontSize", "bold",
-        "bubblePosition", "tiltDegrees", "cooldownSeconds", "displaySeconds", "animateMouth"
+        "bubblePosition", "tiltDegrees", "cooldownSeconds", "displaySeconds", "animateMouth", "appearance"
     ]
     private enum Invalid: Error { case configuration, missingFile }
 
     static func load() -> CatConfiguration {
         load(from: directoryURL.appendingPathComponent("cat.config.json"))
+    }
+
+    /// Typed local preview/import adapter; never rewrites a user's file.
+    func replacingAppearance(_ appearance: CatAppearance) -> CatConfiguration {
+        var copy = self
+        copy.version = 2
+        copy.appearance = appearance
+        return copy
     }
 
     /// Never modifies the supplied file, including on a decoding error.
@@ -62,7 +72,12 @@ struct CatConfiguration {
                 guard let number = value as? NSNumber,
                       CFGetTypeID(number) != CFBooleanGetTypeID(),
                       !["f", "d"].contains(String(cString: number.objCType)),
-                      number.int64Value == 1 else { throw Invalid.configuration }
+                      (1...2).contains(number.int64Value) else { throw Invalid.configuration }
+                result.version = number.intValue
+            }
+            if let value = document["appearance"] {
+                guard result.version == 2 else { throw Invalid.configuration }
+                result.appearance = try CatAppearance.parse(value)
             }
             if let value = document["image"], !(value is NSNull) {
                 result.image = try readText(value, maximum: 200)
