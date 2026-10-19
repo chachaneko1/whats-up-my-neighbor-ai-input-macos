@@ -15,8 +15,8 @@ enum CatConfigurationTests {
         precondition(condition(), message)
     }
 
-    static func isDefault(_ config: CatConfiguration) -> Bool {
-        config.version == 1 && config.image == nil && config.imageURL == nil && config.imageData == nil &&
+    static func isDefault(_ config: CatConfiguration, version: Int = 1) -> Bool {
+        config.version == version && config.image == nil && config.imageURL == nil && config.imageData == nil &&
         config.triggers == ["what's up", "whats up", "what is up"] && config.reply == "what's up!" &&
         config.fontFamily == "Comic Sans MS" && config.fontSize == 18 && config.bold &&
         config.bubblePosition == "upperRight" && config.tiltDegrees == -10 &&
@@ -37,7 +37,7 @@ enum CatConfigurationTests {
         let sample = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("cat.config.json")
         let sampleConfig = CatConfiguration.load(from: sample)
         check(FileManager.default.fileExists(atPath: sample.path), "Portable sample is present")
-        check(isDefault(sampleConfig) && sampleConfig.loadError == nil, "Portable sample matches version-one defaults")
+        check(isDefault(sampleConfig, version: 2) && sampleConfig.appearance == .original && sampleConfig.loadError == nil, "Version-two sample retains the original cat and greeting defaults")
         check(CatConfiguration.directoryURL.lastPathComponent == "tw.panh.FreeVoiceType", "Settings use the app-specific support folder")
         print("CatConfigurationTests passed (\(checks) checks)")
     }
@@ -91,7 +91,7 @@ enum CatConfigurationTests {
 
         let invalid = [
             "", "{broken", "null", "[]", "true", "42", #""text""#,
-            #"{"version":2}"#, #"{"version":"1"}"#, #"{"version":null}"#, #"{"version":true}"#,
+            #"{"version":3}"#, #"{"version":"1"}"#, #"{"version":null}"#, #"{"version":true}"#,
             #"{"version":1.5}"#, #"{"version":1.0}"#, #"{"version":1e0}"#, #"{"version":[]}"#,
             #"{"reply":"custom","fontSize":11}"#, #"{"fontSize":29}"#, #"{"fontSize":"18"}"#,
             #"{"fontSize":null}"#, #"{"fontSize":true}"#, #"{"fontSize":1e999}"#,

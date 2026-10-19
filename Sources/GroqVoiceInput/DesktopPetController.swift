@@ -58,6 +58,7 @@ final class DesktopPetController {
     private var injectedWorld: (() -> DesktopPetWorld)?
 
     init(resources: URL? = Bundle.main.resourceURL?.appendingPathComponent("DesktopPet"),
+         appearance: CatAppearance = .original,
          automaticallyTicks: Bool = true, world: (() -> DesktopPetWorld)? = nil,
          presentation: Presentation = .system,
          clock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
@@ -68,7 +69,7 @@ final class DesktopPetController {
         self.clock = clock
         self.pressedButtons = pressedButtons
         injectedWorld = world
-        artwork = DesktopPetView(resources: resources)
+        artwork = DesktopPetView(resources: resources, appearance: appearance)
         panel = DesktopPetPanel(contentRect: CGRect(origin: .zero, size: DesktopPetView.panelSize),
                                 styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isReleasedWhenClosed = false
