@@ -4,7 +4,7 @@
 
 Windows 測試版已獨立至 [Windows repo](https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-windows)，功能、測試與發佈各自維護。拆分與舊網址相容說明見 [repo 搬遷紀錄](docs/REPOSITORY_MIGRATION.md)。
 
-一個輕量的原生 macOS 選單列語音輸入 App。按下自訂全域快捷鍵開始錄音，再按一次停止；音訊會送到 Groq `whisper-large-v3`，轉成繁體中文後貼到原本游標位置。也可與配套 iPhone App 在附近直接連線，從手機修改轉錄文字並明確選擇「只貼上」或「貼上並送出」（iPhone App 仍在開發中，尚未發布）。
+一個輕量的原生 macOS 選單列語音輸入 App。按下自訂全域快捷鍵開始錄音，再按一次停止；音訊會送到 Groq `whisper-large-v3`，轉成繁體中文後貼到原本游標位置。也可與配套 iPhone App 在附近直接連線，從手機修改轉錄文字並明確選擇「只貼上」或「貼到 Mac 並送出」（iPhone App 仍在開發中，尚未發布）。
 
 ## 更新與自動發佈
 
@@ -282,6 +282,9 @@ What's up my neighbor 錄音時會明確指定裝置，不跟著系統預設走�
 
 ## 從 iPhone 修改、貼上並送出
 
+> [!NOTE]
+> 配套的 iPhone App 仍在開發中，尚未發布；以下步驟給測試開發版的人參考。
+
 第一次使用：
 
 1. 先安裝配套的 iPhone App，並讓 iPhone 與 Mac 開啟 Wi-Fi、藍牙及區域網路權限。
@@ -307,7 +310,7 @@ Mac 在執行前與貼上後都會重新確認焦點。若 App、視窗或輸入
 ### iPhone 配對故障排除
 
 1. **iPhone 沒看到 Mac：**先確認 **Mac 的接力模式已開啟**（選單列「iPhone 接力模式」有勾選，或按 `⌃⌥↑`）。接力模式關閉時 Mac 不會廣播，iPhone 一定掃不到。接著確認 App 正在執行、兩台裝置的 Wi-Fi 與藍牙都已開啟，等待 5–10 秒重新探索。
-2. **iPhone 曾拒絕區域網路：**前往 iPhone `設定 → 隱私權與安全性 → 區域網路 → Groq 語音輸入` 開啟權限。
+2. **iPhone 曾拒絕區域網路：**前往 iPhone `設定 → 隱私權與安全性 → 區域網路 → what's up my neighbor` 開啟權限。
 3. **六位數配對碼失敗：**在 Mac 關閉舊配對畫面，再選一次「配對 iPhone…」取得新碼，並在五分鐘內完成。
 4. **配對後無法自動重連：**喚醒並解鎖兩端。仍失敗時，兩端各自忘記舊配對，再用新碼重新配對。
 5. **顯示版本不相容：**更新 Mac 與 iPhone App，確保兩端採用相同遠端協定。
