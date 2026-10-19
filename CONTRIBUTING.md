@@ -47,7 +47,7 @@
 1. 先開 Issue 或在既有 Issue 留言，說明你打算怎麼改。小的錯誤修正可以直接送 PR。
 2. Fork 後從 `main` 開新分支，例如 `fix/clipboard-picker-escape`。
 3. 修改程式，並補上或更新對應的測試（見 [TESTING.md](docs/TESTING.md)）。
-4. 本機跑過相關測試，最好也跑一次 `./scripts/test-all.sh` 和 `./scripts/build.sh`。
+4. 本機跑過相關測試，最好也依序跑一次 `./scripts/build.sh` 和 `./scripts/test-all.sh`（先建置：測試會用到建置時下載的 Sparkle，CI 也是這個順序）。
 5. 送 PR 到 `main`。CI 會建置並跑全部離線測試；PR 拿不到任何發布用的憑證。
 
 ### PR 說明請包含

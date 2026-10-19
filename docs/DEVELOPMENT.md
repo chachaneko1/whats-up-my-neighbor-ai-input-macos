@@ -32,6 +32,14 @@ Windows 版在另一個 repo：<https://github.com/yuipan0611/whats-up-my-neighb
 
 ## 跑離線測試
 
+更新相關的測試會用 Sparkle 附的工具驗證簽章，所以第一次跑之前要先下載 Sparkle。先建置一次（見下一節）也會順便下載；只想下載的話：
+
+```bash
+./scripts/fetch-sparkle.sh
+```
+
+之後就可以跑全部測試：
+
 ```bash
 ./scripts/test-all.sh
 ```
@@ -42,7 +50,7 @@ Windows 版在另一個 repo：<https://github.com/yuipan0611/whats-up-my-neighb
 All 24 offline test suites passed.
 ```
 
-測試不需要網路、不讀你的 Groq Key、不碰系統剪貼簿與鑰匙圈。有幾組會開出不搶焦點的原生視窗來檢查畫面，**請在螢幕解鎖、沒有休眠的狀態下執行**。每組測試涵蓋什麼，見 [TESTING.md](TESTING.md)。
+下載好 Sparkle 之後，測試不需要網路、不讀你的 Groq Key、不碰系統剪貼簿與鑰匙圈。有幾組會開出不搶焦點的原生視窗來檢查畫面，**請在螢幕解鎖、沒有休眠的狀態下執行**。每組測試涵蓋什麼，見 [TESTING.md](TESTING.md)。
 
 只想跑其中一組，例如文字處理：
 
@@ -110,6 +118,8 @@ docs/                     開發者文件
 ## 常見問題
 
 **`xcrun: error: invalid active developer path`**：還沒裝 Command Line Tools，執行 `xcode-select --install`。
+
+**`Build/fetch Sparkle before the offline suite`**：`test-updates.sh` 找不到 Sparkle 的工具。先跑 `./scripts/fetch-sparkle.sh` 或 `./scripts/build.sh`，再重跑測試。
 
 **`Sparkle checksum mismatch`**：下載到的檔案和固定的 SHA-256 不符，腳本會停下來而不是繼續用不明檔案。刪掉 `build/Sparkle-2.10.0.tar.xz` 後重試；仍失敗的話，檢查網路是否被代理改寫。
 

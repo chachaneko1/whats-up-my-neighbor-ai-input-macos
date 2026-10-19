@@ -6,7 +6,7 @@
 
 ## 怎麼跑
 
-全部：
+全部（第一次跑之前，先用 `./scripts/fetch-sparkle.sh` 或 `./scripts/build.sh` 下載 Sparkle，`test-updates.sh` 會用到它附的工具）：
 
 ```bash
 ./scripts/test-all.sh
@@ -24,7 +24,7 @@
 
 ## 執行環境的前提
 
-- **不需要網路、不需要 Groq Key**：辨識相關測試用假的辨識器與假的 HTTP 回應。
+- **不需要 Groq Key，下載好 Sparkle 後也不需要網路**：辨識相關測試用假的辨識器與假的 HTTP 回應。Sparkle 只在第一次由 `fetch-sparkle.sh` 下載並核對 SHA-256，之後用 `build/` 裡的快取。
 - **不碰你的資料**：剪貼簿測試使用私有的 `NSPasteboard`，金鑰與更新測試使用拋棄式的暫存 keychain 和檔案，不讀寫系統剪貼簿與你的鑰匙圈。
 - **需要解鎖的桌面**：錄音浮窗、貓咪、桌面夥伴、剪貼簿選單與詞典提示的測試會開出不搶焦點的原生視窗，檢查繪製與動畫。螢幕鎖定或休眠時，動畫計時不會前進，這幾組可能失敗。
 - 部分測試會在 `build/cat-render/` 輸出貓咪畫面截圖，CI 會把它們上傳成 artifact 供人工檢查。
