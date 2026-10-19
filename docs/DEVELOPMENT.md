@@ -75,7 +75,7 @@ build/AI語音輸入.app
 1. 下載並驗證 Sparkle 2.10.0（之後會使用 `build/` 裡的快取）。
 2. 用 `swiftc` 分別編譯 arm64 與 x86_64，再合成 Universal 2 執行檔。
 3. 複製 `Resources/` 裡的 `Info.plist`、圖示、黑貓素材與預設 `cat.config.json`。
-4. 簽好整個 App：沒有設定 `MAC_CODESIGN_IDENTITY` 時用 ad-hoc 簽章，並指定和正式版相同的 designated requirement（`identifier "tw.panh.FreeVoiceType"`）。正式發布才使用固定憑證，見 [UPDATES.md](UPDATES.md)。
+4. 簽好整個 App：沒有設定 `MAC_CODESIGN_IDENTITY` 時用 ad-hoc 簽章，並指定和正式版相同的 designated requirement（只認 App 的 Bundle ID）。正式發布才使用固定憑證，見 [UPDATES.md](UPDATES.md)。
 
 ## 執行你建出來的版本
 

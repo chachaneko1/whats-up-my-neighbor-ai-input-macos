@@ -35,7 +35,7 @@ App 是選單列常駐程式（`LSUIElement`），沒有主視窗、沒有自己
 
 | 步驟 | 負責的檔案 | 說明 |
 |---|---|---|
-| 讀金鑰 | `KeychainStore.swift` | Keychain service `tw.panh.FreeVoiceType.groq`、account `api-key`；成功讀取後在本次執行期間快取 |
+| 讀金鑰 | `KeychainStore.swift` | App 專用的 Keychain 項目（service 以 Bundle ID 開頭，account `api-key`）；成功讀取後在本次執行期間快取 |
 | 組請求與解析 | `GroqTranscriptionClient.swift` | `whisper-large-v3`，`POST https://api.groq.com/openai/v1/audio/transcriptions`；只 import Foundation，可單獨編譯測試 |
 | 辨識流程轉接 | `GroqDictationTranscriber.swift` | 讀檔、帶入語言與詞典提示、處理取消 |
 | 詞典提示 | `MacVocabularyStore.swift` | 啟用的詞條依提示額度組成 prompt；釘選的詞優先 |
@@ -71,7 +71,7 @@ App 是選單列常駐程式（`LSUIElement`），沒有主視窗、沒有自己
 | 詞典管理 | `VocabularyWindowController.swift`、`MacVocabularyStore.swift` | `UserDefaults` 的 `smartVocabulary.entries.v1` |
 | 錄音浮窗 | `NekoRecordingHUD.swift`、`NekoSignalMeter.swift` | 不搶焦點的面板；左眼取消、右眼完成；`cat.config.json` 指定圖片時改用該圖片 |
 | 選單列 | `StatusMenuController.swift`、`NekoMenuBarIcon.swift` | 黑貓圖示與所有設定入口 |
-| 設定 | `SettingsStore.swift`、`SettingsViews.swift` | `UserDefaults`（`tw.panh.FreeVoiceType`），沿用既有 key 與遷移 |
+| 設定 | `SettingsStore.swift`、`SettingsViews.swift` | `UserDefaults`（App 的 Bundle ID 網域），沿用既有 key 與遷移 |
 | 桌面小黑貓 | `DesktopPetController.swift`、`DesktopPetModel.swift`、`DesktopPetView.swift`、`DesktopPetGroomingPalm.swift`、`DesktopPetLift.swift`、`DesktopPetDesktopReader.swift` | 只在記憶體讀桌面資料夾位置；不連網、不開麥克風。1.4.5 起只有貓咪輪廓接收滑鼠（點擊回應、抓起、放下），透明處穿透、不取得鍵盤焦點 |
 | 貓咪外觀（毛色，`main` 上尚未發布） | `CatAppearance.swift`、`CatAppearanceArtwork.swift`、`CatAnatomy.swift` | `cat.config.json` version 2 的 `appearance`；只重新上色隨 App 打包的原圖，保留原本輪廓與透明度，使用者 PNG 不進這個繪製器 |
 | 更新 | `AppUpdateController.swift`、`UpdateReminderPolicy.swift`、`UpdateDiagnostics.swift` | Sparkle 每日讀 GitHub 上的 appcast；由使用者決定安裝 |
@@ -82,7 +82,7 @@ App 是選單列常駐程式（`LSUIElement`），沒有主視窗、沒有自己
 
 這些地方動到就會影響使用者的資料或安全，送 PR 前要特別說明並補測試：
 
-- **App 身分**：Bundle ID `tw.panh.FreeVoiceType`、Keychain service、`UserDefaults` key、安裝路徑 `~/Applications/AI語音輸入.app`。改了會讓既有使用者的金鑰、設定或更新失效。
+- **App 身分**：Bundle ID（見 `Resources/Info.plist`）、Keychain service、`UserDefaults` key、安裝路徑 `~/Applications/AI語音輸入.app`。改了會讓既有使用者的金鑰、設定或更新失效。
 - **送出規則**：`TextInsertionService` 只送 `⌘V`；`RemoteTargetController` 的「送出前再驗證一次」規則不要放寬。
 - **資料去向**：任何新的網路請求、檔案寫入或記錄，都要同步更新 `PRIVACY.md`。
 - **權限**：不要新增需要螢幕錄製或完整磁碟取用的功能；不要呼叫 `tccutil` 重設權限。

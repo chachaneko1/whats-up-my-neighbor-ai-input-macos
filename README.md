@@ -351,7 +351,7 @@ Mac 在執行前與貼上後都會重新確認焦點。若 App、視窗或輸入
 目前的移除工具**不會**刪除以下資料夾，想完全清除請手動刪除：
 
 - `~/Library/Application Support/AI語音輸入/`（剪貼簿歷史）
-- `~/Library/Application Support/tw.panh.FreeVoiceType/`（`cat.config.json` 與自訂圖片）
+- 貓咪設定資料夾（`cat.config.json` 與自訂圖片）：移除前從小黑貓選單「開啟貓咪設定資料夾…」打開，整個丟到垃圾桶
 
 很早期的版本可能裝在 `/Applications` 等其他位置，之後升級會沿用原位置；移除工具只刪 `~/Applications` 裡的那一份，其他位置請手動移到垃圾桶。
 

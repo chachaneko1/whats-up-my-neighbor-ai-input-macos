@@ -11,7 +11,7 @@
 
 影響：`DesktopPetModel`（狀態與座標）、`DesktopPetView`（繪圖與原生滑鼠事件）、`DesktopPetController`（排程與暫停）、`Resources/DesktopPet/Pickup`（本機 PNG）及其測試／版本說明。消費者為 `VoiceTypeController` 與桌面貓選單。
 
-風險中：滑鼠接收與正式狀態機會影響桌面操作；非啟動面板、透明處穿透、原 busy gate 與取消回歸必須通過。保護 `tw.panh.FreeVoiceType`、既有安裝路徑與簽章、Keychain service/account、所有既有偏好鍵、錄音／貼上服務與長臉錄音 HUD。基線：7529 項桌面貓檢查通過，安全設定驗證通過。
+風險中：滑鼠接收與正式狀態機會影響桌面操作；非啟動面板、透明處穿透、原 busy gate 與取消回歸必須通過。保護既有 Bundle ID、既有安裝路徑與簽章、Keychain service/account、所有既有偏好鍵、錄音／貼上服務與長臉錄音 HUD。基線：7529 項桌面貓檢查通過，安全設定驗證通過。
 
 本機更新不等同 GitHub 公開發布；本次以本機正式 App 的互動與設定保留為完成條件。
 

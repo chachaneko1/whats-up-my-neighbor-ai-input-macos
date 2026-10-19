@@ -12,7 +12,7 @@ App 使用 Sparkle，每天向 GitHub Releases 讀取公開版本清單。GitHub
 
 ## 本機資料
 
-- Groq API Key：以 generic password 形式儲存在 macOS Keychain，service 為 `tw.panh.FreeVoiceType.groq`。
+- Groq API Key：以 generic password 形式儲存在 macOS Keychain，service 為 App 專用的名稱（以 Bundle ID 開頭）。
 - 快捷鍵設定：儲存在 macOS `UserDefaults`，不包含語音或 API Key。
 - 暫存錄音：寫入 macOS 暫存目錄。結果成功寫入剪貼簿後立即刪除，即使未能自動貼入目標 App 也一樣。若辨識失敗、剪貼簿寫入失敗或辨識出使用者未允許的語言，錄音會暫時保留，讓使用者可以重新辨識而不必重講；每次失敗後最多暫留兩分鐘。選擇捨棄、取消、重試成功、新錄音取代、暫留逾時、App 正常結束或下次啟動時都會清理。App 不建立永久錄音庫；異常結束後的殘留檔於下次啟動清理。錄音只會送至 Groq。
 - 文字後處理：轉錄結果的簡繁轉換、標點與空格正規化、重複詞清理都在這台 Mac 本機完成，不另外連網，也不使用任何聊天或改寫模型。

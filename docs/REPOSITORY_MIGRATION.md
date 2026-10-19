@@ -5,7 +5,7 @@
 - Mac：https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos，由原 repo 原地改名，保留歷史、Issues、Releases 與簽章設定。
 - Windows：https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-windows，從原始 `main` 的 `eceb1b508af83446431244741263d79e0903f911` 抽取 Windows 相關歷史並提升至根目錄。提交對照見 Windows repo 的 `migration-commit-map.txt`。
 - Mac 目前程式樹不再包含 Windows 原始碼與 CI；原 Git 歷史及既有 Windows beta 發佈仍保留。未重寫 Mac 歷史，因此舊 clone 容量不會因拆分立即縮小。
-- App 名稱、bundle ID `tw.panh.FreeVoiceType`、Keychain service、快捷鍵、個人設定與黑貓素材不變；此次不提高 App 版本、不安裝更新。
+- App 名稱、bundle ID、Keychain service、快捷鍵、個人設定與黑貓素材不變；此次不提高 App 版本、不安裝更新。
 
 ## 舊版更新相容
 

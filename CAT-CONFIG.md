@@ -8,11 +8,7 @@ macOS 現在支援 **version 2**：問候、圖片設定之外，也能選自然
 2. 結束 App，編輯 `cat.config.json`，儲存為 **UTF-8 JSON**。
 3. 重新啟動 App。設定只在啟動時讀取，不會即時更新。
 
-也可以在 Finder 的「前往資料夾」輸入：
-
-```
-~/Library/Application Support/tw.panh.FreeVoiceType
-```
+資料夾位在 `~/Library/Application Support/` 底下、以 App 的 Bundle ID 命名；從選單打開是最簡單的方式。
 
 若沒有設定檔，直接使用以下預設值。Windows 使用 `%LOCALAPPDATA%\WhatsUpMyNeighbor`；兩個平台的設定資料夾各自獨立，不會自動同步。
 
@@ -86,7 +82,7 @@ macOS 現在支援 **version 2**：問候、圖片設定之外，也能選自然
 
 ## English quick start
 
-Choose “開啟貓咪設定資料夾…” from the app's menu-bar menu. This creates `~/Library/Application Support/tw.panh.FreeVoiceType` and copies the bundled template only if no configuration exists. Quit the app, edit `cat.config.json` as UTF-8 JSON, then restart. Settings and images are loaded only at startup.
+Choose “開啟貓咪設定資料夾…” from the app's menu-bar menu. This creates the app's folder under `~/Library/Application Support/` (named after its bundle ID) and copies the bundled template only if no configuration exists. Quit the app, edit `cat.config.json` as UTF-8 JSON, then restart. Settings and images are loaded only at startup.
 
 Version one remains readable. Version two adds macOS-only anatomical appearance; Windows v2 support is not implemented or verified. Omitted fields use defaults; unknown fields, invalid types, unsupported versions, unsafe image paths and out-of-range values invalidate the whole configuration without overwriting it. The config limit remains 16 KiB. Triggers match whole utterances only, and a match is consumed even during cooldown.
 
