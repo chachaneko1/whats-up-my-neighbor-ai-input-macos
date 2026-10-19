@@ -75,7 +75,7 @@ build/AI語音輸入.app
 1. 下載並驗證 Sparkle 2.10.0（之後會使用 `build/` 裡的快取）。
 2. 用 `swiftc` 分別編譯 arm64 與 x86_64，再合成 Universal 2 執行檔。
 3. 複製 `Resources/` 裡的 `Info.plist`、圖示、黑貓素材與預設 `cat.config.json`。
-4. 用 ad-hoc 簽章簽好整個 App（正式發布才使用固定憑證，見 [UPDATES.md](UPDATES.md)）。
+4. 簽好整個 App：沒有設定 `MAC_CODESIGN_IDENTITY` 時用 ad-hoc 簽章，並指定和正式版相同的 designated requirement（`identifier "tw.panh.FreeVoiceType"`）。正式發布才使用固定憑證，見 [UPDATES.md](UPDATES.md)。
 
 ## 執行你建出來的版本
 
@@ -88,7 +88,7 @@ open build/AI語音輸入.app
 幾件要注意的事：
 
 - 如果你同時裝著正式版，請先從選單列結束正式版，避免兩個程式搶同一組快捷鍵。
-- 開發版是 ad-hoc 簽章，每次重建的程式身分都不同。macOS 可能會再次詢問麥克風、輔助使用權限，鑰匙圈也可能請你允許讀取 Groq Key。這是預期中的行為。
+- 開發版是 ad-hoc 簽章，但 designated requirement 和正式版一樣只認 Bundle ID，所以通常會沿用你已經給過的麥克風、輔助使用權限與鑰匙圈授權；macOS 仍可能在少數情況再問一次，照提示允許即可。也因為身分要求相同，用 `package-release.sh` 打出的開發包執行 `安裝.command` 時，會被當成正式版的更新直接覆蓋上去；測試完記得重新安裝正式版。
 - 開發版和正式版共用同一個 Bundle ID、鑰匙圈項目與偏好設定，所以會讀到你正式版的設定。想完全隔離，可以在另一個 macOS 使用者帳號測試。
 - 不要用 `tccutil reset` 重設權限來「解決」授權問題，那會影響所有 App。
 
