@@ -2,7 +2,7 @@
 
 這份文件帶你從取得原始碼，到在自己的 Mac 建出一份可以執行的 App。不需要 Xcode 專案，也不需要付費 Apple Developer 帳號。
 
-對照版本：1.4.4（build 1011）。
+對照版本：1.4.5（build 1012）。
 
 ## 需要準備
 
@@ -39,7 +39,7 @@ Windows 版在另一個 repo：<https://github.com/yuipan0611/whats-up-my-neighb
 這會依序執行 `scripts/` 裡所有 `test-*.sh`，全部通過時最後一行是：
 
 ```text
-All 22 offline test suites passed.
+All 24 offline test suites passed.
 ```
 
 測試不需要網路、不讀你的 Groq Key、不碰系統剪貼簿與鑰匙圈。有幾組會開出不搶焦點的原生視窗來檢查畫面，**請在螢幕解鎖、沒有休眠的狀態下執行**。每組測試涵蓋什麼，見 [TESTING.md](TESTING.md)。
@@ -95,7 +95,7 @@ open build/AI語音輸入.app
 ## 專案結構
 
 ```text
-Sources/GroqVoiceInput/   App 原始碼（49 個 Swift 檔）
+Sources/GroqVoiceInput/   App 原始碼（53 個 Swift 檔）
 Tests/                    Swift 測試執行檔與 Python 測試
 scripts/                  建置、測試、打包、發布腳本
 Resources/                Info.plist（版本唯一來源）、圖示、黑貓素材

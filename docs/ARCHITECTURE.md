@@ -2,7 +2,7 @@
 
 這份文件說明 What's up my neighbor（macOS）從按下快捷鍵到文字回到輸入框，中間經過哪些模組、資料在哪裡停留。想修改程式前，先從這裡找到要動的檔案。
 
-對照版本：1.4.4（build 1011）。所有原始碼在 `Sources/GroqVoiceInput/`，共 49 個 Swift 檔，沒有第三方相依套件，只有更新功能使用 Sparkle 2.10.0。
+對照版本：1.4.5（build 1012）；`main` 另含尚未隨正式版發布的毛色外觀。所有原始碼在 `Sources/GroqVoiceInput/`，共 53 個 Swift 檔，沒有第三方相依套件，只有更新功能使用 Sparkle 2.10.0。
 
 ## 一句話版本
 
@@ -72,7 +72,8 @@ App 是選單列常駐程式（`LSUIElement`），沒有主視窗、沒有自己
 | 錄音浮窗 | `NekoRecordingHUD.swift`、`NekoSignalMeter.swift` | 不搶焦點的面板；左眼取消、右眼完成；`cat.config.json` 指定圖片時改用該圖片 |
 | 選單列 | `StatusMenuController.swift`、`NekoMenuBarIcon.swift` | 黑貓圖示與所有設定入口 |
 | 設定 | `SettingsStore.swift`、`SettingsViews.swift` | `UserDefaults`（`tw.panh.FreeVoiceType`），沿用既有 key 與遷移 |
-| 桌面小黑貓 | `DesktopPetController.swift`、`DesktopPetModel.swift`、`DesktopPetView.swift`、`DesktopPetGroomingPalm.swift`、`DesktopPetDesktopReader.swift` | 只在記憶體讀桌面資料夾位置；不連網、不開麥克風 |
+| 桌面小黑貓 | `DesktopPetController.swift`、`DesktopPetModel.swift`、`DesktopPetView.swift`、`DesktopPetGroomingPalm.swift`、`DesktopPetLift.swift`、`DesktopPetDesktopReader.swift` | 只在記憶體讀桌面資料夾位置；不連網、不開麥克風。1.4.5 起只有貓咪輪廓接收滑鼠（點擊回應、抓起、放下），透明處穿透、不取得鍵盤焦點 |
+| 貓咪外觀（毛色，`main` 上尚未發布） | `CatAppearance.swift`、`CatAppearanceArtwork.swift`、`CatAnatomy.swift` | `cat.config.json` version 2 的 `appearance`；只重新上色隨 App 打包的原圖，保留原本輪廓與透明度，使用者 PNG 不進這個繪製器 |
 | 更新 | `AppUpdateController.swift`、`UpdateReminderPolicy.swift`、`UpdateDiagnostics.swift` | Sparkle 每日讀 GitHub 上的 appcast；由使用者決定安裝 |
 | iPhone 接力（選用） | `MacRemoteBridge.swift`、`RemoteTargetController.swift`、`RemoteTargetValidationPolicy.swift`、`RemoteMessages.swift`、`VocabularySyncModels.swift` | 加密 Multipeer Connectivity；每次啟動預設關閉，協定版本 1 只支援文字接力 |
 | 診斷 | `PasteDiagnostics.swift` | 不記錄剪貼內容與來源 App 名稱 |

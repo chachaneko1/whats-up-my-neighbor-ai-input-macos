@@ -8,7 +8,7 @@ Windows 測試版已獨立至 [Windows repo](https://github.com/yuipan0611/whats
 
 ## 更新與自動發佈
 
-目前版本：**1.4.4（build 1011）**。黑貓選單會顯示實際安裝版本；完整紀錄見 [CHANGELOG.md](CHANGELOG.md)。版本與 build 統一以 `Resources/Info.plist` 為準；提高編號的新版本合併 main 後，由 GitHub Actions 自動測試、簽章、發佈安裝包與更新清單。
+目前版本：**1.4.5（build 1012）**。黑貓選單會顯示實際安裝版本；完整紀錄見 [CHANGELOG.md](CHANGELOG.md)。版本與 build 統一以 `Resources/Info.plist` 為準；提高編號的新版本合併 main 後，由 GitHub Actions 自動測試、簽章、發佈安裝包與更新清單。
 
 macOS 版加入 Sparkle：每日偵測新版並通知，由使用者自行選擇是否下載安裝。錄音、辨識或等待重試時延後提示與重新啟動；選單提供「檢查更新…」與「自動偵測新版本」。既有 API Key、快捷鍵及使用者資料夾的 `cat.config.json`／圖片不覆寫。
 
