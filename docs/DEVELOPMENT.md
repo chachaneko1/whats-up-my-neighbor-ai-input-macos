@@ -103,7 +103,7 @@ open build/AI語音輸入.app
 ## 專案結構
 
 ```text
-Sources/GroqVoiceInput/   App 原始碼（53 個 Swift 檔）
+Sources/GroqVoiceInput/   App 原始碼（53 個 Swift 檔，含 3 個尚未發布的毛色外觀）
 Tests/                    Swift 測試執行檔與 Python 測試
 scripts/                  建置、測試、打包、發布腳本
 Resources/                Info.plist（版本唯一來源）、圖示、黑貓素材
