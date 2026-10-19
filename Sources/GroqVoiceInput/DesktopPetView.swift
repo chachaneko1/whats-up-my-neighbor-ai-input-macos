@@ -14,7 +14,7 @@ final class DesktopPetView: NSView {
     override var acceptsFirstResponder: Bool { false }
 
     init(resources: URL? = Bundle.main.resourceURL?.appendingPathComponent("DesktopPet")) {
-        let names = ["sit", "walk", "reply", "body", "tail", "walk-body", "walk-paws", "walk-front-face"]
+        let names = ["sit", "walk", "reply", "body", "tail", "walk-body", "walk-paws", "walk-front-face", "walk-foot-0", "walk-foot-1", "walk-foot-2", "walk-foot-3", "groom-body", "groom-head"]
         images = Dictionary(uniqueKeysWithValues: names.compactMap { name in
             guard let url = resources?.appendingPathComponent(name + ".svg"),
                   let image = NSImage(contentsOf: url) else { return nil }
@@ -57,6 +57,7 @@ final class DesktopPetView: NSView {
             breathe { drawImage(pose == .curious ? "reply" : "sit") }
         case .standing: drawImage("walk")
         case .walking: drawWalking()
+        case .grooming: drawGrooming()
         case .yawning: drawYawning()
         case .loafing, .sleeping: drawLoaf(sleeping: pose == .sleeping)
         }
@@ -84,6 +85,77 @@ final class DesktopPetView: NSView {
         NSGraphicsContext.restoreGraphicsState()
     }
 
+    private func drawGrooming() {
+        let palm = DesktopPetGroomingPalm.sample(time: phase, reduceMotion: reduceMotion)
+        drawImage("groom-body")
+        // The unoutlined foreleg is occluded by the original head/torso. Keep
+        // the visible drawing focused on the paw, as requested by the owner.
+        let hiddenWrist = NSBezierPath()
+        hiddenWrist.move(to: CGPoint(x: 149, y: 248))
+        hiddenWrist.line(to: CGPoint(x: palm.center.x, y: palm.center.y + 15 * palm.activity))
+        fur.setStroke(); hiddenWrist.lineWidth = 29; hiddenWrist.lineCapStyle = .round; hiddenWrist.stroke()
+
+        NSGraphicsContext.saveGraphicsState()
+        let head = NSAffineTransform()
+        head.translateX(by: 200, yBy: 214 + palm.headDrop)
+        head.rotate(byDegrees: palm.headTilt)
+        head.translateX(by: -200, yBy: -214)
+        head.concat()
+        drawImage("groom-head")
+        closeEyes(inHeadAt: .zero, scale: 1)
+        NSGraphicsContext.restoreGraphicsState()
+
+        NSGraphicsContext.saveGraphicsState()
+        let turn = NSAffineTransform()
+        turn.translateX(by: palm.center.x, yBy: palm.center.y)
+        turn.rotate(byDegrees: palm.angle)
+        turn.concat()
+        // Three soft toe lobes and a broad heel read as a cat's rounded paw.
+        // The lower wrist is open into the black body, not an outlined ring.
+        let paw = NSBezierPath()
+        paw.move(to: CGPoint(x: -13, y: 20))
+        paw.curve(to: CGPoint(x: -23, y: -3), controlPoint1: CGPoint(x: -23, y: 14), controlPoint2: CGPoint(x: -25, y: 7))
+        paw.curve(to: CGPoint(x: -13, y: -18), controlPoint1: CGPoint(x: -25, y: -17), controlPoint2: CGPoint(x: -21, y: -23))
+        paw.curve(to: CGPoint(x: 2, y: -23), controlPoint1: CGPoint(x: -12, y: -30), controlPoint2: CGPoint(x: 0, y: -30))
+        paw.curve(to: CGPoint(x: 16, y: -18), controlPoint1: CGPoint(x: 7, y: -28), controlPoint2: CGPoint(x: 17, y: -27))
+        paw.curve(to: CGPoint(x: 22, y: 2), controlPoint1: CGPoint(x: 25, y: -19), controlPoint2: CGPoint(x: 28, y: -7))
+        paw.curve(to: CGPoint(x: 13, y: 20), controlPoint1: CGPoint(x: 22, y: 13), controlPoint2: CGPoint(x: 19, y: 18))
+        let rim = paw.copy() as! NSBezierPath
+        paw.close()
+        let shade = fur.blended(withFraction: palm.activity, of: NSColor(srgbRed: 38/255, green: 40/255, blue: 45/255, alpha: 1)) ?? fur
+        shade.setFill(); paw.fill()
+        NSColor(calibratedWhite: 0.48, alpha: palm.activity).setStroke()
+        rim.lineWidth = 3.5; rim.lineCapStyle = .round; rim.stroke()
+        // A short dark wrist merges into the surrounding fur, without drawing
+        // a complete arm or leaving a closed circular badge on the face.
+        let wrist = NSBezierPath(roundedRect: CGRect(x: -12, y: 13, width: 24, height: 19 * palm.activity), xRadius: 8, yRadius: 8)
+        shade.setFill(); wrist.fill()
+        NSGraphicsContext.restoreGraphicsState()
+
+        // A broad, rounded tongue tip peeks out only nine artwork units.
+        // Retract vertically so it keeps its soft shape instead of tapering
+        // into the previous long diagonal point.
+        if palm.lick > 0.01 {
+            NSGraphicsContext.saveGraphicsState()
+            head.concat()
+            let tongue = NSBezierPath()
+            tongue.move(to: CGPoint(x: 193, y: 197))
+            tongue.curve(to: CGPoint(x: 194, y: 197 + 6 * palm.lick),
+                         controlPoint1: CGPoint(x: 193, y: 197 + 3 * palm.lick),
+                         controlPoint2: CGPoint(x: 193, y: 197 + 5 * palm.lick))
+            tongue.curve(to: CGPoint(x: 206, y: 197 + 6 * palm.lick),
+                         controlPoint1: CGPoint(x: 196, y: 197 + 10 * palm.lick),
+                         controlPoint2: CGPoint(x: 204, y: 197 + 10 * palm.lick))
+            tongue.curve(to: CGPoint(x: 207, y: 197),
+                         controlPoint1: CGPoint(x: 207, y: 197 + 5 * palm.lick),
+                         controlPoint2: CGPoint(x: 207, y: 197 + 3 * palm.lick))
+            tongue.close()
+            NSColor(srgbRed: 0.85, green: 0.49, blue: 0.53, alpha: 1).setFill()
+            tongue.fill()
+            NSGraphicsContext.restoreGraphicsState()
+        }
+    }
+
     private func drawWalking() {
         let stride = reduceMotion ? 0 : sin(walkDistance / Self.strideDistance * 2 * .pi)
         NSGraphicsContext.saveGraphicsState()
@@ -95,26 +167,41 @@ final class DesktopPetView: NSView {
             turn.scaleX(by: -1, yBy: 1)
             turn.concat()
         }
-        // The original Walk body has its tail at the rear (right). Separate
-        // original paw groups keep contact with the ground as they alternate.
-        for side in 0...1 {
+        let bob = reduceMotion ? 0 : -abs(stride) * 3
+        let distance = reduceMotion ? 0 : walkDistance
+        // Preserve the original paw contours. Broad roots begin well inside
+        // the torso and overlap the paw's upper half, avoiding a narrow stalk
+        // with an exposed oval end when a foot reaches beyond the body.
+        let paws: [(root: CGPoint, neck: CGPoint, rootWidth: CGFloat, neckWidth: CGFloat, pair: Int)] = [
+            (CGPoint(x: 112, y: 244), CGPoint(x: 103, y: 303), 58, 50, 0),
+            (CGPoint(x: 159, y: 270), CGPoint(x: 161, y: 322), 54, 48, 1),
+            (CGPoint(x: 270, y: 270), CGPoint(x: 271, y: 322), 56, 48, 0),
+            (CGPoint(x: 309, y: 247), CGPoint(x: 321, y: 313), 54, 44, 1)
+        ]
+        for (index, paw) in paws.enumerated() {
+            let step = Self.pawOffset(distance: distance, pair: paw.pair)
+            let root = CGPoint(x: paw.root.x, y: paw.root.y + bob)
+            let neck = CGPoint(x: paw.neck.x + step.x, y: paw.neck.y + step.y)
+            let rootHalf = paw.rootWidth / 2, neckHalf = paw.neckWidth / 2
+            let height = max(10, neck.y - root.y)
+            let join = NSBezierPath()
+            join.move(to: CGPoint(x: root.x - rootHalf, y: root.y))
+            join.curve(to: CGPoint(x: neck.x - neckHalf, y: neck.y),
+                       controlPoint1: CGPoint(x: root.x - rootHalf, y: root.y + height * 0.4),
+                       controlPoint2: CGPoint(x: neck.x - neckHalf, y: neck.y - height * 0.3))
+            join.line(to: CGPoint(x: neck.x + neckHalf, y: neck.y))
+            join.curve(to: CGPoint(x: root.x + rootHalf, y: root.y),
+                       controlPoint1: CGPoint(x: neck.x + neckHalf, y: neck.y - height * 0.3),
+                       controlPoint2: CGPoint(x: root.x + rootHalf, y: root.y + height * 0.4))
+            join.close()
+            fur.setFill(); join.fill()
             NSGraphicsContext.saveGraphicsState()
-            let step = Self.pawOffset(distance: reduceMotion ? 0 : walkDistance, pair: side)
             let motion = NSAffineTransform()
             motion.translateX(by: step.x, yBy: step.y)
             motion.concat()
-            // Diagonal pairs, not a sliding lower half of the front-facing cat.
-            for region in side == 0
-                ? [CGRect(x: 60, y: 270, width: 73, height: 100), CGRect(x: 240, y: 270, width: 63, height: 100)]
-                : [CGRect(x: 133, y: 270, width: 65, height: 100), CGRect(x: 303, y: 270, width: 65, height: 100)] {
-                NSGraphicsContext.saveGraphicsState()
-                NSBezierPath(rect: region).addClip()
-                drawImage("walk-paws")
-                NSGraphicsContext.restoreGraphicsState()
-            }
+            drawImage("walk-foot-\(index)")
             NSGraphicsContext.restoreGraphicsState()
         }
-        let bob = reduceMotion ? 0 : -abs(stride) * 3
         let lift = NSAffineTransform()
         lift.translateX(by: 0, yBy: bob)
         lift.concat()
@@ -138,14 +225,19 @@ final class DesktopPetView: NSView {
     static let strideDistance: CGFloat = 86 * 0.28 / 0.6
 
     static func pawOffset(distance: CGFloat, pair: Int) -> CGPoint {
-        let cycle = (max(0, distance) / strideDistance + CGFloat(pair) * 0.5)
+        let distance = max(0, distance)
+        // Start at the neutral stance instead of jumping an entire half-step.
+        // The initial airborne pair rises from the floor over real travel.
+        let cycle = (distance / strideDistance + 0.3 + CGFloat(pair) * 0.5)
             .truncatingRemainder(dividingBy: 1)
         if cycle < 0.6 {
             return CGPoint(x: -43 + 86 * cycle / 0.6, y: 0)
         }
         let swing = (cycle - 0.6) / 0.4
         let eased = swing * swing * (3 - 2 * swing)
-        return CGPoint(x: 43 - 86 * eased, y: -sin(swing * .pi) * 28)
+        let startup = min(1, distance / (strideDistance * 0.08))
+        let lift = startup * startup * (3 - 2 * startup)
+        return CGPoint(x: 43 - 86 * eased, y: -sin(swing * .pi) * 28 * lift)
     }
 
     private func drawWalkingFace() {

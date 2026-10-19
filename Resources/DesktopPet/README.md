@@ -20,3 +20,8 @@ SVG exports are kept unchanged. The native view composes the original parts for 
 Locomotion composes the original body, diagonal paw groups and narrowed round head facing travel. The head keeps the approved outline, without adding a protruding muzzle. Only the walking silhouette reflects; its X/check glyphs retain their handedness. The original omega mouth remains below the eyes. Front/rest poses always use the original orientation, regardless of the previous walk direction.
 
 Paw stance follows the model's actual horizontal distance, including acceleration: planted paws stay fixed on the desktop, while each diagonal pair takes its turn lifting and swinging forward. This does not increase the existing 12 fps walking limit.
+
+The approved paw-licking pose uses groom-head.svg / groom-body.svg extracted
+from the original sit.svg, plus native palm and short rounded tongue drawing.
+walk-foot-0.svg through walk-foot-3.svg retain the exact original paw contours;
+broad roots connect them to the torso and neutral startup avoids a first-step pop.
