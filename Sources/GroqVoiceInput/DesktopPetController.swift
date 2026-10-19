@@ -102,6 +102,7 @@ final class DesktopPetController {
         let delay: TimeInterval
         if !model.released || !suspended.isEmpty { delay = 0 }
         else if !model.visible || environment.reduceMotion || environment.idleSeconds < 12 { delay = 1 }
+        else if model.pose == .grooming { delay = 1 / 25 }
         else { delay = model.pose == .walking || model.pose == .yawning ? 1 / 12 : 1 / 4 }
         schedule(every: delay)
     }

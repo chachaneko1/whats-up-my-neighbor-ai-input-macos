@@ -312,7 +312,12 @@ private final class SyntheticEditor {
         let missingMonitor = missing.monitor()
         defer { missingMonitor.stop() }
         begin(missingMonitor, missing, original: "NekoAI")
-        settle(0.08)
+        // Wait for the bounded retry sequence itself: loaded CI runners may
+        // take longer than 80 ms to deliver all four main-queue callbacks.
+        let retryDeadline = Date().addingTimeInterval(2)
+        while missing.countQueries < 4 && Date() < retryDeadline {
+            settle(0.01)
+        }
         check(!missing.observing && missing.countQueries == 4, "Unsupported character counts stop after four bounded attempts")
         check(missing.rangeReads.isEmpty, "Missing counts must not trigger broad text reads")
         missing.countAvailable = true

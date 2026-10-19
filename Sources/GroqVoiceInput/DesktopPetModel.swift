@@ -1,7 +1,7 @@
 import Foundation
 
 enum DesktopPetPose: String, CaseIterable {
-    case sitting, standing, walking, curious, yawning, loafing, sleeping
+    case sitting, standing, walking, curious, grooming, yawning, loafing, sleeping
 
     var description: String {
         switch self {
@@ -9,6 +9,7 @@ enum DesktopPetPose: String, CaseIterable {
         case .standing: return "站起來看看"
         case .walking: return "散步中"
         case .curious: return "有點好奇？"
+        case .grooming: return "舔舔前掌"
         case .yawning: return "打哈欠"
         case .loafing: return "趴著休息"
         case .sleeping: return "睡著了"
@@ -147,7 +148,8 @@ struct DesktopPetModel {
         switch pose {
         case .sitting: setPose(.standing, now: now, duration: 1.8)
         case .standing where cycle == 0: beginWalk(now: now, area: area, world: world)
-        case .walking, .curious, .standing: setPose(.yawning, now: now, duration: 3.2)
+        case .walking, .curious, .standing: setPose(.grooming, now: now, duration: 3.2)
+        case .grooming: setPose(.yawning, now: now, duration: 3.2)
         case .yawning: setPose(.loafing, now: now, duration: 5)
         case .loafing: setPose(.sleeping, now: now, duration: 18 + random() * 16)
         case .sleeping: beginWalk(now: now, area: area, world: world)

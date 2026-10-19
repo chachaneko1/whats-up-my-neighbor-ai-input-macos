@@ -1,12 +1,12 @@
-# Groq AI 語音輸入 for macOS
+# What's up my neighbor AI Input — macOS
 
-Windows 測試版的功能、安裝與驗證請見 [Windows 說明](windows/README.md)。
+Windows 測試版已獨立至 [Windows repo](https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-windows)，功能、測試與發佈各自維護。拆分與舊網址相容說明見 [repo 搬遷紀錄](docs/REPOSITORY_MIGRATION.md)。
 
 一個輕量的原生 macOS 選單列語音輸入 App。按下自訂全域快捷鍵開始錄音，再按一次停止；音訊會送到 Groq `whisper-large-v3`，轉成繁體中文後貼到原本游標位置。也可與配套 iPhone App 在附近直接連線，從手機修改轉錄文字並明確選擇「只貼上」或「貼上並送出」。
 
 ## 更新與自動發佈
 
-目前版本：**1.4.1（build 1008）**。黑貓選單會顯示實際安裝版本；完整紀錄見 [CHANGELOG.md](CHANGELOG.md)。版本與 build 統一以 `Resources/Info.plist` 為準；提高編號的新版本合併 main 後，由 GitHub Actions 自動測試、簽章、發佈安裝包與更新清單。
+目前版本：**1.4.3（build 1010）**。黑貓選單會顯示實際安裝版本；完整紀錄見 [CHANGELOG.md](CHANGELOG.md)。版本與 build 統一以 `Resources/Info.plist` 為準；提高編號的新版本合併 main 後，由 GitHub Actions 自動測試、簽章、發佈安裝包與更新清單。
 
 macOS 版加入 Sparkle：每日偵測新版並通知，由使用者自行選擇是否下載安裝。錄音、辨識或等待重試時延後提示與重新啟動；選單提供「檢查更新…」與「自動偵測新版本」。既有 API Key、快捷鍵及使用者資料夾的 `cat.config.json`／圖片不覆寫。
 
@@ -113,14 +113,14 @@ macOS 版加入 Sparkle：每日偵測新版並通知，由使用者自行選擇
 只要把這個 Repo 連結交給能操作 Mac 終端機的 AI，例如 Codex 或 Claude Code：
 
 ```text
-https://github.com/yuipan0611/groq-ai-voice-input-macos
+https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos
 ```
 
 再貼上以下指令：
 
 ```text
 請幫我安裝這個 GitHub Repo 的最新版 macOS App：
-https://github.com/yuipan0611/groq-ai-voice-input-macos
+https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos
 
 請先閱讀 README、PRIVACY.md 與 Release 說明，再下載最新 Release 的 ZIP 和 .sha256，核對 SHA-256 後解壓縮並執行安裝工具。不要從原始碼或不明分支直接執行檔案，也不要移除或繞過 macOS quarantine；若 Gatekeeper 阻擋，請引導我使用右鍵「打開」或「系統設定 → 隱私權與安全性 → 仍要打開」。
 
