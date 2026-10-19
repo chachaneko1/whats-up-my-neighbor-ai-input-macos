@@ -167,7 +167,7 @@ private final class CatOverlayPanel: NSPanel {
     }
 }
 
-private enum CatAppearance { case recording, greeting }
+private enum CatOverlayMode { case recording, greeting }
 
 private final class CatArtworkView: NSView {
     let cancel = CatEyeButton()
@@ -176,7 +176,7 @@ private final class CatArtworkView: NSView {
     private let originalImage: NSImage?
     private let mouthlessImage: NSImage?
     var canReplaceMouth: Bool { mouthlessImage != nil }
-    var catAppearance: CatAppearance = .recording {
+    var catAppearance: CatOverlayMode = .recording {
         didSet { layoutTargets(); needsDisplay = true }
     }
     var animatesGreeting = false { didSet { needsDisplay = true } }
@@ -199,10 +199,17 @@ private final class CatArtworkView: NSView {
         let bundled = CatPNG.read(bundledImageURL)
         let selected = configuration.imageData.flatMap(CatPNG.decode)
         let image = selected ?? bundled
-        originalImage = image.map(CatPNG.image)
-        // An explicit custom selection is never repainted, even when that file
-        // fails to load and the bundled fallback is displayed instead.
-        mouthlessImage = configuration.image == nil ? bundled.flatMap(CatPNG.withoutNeutralMouth) : nil
+        if configuration.image == nil && !configuration.appearance.isOriginal, let bundled {
+            let painter = CatAppearanceArtwork(configuration.appearance)
+            let source = CatPNG.image(bundled)
+            originalImage = painter.image(source, layout: .hud)
+            mouthlessImage = painter.image(source, layout: .hud, removeMouth: true)
+        } else {
+            originalImage = image.map(CatPNG.image)
+            // An explicit custom selection is never repainted, even when that
+            // file fails to load and the bundled fallback is displayed instead.
+            mouthlessImage = configuration.image == nil ? bundled.flatMap(CatPNG.withoutNeutralMouth) : nil
+        }
         super.init(frame: NSRect(x: 0, y: 0, width: 340, height: 220))
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
@@ -248,7 +255,9 @@ private final class CatArtworkView: NSView {
         transform.concat()
         let openings: [CGFloat] = [0, 3, 7, 4, 0, 0, 5, 7, 2, 0, 4, 0]
         let opening = openings[max(0, frame) % openings.count]
-        let ink = NSColor(calibratedRed: 247 / 255, green: 247 / 255, blue: 249 / 255, alpha: 1)
+        let ink = configuration.appearance.isOriginal
+            ? NSColor(calibratedRed: 247 / 255, green: 247 / 255, blue: 249 / 255, alpha: 1)
+            : CatAppearanceArtwork(configuration.appearance).ink(.muzzle, u: 0.5, v: 0.8)
         if opening > 0 {
             let mouth = NSBezierPath()
             mouth.move(to: NSPoint(x: -5, y: 1))

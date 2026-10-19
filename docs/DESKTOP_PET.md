@@ -13,7 +13,7 @@
 
 `DesktopPetModel` 是可重現的動作／位置模型；`DesktopPetView` 使用打包 SVG 與原生 AppKit 繪圖；`DesktopPetController` 使用不可成為 key/main 的非啟動面板，滑鼠點擊穿透。步行／哈欠最高 12 fps，其他閒置動作 4 fps，操作中與隱藏時只作每秒狀態檢查。資料夾幾何讀取在背景佇列，約 8 秒刷新；遮擋與全螢幕約 2 秒更新，因此視窗或圖示剛變動時可能短暫保留前一位置。拔除螢幕後限制在剩餘可見範圍。
 
-只讀 Finder 桌面 AX 圖示位置及資料夾型別；不截圖、不讀文字／檔案內容，不新增服務或 AI 請求。位置只有記憶體快取，沒有檔案／路徑紀錄。`cat.config.json` 沿用 version 1，這個模式不改錄音／問候自訂圖，也不觸動手機接力。
+只讀 Finder 桌面 AX 圖示位置及資料夾型別；不截圖、不讀文字／檔案內容，不新增服務或 AI 請求。位置只有記憶體快取，沒有檔案／路徑紀錄。`cat.config.json` version 1 仍可讀取；version 2 的 `appearance` 可套用整套毛色及部位覆蓋。錄音／問候的自訂圖仍優先，不觸動手機接力。詳見 `docs/appearance/README.md`。
 
 ## 背景啟動
 

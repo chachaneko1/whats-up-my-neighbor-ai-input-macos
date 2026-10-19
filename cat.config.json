@@ -1,7 +1,11 @@
 {
-  "version": 1,
+  "version": 2,
   "image": null,
-  "triggers": ["what's up", "whats up", "what is up"],
+  "triggers": [
+    "what's up",
+    "whats up",
+    "what is up"
+  ],
   "reply": "what's up!",
   "fontFamily": "Comic Sans MS",
   "fontSize": 18,
@@ -10,5 +14,27 @@
   "tiltDegrees": -10,
   "cooldownSeconds": 5,
   "displaySeconds": 3,
-  "animateMouth": true
+  "animateMouth": true,
+  "appearance": {
+    "parts": {
+      "belly": {},
+      "body": {},
+      "chest": {},
+      "frontLeftLeg": {},
+      "frontLeftPaw": {},
+      "frontRightLeg": {},
+      "frontRightPaw": {},
+      "head": {},
+      "leftEar": {},
+      "muzzle": {},
+      "rearLeftLeg": {},
+      "rearLeftPaw": {},
+      "rearRightLeg": {},
+      "rearRightPaw": {},
+      "rightEar": {},
+      "tail": {}
+    },
+    "preset": "original",
+    "seed": 1
+  }
 }

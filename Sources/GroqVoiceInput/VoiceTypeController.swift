@@ -18,11 +18,15 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     private let recordingStore = TemporaryRecordingStore()
     private let micRecorder = PinnedMicrophoneRecorder()
     private let catConfiguration = CatConfiguration.load()
-    private lazy var nekoHUD = NekoRecordingHUD(image: catConfiguration.imageData.flatMap(NSImage.init(data:)) ?? NekoAppearance.catImage)
+    private lazy var recordingCatImage: NSImage? = {
+        guard catConfiguration.image == nil, let original = NekoAppearance.catImage else { return NekoAppearance.catImage }
+        return CatAppearanceArtwork(catConfiguration.appearance).image(original, layout: .hud)
+    }()
+    private lazy var nekoHUD = NekoRecordingHUD(image: catConfiguration.imageData.flatMap(NSImage.init(data:)) ?? recordingCatImage)
     private lazy var catGreeting = CatGreeting(configuration: catConfiguration)
     private lazy var catOverlay = CatOverlay(configuration: catConfiguration)
     private lazy var desktopPet: DesktopPetController = {
-        let pet = DesktopPetController()
+        let pet = DesktopPetController(appearance: catConfiguration.appearance)
         pet.isBusy = { [weak self] in
             guard let self else { return true }
             return self.dictation.state != .idle || self.clipboardPicker.isVisible ||

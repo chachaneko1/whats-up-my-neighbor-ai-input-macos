@@ -1,6 +1,6 @@
 # 自訂你的貓咪 / Customize your cat
 
-macOS 與 Windows 版使用相同的 **version 1** `cat.config.json` 格式，可以分享範本和 PNG，不需要分享 API key 或其他個人設定。
+macOS 現在支援 **version 2**：問候、圖片設定之外，也能選自然毛色並逐一調整身體部位。舊 **version 1** 仍可原樣讀取，不會自動改寫。Windows 的 version 2 尚未實作或驗證；跨平台分享請繼續使用 version 1。設定不包含 API key。
 
 ## macOS 開始使用
 
@@ -16,13 +16,13 @@ macOS 與 Windows 版使用相同的 **version 1** `cat.config.json` 格式，�
 
 若沒有設定檔，直接使用以下預設值。Windows 使用 `%LOCALAPPDATA%\WhatsUpMyNeighbor`；兩個平台的設定資料夾各自獨立，不會自動同步。
 
-桌面模式的「放出／收回小黑貓」獨立儲存在本機偏好設定，使用隨 App 打包的黑貓動作圖，不會改寫這份設定或自訂 PNG。自訂圖片與嘴型設定仍用於原有錄音／問候視窗。
+桌面模式的「放出／收回小黑貓」獨立儲存在本機偏好設定。version 2 的 `appearance` 同時用於桌面貓、錄音浮窗與問候；自訂 `image` 仍只用於錄音／問候，優先於毛色，且不會被重新著色。
 
 ## 完整預設範本
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "image": null,
   "triggers": ["what's up", "whats up", "what is up"],
   "reply": "what's up!",
@@ -33,13 +33,15 @@ macOS 與 Windows 版使用相同的 **version 1** `cat.config.json` 格式，�
   "tiltDegrees": -10,
   "cooldownSeconds": 5,
   "displaySeconds": 3,
-  "animateMouth": true
+  "animateMouth": true,
+  "appearance": { "preset": "original", "seed": 1, "parts": {} }
 }
 ```
 
 | 欄位 | 說明 |
 | --- | --- |
-| `version` | 格式版本，目前只支援整數 `1`。 |
+| `version` | 整數 `1` 或 `2`；`appearance` 必須使用 `2`。 |
+| `appearance` | version 2 的整套毛色與部位覆蓋，詳見下方。 |
 | `image` | `null` 使用內建貓咪；自訂圖片填同資料夾內 PNG 檔名，例如 `"my-cat.png"`。 |
 | `triggers` | 1–32 個完整觸發句，每句 1–80 個 Unicode 字元。設定後取代整組預設觸發句。 |
 | `reply` | 氣泡回覆，1–80 個 Unicode 字元，不可換行。建議 24 字內；較長文字可能換行、縮小或省略。 |
@@ -84,6 +86,44 @@ macOS 與 Windows 版使用相同的 **version 1** `cat.config.json` 格式，�
 
 Choose “開啟貓咪設定資料夾…” from the app's menu-bar menu. This creates `~/Library/Application Support/tw.panh.FreeVoiceType` and copies the bundled template only if no configuration exists. Quit the app, edit `cat.config.json` as UTF-8 JSON, then restart. Settings and images are loaded only at startup.
 
-The version-one schema and defaults match Windows. Omitted fields use defaults; unknown fields, invalid types, unsupported versions, unsafe image paths and out-of-range values invalidate the whole configuration without overwriting it. The config limit is 16 KiB. Triggers match whole utterances only, and a match is consumed even during cooldown.
+Version one remains readable. Version two adds macOS-only anatomical appearance; Windows v2 support is not implemented or verified. Omitted fields use defaults; unknown fields, invalid types, unsupported versions, unsafe image paths and out-of-range values invalidate the whole configuration without overwriting it. The config limit remains 16 KiB. Triggers match whole utterances only, and a match is consumed even during cooldown.
 
 Use a same-folder PNG filename for `image`, or `null` for the built-in cat. PNGs are limited to 4 MiB and 2048 × 2048 pixels. Keep the original cat's eye positions because click targets are fixed. Missing or undecodable artwork falls back to the built-in image while retaining other valid settings. Any explicit custom image disables mouth overlays, even when the image cannot load. Set `animateMouth` to `false` to disable the silent mouth animation while retaining greetings. Fonts are resolved locally, with a system fallback when absent.
+
+
+## 自然毛色與部位設定（macOS version 2）
+
+[完整部位說明與驗收方式](docs/appearance/README.md)。[可直接修改的範例](Examples/CatAppearance/)已將每隻貓的全部 16 個部位填好；App 於重新啟動時載入設定；預覽請按「載入 JSON…」重新載入。原有使用者設定不會被覆寫。
+
+`appearance.preset` 可選 `original`（原版黑貓）、`black`、`white`、`blue`（灰貓）、`orange-tabby`、`tuxedo`、`calico`、`tortoiseshell`、`colorpoint`。未提供 `appearance` 使用原版黑貓。
+
+`appearance.parts` 先繼承預設，再逐欄覆蓋。預設範本以空物件列出部位，表示繼承；完整毛色範例則已填入每個部位的值。若只想切換 `preset`，請將既有 `parts` 清空，避免舊覆蓋值蓋住新的毛色。例如將賓士貓的尾巴改灰：
+
+```json
+{
+  "version": 2,
+  "appearance": {
+    "preset": "tuxedo",
+    "seed": 1,
+    "parts": { "tail": { "color": "#8D9295", "pattern": "none" } }
+  }
+}
+```
+
+| 部位鍵 | 位置 |
+| --- | --- |
+| `head` | 頭臉底色與臉部花紋 |
+| `leftEar`, `rightEar` | 正面觀看的左／右耳 |
+| `muzzle` | 口鼻及向上的尖形白斑 |
+| `chest`, `belly`, `body` | 胸前、腹部、軀幹兩側與背身 |
+| `frontLeftLeg`, `frontRightLeg` | 正面觀看的左／右前肢 |
+| `rearLeftLeg`, `rearRightLeg` | 正面觀看的左／右後肢 |
+| `frontLeftPaw`, `frontRightPaw` | 左／右前腳掌（白襪） |
+| `rearLeftPaw`, `rearRightPaw` | 左／右後腳掌（白襪） |
+| `tail` | 尾巴 |
+
+每個部位接受 `color`（底色）、`pattern`（花紋）及 `patternColor`（花紋色）。顏色為 `#RRGGBB`，不支援透明色；省略欄位沿用該部位預設。花紋有 `none`、`tabby`（虎斑）、`patches`（玳瑁式拼色）、`calico`（三花）、`whiteSpots`（斑塊，白斑請搭配白色 `patternColor`）、`point`（深色區，顏色由 `patternColor` 決定）。`seed` 是 0–4294967295 的整數，固定種子保持同一隻貓的斑紋；省略為 1。換姿勢時部位跟隨原動作，不重新抽樣。
+
+錄音／問候只顯示頭部，因此只有可見部位會出現；不把桌面圓臉替換成錄音長臉。眼睛的取消／完成位置不變，嘴型顏色配合口鼻對比。自訂 PNG（即使讀取失敗）維持既有圖片優先和停用嘴型的規則。
+
+未知部位、花紋、欄位、無效顏色、種子或版本會使整份設定回到預設並提示錯誤，原檔保留。設定不下載素材、不讀取官網帳號，不代表收藏或付費權益；官網抽取、收藏與同步不在本機預覽範圍。
