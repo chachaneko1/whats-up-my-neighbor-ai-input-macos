@@ -68,6 +68,14 @@ final class DesktopPetController {
 
     var isReleased: Bool { model.released }
 
+    @discardableResult
+    func setCoat(_ coat: CatCoat) -> Bool {
+        guard !disposed, artwork.setCoat(coat) else { return false }
+        panel.title = coat.title + "桌面夥伴"
+        refresh()
+        return true
+    }
+
     func setReleased(_ value: Bool) {
         guard !disposed else { return }
         let now = ProcessInfo.processInfo.systemUptime

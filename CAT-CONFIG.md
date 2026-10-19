@@ -87,3 +87,13 @@ Choose “開啟貓咪設定資料夾…” from the app's menu-bar menu. This c
 The version-one schema and defaults match Windows. Omitted fields use defaults; unknown fields, invalid types, unsupported versions, unsafe image paths and out-of-range values invalidate the whole configuration without overwriting it. The config limit is 16 KiB. Triggers match whole utterances only, and a match is consumed even during cooldown.
 
 Use a same-folder PNG filename for `image`, or `null` for the built-in cat. PNGs are limited to 4 MiB and 2048 × 2048 pixels. Keep the original cat's eye positions because click targets are fixed. Missing or undecodable artwork falls back to the built-in image while retaining other valid settings. Any explicit custom image disables mouth overlays, even when the image cannot load. Set `animateMouth` to `false` to disable the silent mouth animation while retaining greetings. Fonts are resolved locally, with a system fallback when absent.
+
+## 貓咪毛色與官網抽取
+
+貓咪抽取屬於官網功能。App 選單不提供「抽一隻貓咪」、本機重抽或本機收養視窗，也不支援 `--show-cat-adoption` 啟動入口。App 保留桌面貓咪的毛色顯示能力與既有的放出／收回操作。
+
+預定流程為：使用者在官網以 Google 登入 → 依官網規則取得抽取資格 → 抽到並保存至帳號收藏 → 選擇要使用的貓咪 → App 取得並套用已擁有的毛色。抽取次數、資格和收藏應由服務端保存與驗證，App 本機毛色快取不能視為取得資格的證明。Google 登入、官網抽取、收藏、App 同步與權益驗證均尚未實作。
+
+Donate 未來可能提供稀有版本或自訂毛色；目前僅保留此產品方向，不代表已開放付款或已決定價格、機率、額度及稀有版取得方式。登入抽取的初始規則亦待訂。
+
+現有毛色原型以固定種子決定色塊，保持原有向量輪廓、表情與動畫。舊本機選擇仍從 UserDefaults 的 `desktopCatCoat.v1` 讀取，以避免既有外觀突然遺失；這不是官網帳號收藏或稀有版權益。未有本機選擇時仍使用原版黑貓。`cat.config.json`、語音設定、剪貼簿歷史和選單列圖示均不參與官網抽取。舊本機抽取視窗僅供離線繪圖測試，產品編譯不包含該視窗。

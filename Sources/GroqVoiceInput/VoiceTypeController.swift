@@ -15,6 +15,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     private let hotKeys = HotKeyManager()
     private let clipboardPasteGesture = ClipboardPasteGesture()
     private let settings = SettingsStore()
+    private let catCoats = CatCoatStore()
     private let credentials = KeychainStore()
     private let recordingStore = TemporaryRecordingStore()
     private let micRecorder = PinnedMicrophoneRecorder()
@@ -139,7 +140,10 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
 
         // Show the guide once per user, not once per build; never open the microphone.
         nekoHUD.showIntroductionIfNeeded(shortcut: shortcutDisplayName(currentHotKey))
+        let selectedCoat = catCoats.load()
+        let loadedCoat = desktopPet.setCoat(selectedCoat) ? selectedCoat : .original
         desktopPet.setReleased(settings.loadDesktopPetReleased())
+        statusMenu.updateCatCoat(loadedCoat, released: desktopPet.isReleased)
 
         let hasAPIKey = credentials.readAPIKey() != nil
         UpdateDiagnostics.shared.record(.apiKeyAccess, succeeded: hasAPIKey)

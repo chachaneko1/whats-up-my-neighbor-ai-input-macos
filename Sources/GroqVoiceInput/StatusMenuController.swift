@@ -8,6 +8,7 @@ final class StatusMenuController {
     private(set) var relayMenuItem: NSMenuItem!
     private(set) var clipboardPickerMenuItem: NSMenuItem!
     private(set) var desktopPetMenuItem: NSMenuItem!
+    private var desktopCoat = CatCoat.original
     private(set) var retryMenuItem: NSMenuItem!
     private(set) var cancelMenuItem: NSMenuItem!
     private(set) var modeMenuItems: [TextOutputMode: NSMenuItem] = [:]
@@ -162,7 +163,13 @@ final class StatusMenuController {
     }
 
     func updateDesktopPet(_ released: Bool) {
-        desktopPetMenuItem.title = released ? "收回小黑貓" : "放出小黑貓"
+        let name = desktopCoat.isOriginal ? "小黑貓" : desktopCoat.title
+        desktopPetMenuItem.title = (released ? "收回" : "放出") + name
+    }
+
+    func updateCatCoat(_ coat: CatCoat, released: Bool) {
+        desktopCoat = coat
+        updateDesktopPet(released)
     }
 
     func updateIcon(_ state: NekoMenuBarIcon.State, description: String) {

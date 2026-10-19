@@ -244,7 +244,7 @@ final class ClipboardPickerController: NSObject {
             root.addSubview(cat)
         }
         for x in [194.0, 306.0] {
-            let paw = RoundedPawView(frame: NSRect(x: x, y: 399, width: 40, height: 38))
+            let paw = RoundedPawView(frame: NSRect(x: x, y: 391, width: 40, height: 38))
             root.addSubview(paw)
         }
         return panel

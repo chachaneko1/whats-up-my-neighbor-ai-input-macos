@@ -3,7 +3,10 @@ import AppKit
 /// The approved Figma C mascot, composed locally into new resting expressions.
 /// The SVG files remain unchanged; no temporary Figma URLs are used at runtime.
 final class DesktopPetView: NSView {
-    private let images: [String: NSImage]
+    private var images: [String: NSImage]
+    private let resources: URL?
+    private(set) var coat = CatCoat.original
+    private var palette = CatCoatArtwork(.original)
     var pose: DesktopPetPose = .sitting
     var phase: Double = 0
     var walkDistance: CGFloat = 0
@@ -14,6 +17,7 @@ final class DesktopPetView: NSView {
     override var acceptsFirstResponder: Bool { false }
 
     init(resources: URL? = Bundle.main.resourceURL?.appendingPathComponent("DesktopPet")) {
+        self.resources = resources
         let names = ["sit", "walk", "reply", "body", "tail", "walk-body", "walk-paws", "walk-front-face"]
         images = Dictionary(uniqueKeysWithValues: names.compactMap { name in
             guard let url = resources?.appendingPathComponent(name + ".svg"),
@@ -31,6 +35,32 @@ final class DesktopPetView: NSView {
     }
 
     required init?(coder: NSCoder) { nil }
+
+    @discardableResult
+    func setCoat(_ coat: CatCoat) -> Bool {
+        guard self.coat != coat else { return true }
+        let palette = CatCoatArtwork(coat)
+        var colored: [String: NSImage] = [:]
+        for name in ["sit", "walk", "reply", "body", "tail", "walk-body", "walk-paws", "walk-front-face"] {
+            guard let url = resources?.appendingPathComponent(name + ".svg"),
+                  let source = try? String(contentsOf: url, encoding: .utf8),
+                  let image = coat.isOriginal ? NSImage(contentsOf: url) : NSImage(data: Data(palette.svg(source, asset: name).utf8)) else { return false }
+            if name == "walk-front-face" { image.cacheMode = .never }
+            colored[name] = image
+            if name == "sit", !coat.isOriginal {
+                let furOnly = source.replacingOccurrences(of: "<path[^>]*stroke=\"white\"[^>]*/>",
+                                                          with: "", options: .regularExpression)
+                guard let plain = NSImage(data: Data(palette.svg(furOnly, asset: name).utf8)) else { return false }
+                colored["sit-fur"] = plain
+            }
+        }
+        images = colored
+        self.coat = coat
+        self.palette = palette
+        setAccessibilityLabel(coat.title + "桌面夥伴")
+        needsDisplay = true
+        return true
+    }
 
     func update(_ model: DesktopPetModel, reduceMotion: Bool) {
         if pose != model.pose { setAccessibilityValue(model.pose.description) }
@@ -64,8 +94,20 @@ final class DesktopPetView: NSView {
         if pose == .sleeping { drawSleepMarks() }
     }
 
-    private let fur = NSColor(srgbRed: 16 / 255, green: 17 / 255, blue: 20 / 255, alpha: 1)
-    private let ink = NSColor(srgbRed: 250 / 255, green: 250 / 255, blue: 249 / 255, alpha: 1)
+    private var fur: NSColor { palette.fur }
+    private var ink: NSColor {
+        coat.isOriginal ? NSColor(srgbRed: 250 / 255, green: 250 / 255, blue: 249 / 255, alpha: 1) : palette.ink
+    }
+
+    private func paintFur(in rect: CGRect) {
+        guard !coat.isOriginal else {
+            fur.setFill(); NSBezierPath(ovalIn: rect).fill(); return
+        }
+        NSGraphicsContext.saveGraphicsState()
+        NSBezierPath(ovalIn: rect).addClip()
+        drawImage("sit-fur")
+        NSGraphicsContext.restoreGraphicsState()
+    }
 
     private func drawImage(_ name: String, in rect: CGRect = CGRect(x: 0, y: 0, width: 400, height: 400)) {
         images[name]?.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1,
@@ -157,8 +199,7 @@ final class DesktopPetView: NSView {
     private func drawYawning() {
         drawImage("sit")
         let opening = reduceMotion ? 0.8 : sin(min(1, phase / 3.2) * .pi)
-        fur.setFill()
-        NSBezierPath(ovalIn: CGRect(x: 174, y: 168, width: 57, height: 43)).fill()
+        paintFur(in: CGRect(x: 174, y: 168, width: 57, height: 43))
         ink.setStroke()
         let mouth = NSBezierPath(ovalIn: CGRect(x: 187, y: 181 - opening * 3,
                                                width: 25, height: 8 + opening * 30))
@@ -189,11 +230,11 @@ final class DesktopPetView: NSView {
         transform.translateX(by: origin.x, yBy: origin.y)
         transform.scale(by: scale)
         transform.concat()
-        fur.setFill()
-        NSBezierPath(ovalIn: CGRect(x: 85, y: 130, width: 62, height: 59)).fill()
-        NSBezierPath(ovalIn: CGRect(x: 247, y: 129, width: 77, height: 57)).fill()
+        paintFur(in: CGRect(x: 85, y: 130, width: 62, height: 59))
+        paintFur(in: CGRect(x: 247, y: 129, width: 77, height: 57))
         ink.setStroke()
         for x: CGFloat in [99, 267] {
+            if !coat.isOriginal { CatCoatArtwork.color(palette.ink(at: CGPoint(x: x + 16, y: 159))).setStroke() }
             let eyelid = NSBezierPath()
             eyelid.move(to: CGPoint(x: x, y: 159))
             eyelid.curve(to: CGPoint(x: x + 32, y: 159), controlPoint1: CGPoint(x: x + 9, y: 170),
