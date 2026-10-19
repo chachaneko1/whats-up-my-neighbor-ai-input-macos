@@ -25,6 +25,7 @@ open "$PWD/build/remote-agent-preview/遠端分身預覽.app"
 ```sh
 ./scripts/test-agent-core.sh
 ./scripts/test-agent-preview.sh
+./scripts/test-agent-ssh.sh
 ```
 
 重現六種原生畫面（只繪製本 App，不擷取桌面）：
@@ -34,4 +35,4 @@ open "$PWD/build/remote-agent-preview/遠端分身預覽.app"
   --render-previews "$PWD/build/remote-agent-preview/renders"
 ```
 
-SSH 通道層的程式與測試會在第三階段加入；面板沒有真實連線入口。整體驗收及後續事項見 `docs/REMOTE_AGENT_PREVIEW.md`。
+SSH 通道層已提供程式介面與離線測試；面板沒有真實連線入口。整體驗收及後續事項見 `docs/REMOTE_AGENT_PREVIEW.md`。
