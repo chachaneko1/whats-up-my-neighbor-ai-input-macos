@@ -69,7 +69,7 @@ App 是選單列常駐程式（`LSUIElement`），沒有主視窗、沒有自己
 | 剪貼簿歷史 | `ClipboardHistoryMonitor.swift`、`ClipboardHistoryStore.swift`、`ClipboardPickerController.swift`、`ClipboardHistoryMenuController.swift` | 本機 `~/Library/Application Support/AI語音輸入/ClipboardHistory`，最多 10 筆、每筆 8 MiB |
 | 修正學習 | `PasteCorrectionMonitor.swift`、`MacVocabularyCorrection.swift`、`VocabularyLearningStore.swift`、`VocabularyLearningToastController.swift` | 貼上後最多觀察兩分鐘；候選只存修正片段，存在 `UserDefaults` |
 | 詞典管理 | `VocabularyWindowController.swift`、`MacVocabularyStore.swift` | `UserDefaults` 的 `smartVocabulary.entries.v1` |
-| 錄音浮窗 | `NekoRecordingHUD.swift`、`NekoSignalMeter.swift` | 不搶焦點的面板；左眼取消、右眼完成 |
+| 錄音浮窗 | `NekoRecordingHUD.swift`、`NekoSignalMeter.swift` | 不搶焦點的面板；左眼取消、右眼完成；`cat.config.json` 指定圖片時改用該圖片 |
 | 選單列 | `StatusMenuController.swift`、`NekoMenuBarIcon.swift` | 黑貓圖示與所有設定入口 |
 | 設定 | `SettingsStore.swift`、`SettingsViews.swift` | `UserDefaults`（`tw.panh.FreeVoiceType`），沿用既有 key 與遷移 |
 | 桌面小黑貓 | `DesktopPetController.swift`、`DesktopPetModel.swift`、`DesktopPetView.swift`、`DesktopPetGroomingPalm.swift`、`DesktopPetDesktopReader.swift` | 只在記憶體讀桌面資料夾位置；不連網、不開麥克風 |
