@@ -1,0 +1,17 @@
+{
+  "head": "bdf8bd6c42372c588f468dc859d7fc8e68303e71",
+  "files": {
+    "Resources/Info.plist": "1fb4df3470c3015a6d10b0f9e146654cbb8b368e68559589f0a64c6bbcdeae31",
+    "Resources/neko-base.png": "6e6ad5471bc6b18ffd8ac0fcbf883febda6226b75b5eeb50c5b47147fe2dc88c",
+    "Resources/DesktopPet/walk-front-face.svg": "a6d2b9f0f93c182baf1e0d96ffdbb05d25cb2de02176756172cc05ab85353a3c",
+    "cat.config.json": "a66025d6ee3ba3a5f91e0bcde702f58d03f3347ccf0c50cc5fb18bb161ba588f",
+    "Sources/GroqVoiceInput/NekoMenuBarIcon.swift": "2d93e2a19c4ba64d750df07ea3a10be9036e3054ce10827273cfa8dcc6188622",
+    "Resources/AppIcon.icns": "642b75eca5914a65b91b387fc3f66ef6f4ff692da3c812b2f67de853a713f9ad"
+  },
+  "installed": {
+    "Contents/Info.plist": "1fb4df3470c3015a6d10b0f9e146654cbb8b368e68559589f0a64c6bbcdeae31",
+    "Contents/MacOS/FreeVoiceType": "3e0622b473c05be605d302a0bb63964fc8bdaded9606da0610f16601b3be2227",
+    "Contents/Resources/AppIcon.icns": "642b75eca5914a65b91b387fc3f66ef6f4ff692da3c812b2f67de853a713f9ad",
+    "Contents/_CodeSignature/CodeResources": "dc74dbb929ef25feb4556c61ab9940d3bec93098bf87eeea8d8d513db1d8028a"
+  }
+}

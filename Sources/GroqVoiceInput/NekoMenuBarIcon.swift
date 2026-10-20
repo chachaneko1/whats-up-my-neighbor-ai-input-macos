@@ -1,11 +1,11 @@
 import AppKit
 
-/// The cat stays black in every state; transparent glyphs carry status.
+/// The approved round-face artwork, with transparent status glyphs.
 enum NekoMenuBarIcon {
     enum State: CaseIterable { case idle, recording, processing, retry, relay }
 
     static func image(for state: State = .idle) -> NSImage {
-        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
+        let image = NSImage(size: NSSize(width: 24, height: 18), flipped: true) { _ in
             draw(state: state)
             return true
         }
@@ -16,27 +16,35 @@ enum NekoMenuBarIcon {
     private static func draw(state: State) {
         NSGraphicsContext.saveGraphicsState()
         defer { NSGraphicsContext.restoreGraphicsState() }
-        NSColor.black.setFill()
+        // Same 325 × 218 crop and unmodified paths as walk-front-face.svg.
+        let scale: CGFloat = 24 / 325
+        let transform = NSAffineTransform()
+        transform.translateX(by: -20 * scale, yBy: (18 - 218 * scale) / 2 - 12 * scale)
+        transform.scale(by: scale)
+        transform.concat()
+
+        NSColor(srgbRed: 16 / 255, green: 17 / 255, blue: 20 / 255, alpha: 1).setFill()
         let head = NSBezierPath()
-        head.move(to: NSPoint(x: 4, y: 3))
-        head.curve(to: NSPoint(x: 0.5, y: 7), controlPoint1: NSPoint(x: 1.7, y: 3), controlPoint2: NSPoint(x: 0.5, y: 4.4))
-        head.curve(to: NSPoint(x: 1.2, y: 10), controlPoint1: NSPoint(x: 0.5, y: 8.2), controlPoint2: NSPoint(x: 0.8, y: 9.2))
-        head.line(to: NSPoint(x: 2.9, y: 15.1))
-        head.curve(to: NSPoint(x: 4.1, y: 15.3), controlPoint1: NSPoint(x: 3.1, y: 15.8), controlPoint2: NSPoint(x: 3.6, y: 15.9))
-        head.line(to: NSPoint(x: 6.8, y: 11.5))
-        head.line(to: NSPoint(x: 11.2, y: 11.5))
-        head.line(to: NSPoint(x: 13.9, y: 15.3))
-        head.curve(to: NSPoint(x: 15.1, y: 15.1), controlPoint1: NSPoint(x: 14.4, y: 15.9), controlPoint2: NSPoint(x: 14.9, y: 15.8))
-        head.line(to: NSPoint(x: 16.8, y: 10))
-        head.curve(to: NSPoint(x: 17.5, y: 7), controlPoint1: NSPoint(x: 17.2, y: 9.2), controlPoint2: NSPoint(x: 17.5, y: 8.2))
-        head.curve(to: NSPoint(x: 14, y: 3), controlPoint1: NSPoint(x: 17.5, y: 4.4), controlPoint2: NSPoint(x: 16.3, y: 3))
+        head.move(to: NSPoint(x: 28, y: 132.103))
+        head.curve(to: NSPoint(x: 59, y: 68.7), controlPoint1: NSPoint(x: 31, y: 110.365), controlPoint2: NSPoint(x: 41, y: 87.721))
+        head.line(to: NSPoint(x: 75, y: 27.0351))
+        head.curve(to: NSPoint(x: 97, y: 26.1293), controlPoint1: NSPoint(x: 80, y: 17.9775), controlPoint2: NSPoint(x: 88, y: 17.9775))
+        head.line(to: NSPoint(x: 135, y: 65.9828))
+        head.curve(to: NSPoint(x: 226, y: 65.9828), controlPoint1: NSPoint(x: 164, y: 63.2655), controlPoint2: NSPoint(x: 196, y: 63.2655))
+        head.line(to: NSPoint(x: 263, y: 27.0351))
+        head.curve(to: NSPoint(x: 286, y: 27.9408), controlPoint1: NSPoint(x: 273, y: 17.0717), controlPoint2: NSPoint(x: 281, y: 17.9775))
+        head.line(to: NSPoint(x: 304, y: 71.4173))
+        head.curve(to: NSPoint(x: 333, y: 136.632), controlPoint1: NSPoint(x: 324, y: 93.1556), controlPoint2: NSPoint(x: 331, y: 112.177))
+        head.curve(to: NSPoint(x: 286, y: 214.527), controlPoint1: NSPoint(x: 339, y: 181.92), controlPoint2: NSPoint(x: 322, y: 208.187))
+        head.curve(to: NSPoint(x: 76, y: 214.527), controlPoint1: NSPoint(x: 232, y: 224.491), controlPoint2: NSPoint(x: 131, y: 224.491))
+        head.curve(to: NSPoint(x: 28, y: 132.103), controlPoint1: NSPoint(x: 38, y: 208.187), controlPoint2: NSPoint(x: 19, y: 181.014))
         head.close()
         head.fill()
 
-        // Cutouts remain transparent, so both light and dark menu bars work.
         NSGraphicsContext.current?.compositingOperation = .destinationOut
         NSColor.black.setStroke()
-        func stroke(_ points: [NSPoint], width: CGFloat = 1.35) {
+        NSColor.black.setFill()
+        func stroke(_ points: [NSPoint], width: CGFloat = 14) {
             let line = NSBezierPath()
             line.lineWidth = width
             line.lineCapStyle = .round
@@ -45,28 +53,35 @@ enum NekoMenuBarIcon {
             for point in points.dropFirst() { line.line(to: point) }
             line.stroke()
         }
-        func dot(_ x: CGFloat, _ y: CGFloat, diameter: CGFloat = 1.6) {
+        func dot(_ x: CGFloat, _ y: CGFloat, diameter: CGFloat = 20) {
             NSBezierPath(ovalIn: NSRect(x: x - diameter / 2, y: y - diameter / 2, width: diameter, height: diameter)).fill()
         }
         switch state {
         case .idle, .relay:
-            stroke([NSPoint(x: 3.6, y: 6), NSPoint(x: 6, y: 8.4)])
-            stroke([NSPoint(x: 3.6, y: 8.4), NSPoint(x: 6, y: 6)])
+            stroke([NSPoint(x: 80, y: 147), NSPoint(x: 108, y: 175)], width: 13)
+            stroke([NSPoint(x: 108, y: 147), NSPoint(x: 80, y: 175)], width: 13)
             if state == .relay {
-                stroke([NSPoint(x: 11.2, y: 7.2), NSPoint(x: 14.2, y: 7.2)])
-                stroke([NSPoint(x: 12.7, y: 5.7), NSPoint(x: 12.7, y: 8.7)])
+                stroke([NSPoint(x: 246, y: 161), NSPoint(x: 282, y: 161)])
+                stroke([NSPoint(x: 264, y: 143), NSPoint(x: 264, y: 179)])
             } else {
-                stroke([NSPoint(x: 11, y: 7.1), NSPoint(x: 12.3, y: 5.9), NSPoint(x: 14.6, y: 8.6)])
+                stroke([NSPoint(x: 247, y: 162), NSPoint(x: 259, y: 174), NSPoint(x: 286, y: 145)])
             }
+            let mouth = NSBezierPath()
+            mouth.move(to: NSPoint(x: 163, y: 187))
+            mouth.curve(to: NSPoint(x: 181, y: 187), controlPoint1: NSPoint(x: 164, y: 199), controlPoint2: NSPoint(x: 177, y: 199))
+            mouth.curve(to: NSPoint(x: 199, y: 187), controlPoint1: NSPoint(x: 184, y: 199), controlPoint2: NSPoint(x: 198, y: 199))
+            mouth.lineWidth = 7
+            mouth.lineCapStyle = .round
+            mouth.stroke()
         case .recording:
-            for (x, height): (CGFloat, CGFloat) in [(5.5, 2.4), (9, 5), (12.5, 3.5)] {
-                stroke([NSPoint(x: x, y: 7.2 - height / 2), NSPoint(x: x, y: 7.2 + height / 2)], width: 1.6)
+            for (x, height): (CGFloat, CGFloat) in [(110, 30), (180, 65), (250, 45)] {
+                stroke([NSPoint(x: x, y: 161 - height / 2), NSPoint(x: x, y: 161 + height / 2)], width: 18)
             }
         case .processing:
-            for x: CGFloat in [5.2, 9, 12.8] { dot(x, 7.1) }
+            for x: CGFloat in [110, 180, 250] { dot(x, 161) }
         case .retry:
-            stroke([NSPoint(x: 9, y: 7.3), NSPoint(x: 9, y: 9.5)], width: 1.6)
-            dot(9, 5)
+            stroke([NSPoint(x: 180, y: 138), NSPoint(x: 180, y: 169)], width: 18)
+            dot(180, 193)
         }
     }
 }
