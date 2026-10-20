@@ -16,7 +16,7 @@ status: 進行中，只在本機分支；不 push、不 merge、不發布
 
 1. 工作區 `README.md` 與 `AGENTS.md`：工作區規則，例如不 push、不碰 `history/`。
 2. [PRD.md](PRD.md)：需求、不做的範圍、介面契約、驗收標準。
-3. 本文件的「分工」與「規則」兩節。
+3. 本文件的「分工」與「規則」兩節；派給你的任務說明放在 `tasks/`。
 4. 既有脈絡：[../REMOTE_AGENT_PREVIEW.md](../REMOTE_AGENT_PREVIEW.md)、`Sources/NeighborAgentCore/SSHTunnel.swift`。
 
 ## 分工與檔案所有權
@@ -26,10 +26,10 @@ status: 進行中，只在本機分支；不 push、不 merge、不發布
 | ID | 任務 | 負責 | 擁有的檔案 | 依賴 | 狀態 |
 |---|---|---|---|---|---|
 | T0 | PRD 與交接板 | Claude | `docs/remote-desktop/PRD.md`、`HANDOFF.md` | — | 完成 |
-| T1 | 遠端設定文件，以官方來源查證 | **Antigravity** | `docs/remote-desktop/SETUP.md`（只新增這一個） | T0 | 已派工 |
+| T1 | 遠端設定文件，以官方來源查證；任務說明見 [tasks/T1-setup-doc.md](tasks/T1-setup-doc.md) | **Antigravity** | `docs/remote-desktop/SETUP.md`（只新增這一個） | T0 | 已派工 |
 | T2 | 核心狀態機、探測、啟動器與離線測試 | Claude | `Sources/NeighborAgentCore/RemoteDesktopHandoff.swift`、`Tests/RemoteDesktopHandoffTests.swift`、`scripts/test-remote-desktop.sh` | T0 | 完成 |
 | T3 | 面板 UI 與預覽圖 | Claude | `Previews/RemoteAgent/RemoteDesktopHandoffModel.swift`、`RemoteAgentView.swift`、`PreviewMain.swift`、`PreviewRenderer.swift`、`build-preview.sh` | T2 | 完成 |
-| T4 | 審閱 T1、同步既有文件、完整回歸、commit | Claude | `docs/REMOTE_AGENT_PREVIEW.md`、`Previews/RemoteAgent/README.md`、工作區 `README.md` 該列 | T1、T2、T3 | 未開始 |
+| T4 | 審閱 T1、同步既有文件、完整回歸、commit | Claude | `docs/REMOTE_AGENT_PREVIEW.md`、`Previews/RemoteAgent/README.md`、工作區 `README.md` 該列 | T1、T2、T3 | 部分完成：等 T1 審閱 |
 | T5 | 真機驗證（第二使用者先，VPS 等資料） | 使用者＋Claude | 驗證紀錄 `reports/REMOTE_DESKTOP_HANDOFF_<日期>.md` | T4、遠端設定完成 | 未開始 |
 
 ## 規則（所有 agent）
@@ -55,3 +55,4 @@ status: 進行中，只在本機分支；不 push、不 merge、不發布
 - 2026-10-20｜Claude｜T0｜完成｜新增 PRD.md、HANDOFF.md｜—｜T1 派給 Antigravity，提示詞存於工作區 `reports/ANTIGRAVITY_TASK_2026-10-20_vnc-docs.md`
 - 2026-10-20｜Claude｜T2｜完成｜新增 RemoteDesktopHandoff.swift、RemoteDesktopHandoffTests.swift、test-remote-desktop.sh；PRD 第 5、6 節補 `openingViewer` 狀態與 SSH 兩種失敗文案｜`test-remote-desktop.sh` 18 情境通過（含真實 loopback 探測 4 種）；`test-agent-ssh.sh` 不變、通過｜UI 尚未接上（T3）
 - 2026-10-20｜Claude｜T3｜完成｜新增 RemoteDesktopHandoffModel.swift；修改 RemoteAgentView（側欄接手控制區、側欄可捲動、獨立預覽說明改寫）、PreviewMain、PreviewRenderer（8 張）、build-preview.sh；核心逾時文案依目標區分（第二使用者不再提 SSH）｜`test-remote-desktop.sh` 22 情境（含面板 4 種）、`test-agent-preview.sh`、`test-agent-core.sh` 通過；8 張預覽圖人工檢查｜窄版錯誤狀態底部說明需捲動才看得到（預期）；T1 SETUP.md 尚未收到
+- 2026-10-20｜Claude｜T4｜部分完成｜同步 REMOTE_AGENT_PREVIEW.md、Previews README、工作區 README；新增 tasks/T1-setup-doc.md（派工說明移入 worktree，不再依賴剪貼簿）｜`test-all.sh` 27 組全過；`build.sh` 通過（x86_64＋arm64，codesign 驗證）；正式 App 原始碼對 3101f03 差異 0 行；真實探測對無伺服器的 5901 實測 9.9 秒失敗、檢視器 0 次｜等 Antigravity 交 SETUP.md 後審閱並 commit；預覽 App UI 點擊未獲授權，未做

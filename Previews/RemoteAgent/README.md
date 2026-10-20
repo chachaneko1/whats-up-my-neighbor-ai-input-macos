@@ -26,13 +26,14 @@ open "$PWD/build/remote-agent-preview/遠端分身預覽.app"
 ./scripts/test-agent-core.sh
 ./scripts/test-agent-preview.sh
 ./scripts/test-agent-ssh.sh
+./scripts/test-remote-desktop.sh
 ```
 
-重現六種原生畫面（只繪製本 App，不擷取桌面）：
+重現八種原生畫面（只繪製本 App，不擷取桌面；包含接手中與窄版深色失敗兩張）：
 
 ```sh
 "build/remote-agent-preview/遠端分身預覽.app/Contents/MacOS/NeighborRemoteAgentPreview" \
   --render-previews "$PWD/build/remote-agent-preview/renders"
 ```
 
-SSH 通道層已提供程式介面與離線測試；面板沒有真實連線入口。整體驗收及後續事項見 `docs/REMOTE_AGENT_PREVIEW.md`。
+側欄「接手控制」是面板唯一的真實連線入口：只在按下時建立 SSH 通道（VPS）或直接探測本機 5901（第二使用者），確認 VNC 伺服器有回應後，才開啟內建「螢幕共享」。規格見 `docs/remote-desktop/PRD.md`。任務示範本身仍然不連線。整體驗收及後續事項見 `docs/REMOTE_AGENT_PREVIEW.md`。
