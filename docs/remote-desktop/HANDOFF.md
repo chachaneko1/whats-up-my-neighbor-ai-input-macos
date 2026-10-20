@@ -27,7 +27,7 @@ status: 進行中，只在本機分支；不 push、不 merge、不發布
 |---|---|---|---|---|---|
 | T0 | PRD 與交接板 | Claude | `docs/remote-desktop/PRD.md`、`HANDOFF.md` | — | 完成 |
 | T1 | 遠端設定文件，以官方來源查證 | **Antigravity** | `docs/remote-desktop/SETUP.md`（只新增這一個） | T0 | 已派工 |
-| T2 | 核心狀態機、探測、啟動器與離線測試 | Claude | `Sources/NeighborAgentCore/RemoteDesktopHandoff.swift`、`Tests/RemoteDesktopHandoffTests.swift`、`scripts/test-remote-desktop.sh` | T0 | 未開始 |
+| T2 | 核心狀態機、探測、啟動器與離線測試 | Claude | `Sources/NeighborAgentCore/RemoteDesktopHandoff.swift`、`Tests/RemoteDesktopHandoffTests.swift`、`scripts/test-remote-desktop.sh` | T0 | 完成 |
 | T3 | 面板 UI 與預覽圖 | Claude | `Previews/RemoteAgent/RemoteDesktopHandoffModel.swift`、`RemoteAgentView.swift`、`PreviewMain.swift`、`PreviewRenderer.swift`、`build-preview.sh` | T2 | 未開始 |
 | T4 | 審閱 T1、同步既有文件、完整回歸、commit | Claude | `docs/REMOTE_AGENT_PREVIEW.md`、`Previews/RemoteAgent/README.md`、工作區 `README.md` 該列 | T1、T2、T3 | 未開始 |
 | T5 | 真機驗證（第二使用者先，VPS 等資料） | 使用者＋Claude | 驗證紀錄 `reports/REMOTE_DESKTOP_HANDOFF_<日期>.md` | T4、遠端設定完成 | 未開始 |
@@ -53,3 +53,4 @@ status: 進行中，只在本機分支；不 push、不 merge、不發布
 ## 進度紀錄
 
 - 2026-10-20｜Claude｜T0｜完成｜新增 PRD.md、HANDOFF.md｜—｜T1 派給 Antigravity，提示詞存於工作區 `reports/ANTIGRAVITY_TASK_2026-10-20_vnc-docs.md`
+- 2026-10-20｜Claude｜T2｜完成｜新增 RemoteDesktopHandoff.swift、RemoteDesktopHandoffTests.swift、test-remote-desktop.sh；PRD 第 5、6 節補 `openingViewer` 狀態與 SSH 兩種失敗文案｜`test-remote-desktop.sh` 18 情境通過（含真實 loopback 探測 4 種）；`test-agent-ssh.sh` 不變、通過｜UI 尚未接上（T3）
