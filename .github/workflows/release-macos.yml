@@ -103,7 +103,7 @@ jobs:
           gh release create "$RELEASE_TAG" --verify-tag --draft --title "$RELEASE_TAG (build $RELEASE_BUILD)" --notes-file RELEASE_NOTES.md
           gh release upload "$RELEASE_TAG" \
             dist/update/*.zip dist/update/appcast.xml dist/update/SHA256SUMS.txt \
-            dist/Groq-AI-Voice-Input-macOS-*.zip dist/Groq-AI-Voice-Input-macOS-*.sha256 CHANGELOG.md
+            dist/Groq-AI-Voice-Input-macOS-*.zip dist/Groq-AI-Voice-Input-macOS-*.sha256 dist/install.sh CHANGELOG.md
           if ! gh release edit "$RELEASE_TAG" --draft=false --latest; then
             # GitHub can accept the PATCH but time out before returning it.
             # Reconcile the server state; do not publish another copy.
@@ -117,15 +117,24 @@ jobs:
           EXPECTED_SIGNING_SHA1: ${{ vars.MACOS_SIGNING_SHA1 }}
           # Existing signed assets retain the original repository URL.
           NEIGHBOR_ALLOW_LEGACY_REPOSITORY: ${{ steps.prepare.outputs.publish == 'false' && '1' || '0' }}
+          # Releases published before the one-line installer have no install.sh.
+          REQUIRE_INSTALL_SCRIPT: ${{ steps.prepare.outputs.publish == 'true' && '1' || '0' }}
         run: |
           set -euo pipefail
           PUBLISHED="$RUNNER_TEMP/published-release"
           for attempt in 1 2 3; do
-            if gh release download "$RELEASE_TAG" --pattern '*.zip' --pattern '*.sha256' --pattern appcast.xml --pattern SHA256SUMS.txt --dir "$PUBLISHED" --clobber; then break; fi
+            if gh release download "$RELEASE_TAG" --pattern '*.zip' --pattern '*.sha256' --pattern appcast.xml --pattern SHA256SUMS.txt --pattern install.sh --dir "$PUBLISHED" --clobber; then break; fi
             [[ "$attempt" -lt 3 ]] || exit 1
             sleep 5
           done
           (cd "$PUBLISHED" && shasum -a 256 -c SHA256SUMS.txt && shasum -a 256 -c ./*.sha256)
+          if [[ -f "$PUBLISHED/install.sh" ]]; then
+            zsh -n "$PUBLISHED/install.sh"
+            grep -Fq "'$(cut -d ' ' -f 1 "$PUBLISHED/Groq-AI-Voice-Input-macOS-v$RELEASE_VERSION.zip.sha256")'" "$PUBLISHED/install.sh"
+          elif [[ "$REQUIRE_INSTALL_SCRIPT" == 1 ]]; then
+            echo 'Published release is missing install.sh' >&2
+            exit 1
+          fi
           ditto -x -k "$PUBLISHED/Neighbor-macOS-$RELEASE_VERSION.zip" "$PUBLISHED/extracted"
           APP="$PUBLISHED/extracted/AI語音輸入.app"
           python3 scripts/validate-signing.py "$APP" "$EXPECTED_SIGNING_SHA1"

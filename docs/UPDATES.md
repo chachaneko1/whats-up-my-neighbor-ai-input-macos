@@ -14,7 +14,7 @@
 
 兩種驗證各自負責不同工作：固定程式碼簽章及 designated requirement 維持 App 身分；Sparkle Ed25519 金鑰驗證版本清單與更新包的來源及完整性。兩者都要成功，不使用隨每次 build 更換的 ad-hoc 身分發佈。PR 的開發包可使用 ad-hoc，但不送進更新清單。
 
-免費發佈不啟用 Hardened Runtime，也不送 Apple 公證；Sparkle 內嵌 framework/helpers 保留官方原始簽章。不做 Apple Library Validation 的繞過設定。首次開啟可能出現 macOS 安全確認，使用者可依系統支援的「打開／仍要打開」方式允許。不清除 quarantine、不停用 Gatekeeper、不安裝憑證到終端使用者的信任儲存區。
+免費發佈不啟用 Hardened Runtime，也不送 Apple 公證；Sparkle 內嵌 framework/helpers 保留官方原始簽章。不做 Apple Library Validation 的繞過設定。首次開啟可能出現 macOS 安全確認，使用者可依系統支援的「打開／仍要打開」方式允許。不清除 quarantine、不停用 Gatekeeper、不安裝憑證到終端使用者的信任儲存區。一行指令安裝（`releases/latest/download/install.sh`）以 `curl` 下載，本來就沒有 quarantine 標記，因此首次開啟不經 Gatekeeper 確認；它只核對腳本內固定的 ZIP SHA-256，再執行同一支 `安裝.command`，不重簽、不用 sudo。
 
 ## 保存資料與權限
 
@@ -58,7 +58,7 @@ GitHub repository 或 `macos-release` environment 只需要：
 1. 同時提高 `Resources/Info.plist` 的版本與 build，維護 `RELEASE_NOTES.md` 及 `CHANGELOG.md`，再合併通過 CI 的 PR。
 2. main 收到版本檔、更新說明或發佈流程變更後，自動執行 Release macOS；使用來源檔的版本與 build，不需另建 tag。既有版本只重新驗證公開資產，不重發或覆寫；新版本的 build 必須高於已公開 appcast。仍支援可信 main 歷史中的版本 tag 或手動指定 tag。
 3. 再次執行測試，以固定憑證及既有 requirement 簽署；驗證真實憑證指紋、Bundle ID、requirement 與 strict code signature。無公證步驟或付費憑證分類要求。
-4. 產生 app-only 更新 ZIP、首次安裝 ZIP、SHA-256 清單與包含更新說明的簽署 appcast；以 App 內嵌公鑰驗證 ZIP 與 appcast 的 Ed25519 簽章。
+4. 產生 app-only 更新 ZIP、首次安裝 ZIP、SHA-256 清單、固定該版首次安裝 ZIP 雜湊的 `install.sh`，以及包含更新說明的簽署 appcast；以 App 內嵌公鑰驗證 ZIP 與 appcast 的 Ed25519 簽章。
 5. 測試及簽章驗證通過後才為這個不可變 commit 建立版本 tag，建立 draft Release、上傳全部資產後才標記正式 latest。上傳失敗維持 draft，原版本清單不變。既有公開版本不覆蓋；有問題時發更高版本修正。
 6. 下載已發佈的完整安裝包、更新 ZIP 及 appcast，再驗證 SHA-256、固定程式碼簽章、來源版本及 Ed25519 簽章；下載連線失敗會重試。若 GitHub 已接受正式發布但回覆逾時，先核對伺服器上的正式版與 latest 狀態；重新執行時直接驗證既有資產，不重建版本。Actions 摘要記錄版本、build、commit 及下載位置。使用者的 App 透過既有定期檢查讀取更新清單，先通知，再由使用者選擇是否安裝。
 

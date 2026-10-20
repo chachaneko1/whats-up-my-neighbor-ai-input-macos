@@ -1,0 +1,34 @@
+#!/bin/zsh
+# One-line installer for What's up my neighbor (macOS), rendered for one release:
+#   curl -fsSL https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/releases/latest/download/install.sh | zsh
+# Files fetched by curl carry no quarantine flag, so macOS shows no first-launch
+# Gatekeeper prompt. Integrity comes from the SHA-256 pinned below and the bundled
+# installer's code-signature checks; nothing here re-signs, clears flags or uses sudo.
+set -euo pipefail
+
+# Everything runs from main, so a truncated download executes nothing.
+main() {
+  local version='@VERSION@'
+  local download_url='@DOWNLOAD_URL@'
+  local expected_sha256='@ZIP_SHA256@'
+
+  [[ "$(uname -s)" == Darwin ]] || { print -u2 '只支援 macOS。'; return 1; }
+  local macos_version="$(sw_vers -productVersion)"
+  (( ${macos_version%%.*} >= 13 )) || { print -u2 "需要 macOS 13 以上，這台是 ${macos_version}。"; return 1; }
+
+  local work="$(mktemp -d)"
+  trap "rm -rf ${(q)work}" EXIT
+  print -r -- "正在下載 What's up my neighbor ${version}…"
+  curl -fL --retry 2 --progress-bar -o "$work/package.zip" "$download_url"
+  local actual_sha256="$(shasum -a 256 "$work/package.zip")"
+  [[ "${actual_sha256%% *}" == "$expected_sha256" ]] || {
+    print -u2 'SHA-256 不符，已停止安裝；原本的 App 和設定都沒有變動。'
+    return 1
+  }
+  ditto -x -k "$work/package.zip" "$work/package"
+  # The bundled installer keeps the existing location, signature identity,
+  # backup/rollback and login item. Detach stdin so it never reads this script.
+  zsh "$work/package/Groq-AI語音輸入-v$version/安裝.command" </dev/null
+}
+
+main "$@"

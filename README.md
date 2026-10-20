@@ -127,7 +127,7 @@ https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos
 絕對不要要求我把 Groq API Key 貼進聊天、終端機、程式碼或設定檔。請啟動 App，讓我只在 App 自己的安全輸入視窗中建立並儲存 Groq API Key。
 ```
 
-AI 應該完成下載、校驗、解壓縮與安裝；使用者只需要親自處理 macOS 安全確認、麥克風／輔助使用權限，以及在 App 內輸入自己的 Groq API Key。
+AI 應該完成下載、校驗、解壓縮與安裝；使用者只需要親自處理 macOS 安全確認、麥克風／輔助使用權限，以及在 App 內輸入自己的 Groq API Key。熟悉終端機時，也可以直接執行「下載與安裝」裡的一行指令。
 
 ## 特色
 
@@ -156,6 +156,34 @@ AI 應該完成下載、校驗、解壓縮與安裝；使用者只需要親自�
 - 選用 iPhone 遠端功能時，兩台裝置需在附近並允許區域網路。
 
 ## 下載與安裝
+
+### 一行指令安裝（熟悉終端機）
+
+打開「終端機」，貼上後按 Enter：
+
+```bash
+curl -fsSL https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/releases/latest/download/install.sh | zsh
+```
+
+這行指令會下載最新版安裝包，用腳本裡寫死的 SHA-256 核對，再執行安裝包裡同一支 `安裝.command`：沿用原本的安裝位置、檢查簽章身分、保留舊版備份，裝完自動開啟 App。不需要輸入 Mac 密碼，不重簽 App，也不改系統安全設定。用 `curl` 下載的檔案本來就不帶 macOS 隔離標記（quarantine），所以這條路線不會出現「仍要打開」的安全確認。
+
+想先看內容再執行，可以分三步：
+
+```bash
+curl -fsSLO https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/releases/latest/download/install.sh
+```
+
+```bash
+less install.sh
+```
+
+```bash
+zsh install.sh
+```
+
+> 這行指令從第一個附帶 `install.sh` 的正式版開始可用；在那之前請用下方 ZIP 方式。
+
+### 從瀏覽器下載 ZIP
 
 1. 到 GitHub 的 **Releases** 下載最新 ZIP，解壓縮。
 2. 因為免費版沒有 Apple Developer ID 公證，第一次請對 `安裝.command` 按右鍵並選「打開」。
@@ -332,7 +360,7 @@ Mac 在執行前與貼上後都會重新確認焦點。若 App、視窗或輸入
 
 ## 免費簽章限制
 
-發佈版本沿用固定程式碼簽章憑證、Bundle ID 與既有 designated requirement；更新清單與 ZIP 另外使用 Sparkle Ed25519 驗證，不使用變動的 ad-hoc 身分發佈。一般 CI 開發包仍採 ad-hoc 簽章，不會自動送入更新清單。免費方案沒有 Apple 公證，首次開啟可能出現 macOS 安全確認；不會清除 quarantine、停用 Gatekeeper 或重設權限。
+發佈版本沿用固定程式碼簽章憑證、Bundle ID 與既有 designated requirement；更新清單與 ZIP 另外使用 Sparkle Ed25519 驗證，不使用變動的 ad-hoc 身分發佈。一般 CI 開發包仍採 ad-hoc 簽章，不會自動送入更新清單。免費方案沒有 Apple 公證，從瀏覽器下載時首次開啟可能出現 macOS 安全確認；安裝工具不會清除 quarantine、停用 Gatekeeper 或重設權限。一行指令安裝以 `curl` 下載，檔案本來就沒有 quarantine 標記，所以首次開啟不經 Gatekeeper 確認；完整性改由腳本內固定的 SHA-256 與安裝工具的簽章身分檢查保障。
 
 ## 移除
 
