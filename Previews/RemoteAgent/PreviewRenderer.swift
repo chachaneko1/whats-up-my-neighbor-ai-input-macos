@@ -37,14 +37,12 @@ enum PreviewRenderer {
         func open(_ url: URL, completion: @escaping (Bool) -> Void) { completion(true) }
     }
 
-    /// No SSH process, socket or Screen Sharing launch; every collaborator is a fixture.
     private static func handoffFixture(reachable: Bool) -> RemoteDesktopHandoffModel {
         var readings = 0
         let controller = RemoteDesktopHandoffController(
             makeTunnel: { SSHTunnelController(makeProcess: { FixtureSSHProcess() }) },
             prober: FixtureProbe(reachable: reachable), launcher: FixtureLauncher(),
             schedule: { _, _ in },
-            // The second clock reading is past the deadline, so one failed probe ends it.
             now: { readings += 1; return Date(timeIntervalSince1970: readings == 1 ? 0 : 60) })
         return RemoteDesktopHandoffModel(controller: controller)
     }

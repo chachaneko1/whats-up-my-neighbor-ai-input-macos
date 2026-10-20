@@ -31,7 +31,6 @@ private final class FakeLauncher: RemoteViewerLaunching {
     func open(_ url: URL, completion: @escaping (Bool) -> Void) { urls.append(url); completions.append(completion) }
 }
 
-/// Deterministic clock and scheduler so the 10 s probe deadline runs instantly.
 private final class FakeTime {
     var current = Date(timeIntervalSince1970: 0)
     var queued: [(TimeInterval, DispatchWorkItem)] = []
@@ -58,7 +57,6 @@ private struct Harness {
     }
 }
 
-/// Minimal loopback server for exercising SystemVNCProbe against real sockets.
 private final class LoopbackServer {
     let listener: NWListener
     private var connections: [NWConnection] = []

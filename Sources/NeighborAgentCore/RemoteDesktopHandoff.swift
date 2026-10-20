@@ -1,8 +1,6 @@
 import Foundation
 import Network
 
-/// Where a person takes over the agent's desktop. Hosts and ports are fixed here;
-/// the only user input is an existing ssh_config alias, validated by SSHTunnelConfiguration.
 enum RemoteDesktopTarget: Equatable {
     case linuxVPS(hostAlias: String)
     case macSecondUser
@@ -25,7 +23,6 @@ enum RemoteDesktopTarget: Equatable {
         return SSHTunnelConfiguration(hostAlias: alias, localPort: Self.vpsLocalPort, remotePort: Self.remoteVNCPort)
     }
 
-    /// Loopback only, one of our fixed ports, no credentials, path or query.
     static func isAllowedViewerURL(_ url: URL) -> Bool {
         guard let parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return false }
         return parts.scheme == "vnc" && parts.host == "127.0.0.1"
@@ -48,19 +45,15 @@ enum RFBBanner {
 }
 
 protocol VNCServerProbing: AnyObject {
-    /// One attempt. Completion runs on the main thread at most once; the returned
-    /// closure cancels the attempt without calling completion.
     func probe(port: Int, timeout: TimeInterval, completion: @escaping (Bool) -> Void) -> () -> Void
 }
 
-/// Connects to 127.0.0.1 only, reads the server's banner and disconnects.
-/// Sends nothing and never authenticates.
 final class SystemVNCProbe: VNCServerProbing {
     private let queue = DispatchQueue(label: "tw.panh.neighbor.vnc-probe")
 
     private final class Attempt {
         let connection: NWConnection
-        var finished = false // queue-confined
+        var finished = false
         init(connection: NWConnection) { self.connection = connection }
     }
 
@@ -70,7 +63,7 @@ final class SystemVNCProbe: VNCServerProbing {
             return {}
         }
         let attempt = Attempt(connection: NWConnection(host: "127.0.0.1", port: endpointPort, using: .tcp))
-        let finish: (Bool?) -> Void = { result in // nil = cancelled, no callback
+        let finish: (Bool?) -> Void = { result in
             guard !attempt.finished else { return }
             attempt.finished = true
             attempt.connection.stateUpdateHandler = nil
@@ -96,11 +89,9 @@ final class SystemVNCProbe: VNCServerProbing {
 }
 
 protocol RemoteViewerLaunching: AnyObject {
-    /// Completion runs on the main thread exactly once.
     func open(_ url: URL, completion: @escaping (Bool) -> Void)
 }
 
-/// Opens the built-in Screen Sharing app. No shell, no credentials in the URL.
 final class ScreenSharingLauncher: RemoteViewerLaunching {
     static let bundleIdentifier = "com.apple.ScreenSharing"
 
@@ -140,8 +131,6 @@ enum RemoteDesktopHandoffError: LocalizedError {
     var errorDescription: String? { "接手控制已在進行中，請先結束。" }
 }
 
-/// Opens a viewer only after the forwarded port answers with an RFB banner.
-/// A running SSH process alone never counts as a reachable VNC server.
 final class RemoteDesktopHandoffController {
     static let probeDeadline: TimeInterval = 10
     static let probeInterval: TimeInterval = 0.5
@@ -190,7 +179,6 @@ final class RemoteDesktopHandoffController {
         precondition(Thread.isMainThread)
         guard !state.isActive else { throw RemoteDesktopHandoffError.alreadyActive }
         let configuration = target.tunnelConfiguration
-        // Reject a bad alias before any process exists or any state changes.
         if let configuration { _ = try configuration.arguments() }
         let token = UUID()
         generation = token
@@ -224,7 +212,6 @@ final class RemoteDesktopHandoffController {
         let cancel = prober.probe(port: port, timeout: Self.probeAttemptTimeout) { [weak self] reachable in
             self?.probeFinished(reachable, generation: token, deadline: deadline)
         }
-        // A probe may answer synchronously; keep the handle only while it is still pending.
         if generation == token, state == .probing, pendingRetry == nil { cancelProbe = cancel }
     }
 

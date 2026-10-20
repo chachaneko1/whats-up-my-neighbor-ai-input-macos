@@ -26,7 +26,6 @@ struct RemoteAgentView: View {
     var body: some View {
         HStack(spacing: 0) {
             GeometryReader { proxy in
-                // Scrolls only when the take-control messages outgrow short windows.
                 ScrollView { sidebar.frame(minHeight: proxy.size.height) }
             }
             .frame(width: 220)

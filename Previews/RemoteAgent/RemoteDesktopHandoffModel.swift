@@ -12,8 +12,6 @@ enum RemoteDesktopTargetKind: String, CaseIterable {
     }
 }
 
-/// Panel state for「接手控制」. The SSH alias lives in memory only; preferences.json
-/// keeps storing nothing but the provider.
 final class RemoteDesktopHandoffModel: ObservableObject {
     @Published var targetKind: RemoteDesktopTargetKind = .linuxVPS
     @Published var hostAlias = ""
