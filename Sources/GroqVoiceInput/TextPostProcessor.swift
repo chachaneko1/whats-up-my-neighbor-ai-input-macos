@@ -85,6 +85,7 @@ enum TextPostProcessor {
         // 所以主要語言不是中文時整組跳過。
         if applyChineseRules {
             output = toTraditional(output)
+            output = removeTrailingHallucinatedBoilerplate(output)
             output = collapseRepeatedPunctuation(output)
             output = normalizePunctuation(output)
             output = collapseRepeatedPunctuation(output)
@@ -345,5 +346,55 @@ enum TextPostProcessor {
         }
         output += source.substring(from: cursor)
         return output
+    }
+
+    // MARK: - 宣傳語與幻覺防護階段
+
+    /// 常見的 YouTube / Podcast 片尾宣傳語模式。
+    ///
+    /// Whisper 在無聲、環境底噪或短語音結尾時，容易受訓練集偏誤影響憑空產生這些語句。
+    private static let standaloneBoilerplatePatterns = [
+        "^[\\s，。！？、]*(?:請?(?:記得)?(?:不要忘記)?(?:不吝嗇)?(?:打賞)?(?:訂閱|按讚|點讚|關注|分享)(?:我的頻道|我們|點讚)?)[\\s，。！？、！]*$",
+        "^[\\s，。！？、]*(?:請?(?:記得)?(?:不要忘記)?(?:打賞)?(?:[、，\\s]*(?:按讚|訂閱|點讚|分享|關注|開啟小鈴鐺|開小鈴鐺|我的頻道))+)[\\s，。！？、！]*$",
+        "^[\\s，。！？、]*(?:感謝|謝謝)(?:大家|您)?(?:的)?(?:收看|觀看|收聽|支持)[\\s，。！？、！]*$",
+        "^[\\s，。！？、]*歡迎訂閱(?:我的頻道)?[\\s，。！？、！]*$"
+    ]
+
+    private static let trailingBoilerplatePatterns = [
+        "(?<=[。！？\n])\\s*(?:請?(?:記得)?(?:不要忘記)?(?:不吝嗇)?(?:打賞)?(?:[、，\\s]*(?:按讚|訂閱|點讚|分享|關注|開啟小鈴鐺|開小鈴鐺|我的頻道))+)[！。]?$",
+        "(?<=[。！？\n])\\s*(?:感謝|謝謝)(?:大家|您)?(?:的)?(?:收看|觀看|收聽|支持)[！。]?$",
+        "(?<=[。！？\n])\\s*歡迎訂閱(?:我的頻道)?[！。]?$"
+    ]
+
+    /// 判斷整段辨識文字是否純粹為模型憑空產生的 YouTube 宣傳語或片尾套話。
+    ///
+    /// 若整段皆為此類套話，代表錄音無有效語音，呼叫端應攔截並提示使用者重錄，
+    /// 避免將幻覺文字直接貼入輸入框。
+    static func isPureHallucinatedBoilerplate(_ s: String) -> Bool {
+        let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        for pattern in standaloneBoilerplatePatterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
+               regex.firstMatch(in: trimmed, range: NSRange(location: 0, length: (trimmed as NSString).length)) != nil {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// 剝除句子尾端獨立附掛的 YouTube 宣傳語套話。
+    ///
+    /// 必須緊接在句尾標點符號（。！？或換行）之後，且符合宣傳語格式才會移除。
+    /// 使用者在正常文句中說出「訂閱」「按讚」（例如「請訂閱我們的電子報」、「這本書值得按讚」）
+    /// 因具有上下文語義，絕不會被誤刪。
+    static func removeTrailingHallucinatedBoilerplate(_ s: String) -> String {
+        var output = s
+        for pattern in trailingBoilerplatePatterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
+                let ns = output as NSString
+                output = regex.stringByReplacingMatches(in: output, range: NSRange(location: 0, length: ns.length), withTemplate: "")
+            }
+        }
+        return output.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

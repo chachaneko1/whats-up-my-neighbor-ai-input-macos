@@ -200,9 +200,10 @@ enum DictationCoordinatorTests {
         testRecordingLimits()
         testClipboardFailureRetainsAudio()
         testEmptyTranscriptAndCleanupFallback()
+        testHallucinatedBoilerplateIntercepted()
         testDeliveryCanCancelWithoutDeletingANewSession()
         try testTemporaryRecordingStore()
-        print("Dictation coordinator tests passed (17 scenarios)")
+        print("Dictation coordinator tests passed (18 scenarios)")
     }
 
     static func testLifecycleWaitsForFinalizedAudio() {
@@ -605,6 +606,23 @@ enum DictationCoordinatorTests {
         cleanedAway.transcriber.complete(0, .success("嗯"))
         precondition(cleanedAway.delivered == ["嗯"] && cleanedAway.coordinator.state == .idle)
         precondition(cleanedAway.errors.count == 1)
+    }
+
+    static func testHallucinatedBoilerplateIntercepted() {
+        let f = Fixture()
+        let url = f.transcribe()
+        f.transcriber.complete(0, .success("請訂閱我的頻道"))
+        precondition(f.coordinator.state == .idle && f.storage.removed == [url])
+        precondition(f.delivered.isEmpty)
+        precondition(f.errors.count == 1 && f.errors[0].contains("未清楚辨識到有效語音"))
+
+        let retry = Fixture()
+        retry.transcribe()
+        retry.transcriber.complete(0, .failure(TestFailure()))
+        precondition(retry.coordinator.retry(sessionID: retry.coordinator.sessionID!))
+        retry.transcriber.complete(1, .success("請按讚、分享、開啟小鈴鐺"))
+        precondition(retry.coordinator.state == .awaitingRetry && retry.storage.removed.isEmpty)
+        precondition(retry.delivered.isEmpty)
     }
 
     static func testDeliveryCanCancelWithoutDeletingANewSession() {
