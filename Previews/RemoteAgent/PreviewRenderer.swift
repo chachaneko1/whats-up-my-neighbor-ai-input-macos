@@ -37,13 +37,22 @@ enum PreviewRenderer {
         func open(_ url: URL, completion: @escaping (Bool) -> Void) { completion(true) }
     }
 
+    private final class FixtureClock {
+        private(set) var now = Date(timeIntervalSince1970: 0)
+        func schedule(_ delay: TimeInterval, _ item: DispatchWorkItem) {
+            now = now.addingTimeInterval(delay)
+            item.perform()
+        }
+    }
+
     private static func handoffFixture(reachable: Bool) -> RemoteDesktopHandoffModel {
-        var readings = 0
+        let clock = FixtureClock()
         let controller = RemoteDesktopHandoffController(
             makeTunnel: { SSHTunnelController(makeProcess: { FixtureSSHProcess() }) },
             prober: FixtureProbe(reachable: reachable), launcher: FixtureLauncher(),
-            schedule: { _, _ in },
-            now: { readings += 1; return Date(timeIntervalSince1970: readings == 1 ? 0 : 60) })
+            isLocalPortFree: { _ in true },
+            schedule: clock.schedule,
+            now: { clock.now })
         return RemoteDesktopHandoffModel(controller: controller)
     }
 

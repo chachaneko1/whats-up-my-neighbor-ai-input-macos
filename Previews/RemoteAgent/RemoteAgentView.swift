@@ -111,6 +111,7 @@ struct RemoteAgentView: View {
             }
             if handoff.isActive {
                 Button("結束接手") { handoff.stop() }
+                    .disabled(!handoff.canStop)
             } else {
                 Button("接手控制") { handoff.start() }
                     .disabled(!handoff.canStart)

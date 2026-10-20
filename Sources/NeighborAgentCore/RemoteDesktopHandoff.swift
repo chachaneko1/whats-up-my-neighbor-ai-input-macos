@@ -1,5 +1,6 @@
 import Foundation
 import Network
+import Darwin
 
 enum RemoteDesktopTarget: Equatable {
     case linuxVPS(hostAlias: String)
@@ -32,6 +33,30 @@ enum RemoteDesktopTarget: Equatable {
     }
 }
 
+enum SystemLocalPort {
+    static func isFree(port: Int) -> Bool {
+        guard (1024...65535).contains(port) else { return false }
+        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        guard fd >= 0 else { return false }
+        defer { close(fd) }
+        var addr = sockaddr_in()
+        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = in_port_t(UInt16(port).bigEndian)
+        addr.sin_addr = in_addr(s_addr: inet_addr("127.0.0.1"))
+        let bound = withUnsafePointer(to: &addr) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPointer in
+                bind(fd, sockaddrPointer, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        return bound == 0
+    }
+}
+
+extension SSHTunnelConfiguration {
+    func validate() throws { _ = try arguments() }
+}
+
 /// The 12-byte ProtocolVersion message every RFB (VNC) server sends first: "RFB xxx.yyy\n".
 enum RFBBanner {
     static let length = 12
@@ -51,6 +76,11 @@ protocol VNCServerProbing: AnyObject {
 final class SystemVNCProbe: VNCServerProbing {
     private let queue = DispatchQueue(label: "tw.panh.neighbor.vnc-probe")
 
+    private enum Outcome {
+        case answered(Bool)
+        case cancelled
+    }
+
     private final class Attempt {
         let connection: NWConnection
         var finished = false
@@ -62,29 +92,35 @@ final class SystemVNCProbe: VNCServerProbing {
             DispatchQueue.main.async { completion(false) }
             return {}
         }
+        let queue = self.queue
         let attempt = Attempt(connection: NWConnection(host: "127.0.0.1", port: endpointPort, using: .tcp))
-        let finish: (Bool?) -> Void = { result in
+        let finish: (Outcome) -> Void = { outcome in
+            dispatchPrecondition(condition: .onQueue(queue))
             guard !attempt.finished else { return }
             attempt.finished = true
             attempt.connection.stateUpdateHandler = nil
             attempt.connection.cancel()
-            if let result { DispatchQueue.main.async { completion(result) } }
+            if case .answered(let result) = outcome {
+                DispatchQueue.main.async { completion(result) }
+            }
         }
         attempt.connection.stateUpdateHandler = { state in
             switch state {
             case .ready:
                 attempt.connection.receive(minimumIncompleteLength: RFBBanner.length,
                                            maximumLength: RFBBanner.length) { data, _, _, error in
-                    finish(error == nil && data.map(RFBBanner.isValid) == true)
+                    finish(.answered(error == nil && data.map(RFBBanner.isValid) == true))
                 }
             // Refused connections surface as .waiting; do not let NWConnection retry.
-            case .waiting, .failed, .cancelled: finish(false)
-            default: break
+            case .waiting, .failed, .cancelled:
+                finish(.answered(false))
+            default:
+                break
             }
         }
         attempt.connection.start(queue: queue)
-        queue.asyncAfter(deadline: .now() + timeout) { finish(false) }
-        return { [queue] in queue.async { finish(nil) } }
+        queue.asyncAfter(deadline: .now() + timeout) { finish(.answered(false)) }
+        return { queue.async { finish(.cancelled) } }
     }
 }
 
@@ -95,14 +131,19 @@ protocol RemoteViewerLaunching: AnyObject {
 final class ScreenSharingLauncher: RemoteViewerLaunching {
     static let bundleIdentifier = "com.apple.ScreenSharing"
 
+    static func arguments(for url: URL) -> [String]? {
+        guard RemoteDesktopTarget.isAllowedViewerURL(url) else { return nil }
+        return ["-b", bundleIdentifier, url.absoluteString]
+    }
+
     func open(_ url: URL, completion: @escaping (Bool) -> Void) {
-        guard RemoteDesktopTarget.isAllowedViewerURL(url) else {
+        guard let arguments = Self.arguments(for: url) else {
             DispatchQueue.main.async { completion(false) }
             return
         }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        process.arguments = ["-b", Self.bundleIdentifier, url.absoluteString]
+        process.arguments = arguments
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
@@ -139,6 +180,7 @@ final class RemoteDesktopHandoffController {
     static let tunnelFailedMessage = "SSH 通道沒有建立成功或已結束。請檢查 SSH 別名、金鑰登入與主機指紋後，再按一次「接手控制」。"
     static let tunnelLostMessage = "SSH 通道已中斷，螢幕共享畫面會停止。請確認連線後再按一次「接手控制」。"
     static let viewerFailedMessage = "無法開啟「螢幕共享」。請確認系統內建 App 可用後再試。"
+    static let portInUseMessage = "本機 127.0.0.1:15901 已被其他程式佔用，可能是先前沒有結束的 SSH 通道。請用「lsof -nP -iTCP:15901」找出並結束它，再按一次「接手控制」。"
     static func probeTimeoutMessage(for target: RemoteDesktopTarget) -> String {
         let lead = "找不到 VNC 伺服器：127.0.0.1:\(target.probePort) 在 10 秒內沒有回應 VNC 訊號。"
         switch target {
@@ -154,6 +196,7 @@ final class RemoteDesktopHandoffController {
     private let makeTunnel: () -> SSHTunnelController
     private let prober: VNCServerProbing
     private let launcher: RemoteViewerLaunching
+    private let isLocalPortFree: (Int) -> Bool
     private let schedule: (TimeInterval, DispatchWorkItem) -> Void
     private let now: () -> Date
     private var tunnel: SSHTunnelController?
@@ -164,6 +207,7 @@ final class RemoteDesktopHandoffController {
     init(makeTunnel: @escaping () -> SSHTunnelController = { SSHTunnelController() },
          prober: VNCServerProbing = SystemVNCProbe(),
          launcher: RemoteViewerLaunching = ScreenSharingLauncher(),
+         isLocalPortFree: @escaping (Int) -> Bool = SystemLocalPort.isFree(port:),
          schedule: @escaping (TimeInterval, DispatchWorkItem) -> Void = { delay, item in
              DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
          },
@@ -171,6 +215,7 @@ final class RemoteDesktopHandoffController {
         self.makeTunnel = makeTunnel
         self.prober = prober
         self.launcher = launcher
+        self.isLocalPortFree = isLocalPortFree
         self.schedule = schedule
         self.now = now
     }
@@ -179,7 +224,14 @@ final class RemoteDesktopHandoffController {
         precondition(Thread.isMainThread)
         guard !state.isActive else { throw RemoteDesktopHandoffError.alreadyActive }
         let configuration = target.tunnelConfiguration
-        if let configuration { _ = try configuration.arguments() }
+        if let configuration { try configuration.validate() }
+        if case .linuxVPS = target {
+            guard isLocalPortFree(RemoteDesktopTarget.vpsLocalPort) else {
+                self.target = target
+                transition(.failed(Self.portInUseMessage))
+                return
+            }
+        }
         let token = UUID()
         generation = token
         self.target = target
@@ -207,12 +259,13 @@ final class RemoteDesktopHandoffController {
     }
 
     private func attemptProbe(generation token: UUID, deadline: Date) {
-        guard generation == token, state == .probing, let port = target?.probePort else { return }
+        guard generation == token, state == .probing, let target else { return }
+        let remaining = deadline.timeIntervalSince(now())
+        guard remaining > 0 else { end(.failed(Self.probeTimeoutMessage(for: target))); return }
         pendingRetry = nil
-        let cancel = prober.probe(port: port, timeout: Self.probeAttemptTimeout) { [weak self] reachable in
+        cancelProbe = prober.probe(port: target.probePort, timeout: min(Self.probeAttemptTimeout, remaining)) { [weak self] reachable in
             self?.probeFinished(reachable, generation: token, deadline: deadline)
         }
-        if generation == token, state == .probing, pendingRetry == nil { cancelProbe = cancel }
     }
 
     private func probeFinished(_ reachable: Bool, generation token: UUID, deadline: Date) {
@@ -235,6 +288,7 @@ final class RemoteDesktopHandoffController {
     private func openViewer(_ url: URL, generation token: UUID) {
         transition(.openingViewer)
         launcher.open(url) { [weak self] opened in
+            precondition(Thread.isMainThread)
             guard let self, self.generation == token, self.state == .openingViewer else { return }
             if opened { self.transition(.viewerOpened) } else { self.end(.failed(Self.viewerFailedMessage)) }
         }

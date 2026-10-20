@@ -15,11 +15,11 @@ private final class FakeSSHProcess: SSHProcessRunning {
 
 private final class FakeProbe: VNCServerProbing {
     var ports: [Int] = []
+    var timeouts: [TimeInterval] = []
     var completions: [(Bool) -> Void] = []
     var cancels = 0
     func probe(port: Int, timeout: TimeInterval, completion: @escaping (Bool) -> Void) -> () -> Void {
-        precondition(timeout == RemoteDesktopHandoffController.probeAttemptTimeout)
-        ports.append(port); completions.append(completion)
+        ports.append(port); timeouts.append(timeout); completions.append(completion)
         return { [weak self] in self?.cancels += 1 }
     }
     func answerLast(_ reachable: Bool) { completions.last!(reachable) }
@@ -44,7 +44,7 @@ private final class FakeTime {
 private struct Harness {
     let process = FakeSSHProcess(), probe = FakeProbe(), launcher = FakeLauncher(), time = FakeTime()
     let controller: RemoteDesktopHandoffController
-    init(allowTunnel: Bool = true) {
+    init(allowTunnel: Bool = true, portFree: Bool = true) {
         let process = self.process, time = self.time
         controller = RemoteDesktopHandoffController(
             makeTunnel: {
@@ -52,6 +52,7 @@ private struct Harness {
                 return SSHTunnelController(makeProcess: { process })
             },
             prober: probe, launcher: launcher,
+            isLocalPortFree: { _ in portFree },
             schedule: { delay, item in time.queued.append((delay, item)) },
             now: { time.current })
     }
@@ -59,15 +60,18 @@ private struct Harness {
 
 private final class LoopbackServer {
     let listener: NWListener
+    private(set) var receivedBytes = 0
     private var connections: [NWConnection] = []
     init(greeting: Data?) throws {
         let parameters = NWParameters.tcp
         parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
         listener = try NWListener(using: parameters)
         listener.newConnectionHandler = { [weak self] connection in
-            self?.connections.append(connection)
+            guard let self else { return }
+            self.connections.append(connection)
             connection.start(queue: .main)
             if let greeting { connection.send(content: greeting, completion: .contentProcessed { _ in }) }
+            self.readContinuously(connection)
         }
         var ready = false
         listener.stateUpdateHandler = { if case .ready = $0 { ready = true } }
@@ -75,6 +79,13 @@ private final class LoopbackServer {
         let deadline = Date().addingTimeInterval(5)
         while !ready && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
         precondition(ready && port >= 1024, "loopback listener did not start")
+    }
+    private func readContinuously(_ connection: NWConnection) {
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { [weak self, weak connection] data, _, isComplete, error in
+            precondition(Thread.isMainThread)
+            if let count = data?.count, count > 0 { self?.receivedBytes += count }
+            if !isComplete && error == nil, let connection { self?.readContinuously(connection) }
+        }
     }
     var port: Int { Int(listener.port?.rawValue ?? 0) }
     func close() { connections.forEach { $0.cancel() }; listener.cancel() }
@@ -118,12 +129,33 @@ enum RemoteDesktopHandoffTests {
                 precondition(!RFBBanner.isValid(Data(invalid.utf8)), invalid)
             }
         }
+        check("Screen Sharing launcher builds only the fixed argument array") {
+            precondition(ScreenSharingLauncher.arguments(for: URL(string: "vnc://127.0.0.1:15901")!) ==
+                ["-b", "com.apple.ScreenSharing", "vnc://127.0.0.1:15901"])
+            precondition(ScreenSharingLauncher.arguments(for: URL(string: "vnc://example.com:5901")!) == nil)
+            precondition(ScreenSharingLauncher.arguments(for: URL(string: "vnc://u:p@127.0.0.1:5901")!) == nil)
+        }
         check("invalid aliases are rejected before any tunnel or process exists") {
             for alias in ["", "-oProxyCommand=bad", "vps;touch bad", "user@host", "a b", ".bad", "伺服器"] {
                 let h = Harness(allowTunnel: false)
                 do { try h.controller.start(.linuxVPS(hostAlias: alias)); preconditionFailure(alias) }
                 catch { precondition(h.controller.state == .idle && h.probe.ports.isEmpty) }
             }
+        }
+        try check("VPS fails fast when 15901 is already in use") {
+            let h = Harness(allowTunnel: false, portFree: false)
+            try h.controller.start(vps)
+            precondition(h.controller.state == .failed(RemoteDesktopHandoffController.portInUseMessage))
+            precondition(h.probe.ports.isEmpty)
+            precondition(h.launcher.urls.isEmpty)
+        }
+        try check("second user mode never checks the local port") {
+            let probe = FakeProbe()
+            let controller = RemoteDesktopHandoffController(
+                prober: probe,
+                isLocalPortFree: { _ in preconditionFailure("port check should not be called") })
+            try controller.start(.macSecondUser)
+            precondition(controller.state == .probing)
         }
         try check("VPS forwards 15901 to remote 5901 and opens the viewer only after a banner") {
             let h = Harness()
@@ -150,6 +182,17 @@ enum RemoteDesktopHandoffTests {
             precondition(h.probe.ports.count == 20 && h.launcher.urls.isEmpty && h.process.stops == 1)
             precondition(h.time.queued.isEmpty)
         }
+        try check("no probe attempt may run past the 10 s deadline") {
+            let h = Harness()
+            try h.controller.start(vps)
+            while h.controller.state == .probing {
+                h.probe.answerLast(false)
+                if h.controller.state == .probing { h.time.runNext() }
+            }
+            precondition(h.probe.timeouts.count == 20)
+            precondition(h.probe.timeouts.allSatisfy { $0 <= 2 })
+            precondition(Array(h.probe.timeouts.suffix(3)) == [1.5, 1.0, 0.5])
+        }
         try check("SSH exit while probing fails; the late probe success is ignored") {
             let h = Harness()
             try h.controller.start(vps)
@@ -158,6 +201,24 @@ enum RemoteDesktopHandoffTests {
             precondition(h.probe.cancels == 1)
             h.probe.answerLast(true)
             precondition(h.launcher.urls.isEmpty)
+        }
+        try check("stale SSH exit from a previous VPS run cannot end the next run") {
+            let first = FakeSSHProcess(), second = FakeSSHProcess()
+            var processes = [first, second]
+            let probe = FakeProbe(), launcher = FakeLauncher(), time = FakeTime()
+            let controller = RemoteDesktopHandoffController(
+                makeTunnel: { SSHTunnelController(makeProcess: { processes.removeFirst() }) },
+                prober: probe, launcher: launcher,
+                isLocalPortFree: { _ in true },
+                schedule: { delay, item in time.queued.append((delay, item)) },
+                now: { time.current })
+            try controller.start(vps)
+            let late = first.onExit!
+            controller.stop()
+            try controller.start(vps)
+            late(255)
+            precondition(controller.state == .probing)
+            precondition(second.starts == 1)
         }
         try check("stop while probing cancels the attempt and pending retry") {
             let h = Harness()
@@ -229,7 +290,9 @@ enum RemoteDesktopHandoffTests {
             let process = FakeSSHProcess(), probe = FakeProbe()
             var controller: RemoteDesktopHandoffController? = RemoteDesktopHandoffController(
                 makeTunnel: { SSHTunnelController(makeProcess: { process }) },
-                prober: probe, launcher: FakeLauncher(), schedule: { _, _ in }, now: Date.init)
+                prober: probe, launcher: FakeLauncher(),
+                isLocalPortFree: { _ in true },
+                schedule: { _, _ in }, now: Date.init)
             try controller?.start(vps)
             controller = nil
             precondition(process.stops == 1 && probe.cancels == 1)
@@ -255,8 +318,43 @@ enum RemoteDesktopHandoffTests {
             let port = server.port
             server.close()
             RunLoop.main.run(until: Date().addingTimeInterval(0.1))
-            let outcome = realProbe(port: port, timeout: 1)
-            precondition(outcome.result == false && outcome.seconds < 2)
+            let outcome = realProbe(port: port, timeout: 5)
+            precondition(outcome.result == false && outcome.seconds < 0.5)
+        }
+        try check("real probe sends nothing to the server") {
+            let server = try LoopbackServer(greeting: Data("RFB 003.008\n".utf8))
+            defer { server.close() }
+            let outcome = realProbe(port: server.port)
+            precondition(outcome.result == true)
+            RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+            precondition(server.receivedBytes == 0)
+        }
+        try check("real probe: cancel after completion never calls back again") {
+            let server = try LoopbackServer(greeting: Data("RFB 003.008\n".utf8))
+            defer { server.close() }
+            var callbacks = 0
+            let cancel = SystemVNCProbe().probe(port: server.port, timeout: 1) { _ in callbacks += 1 }
+            let deadline = Date().addingTimeInterval(2)
+            while callbacks == 0 && Date() < deadline {
+                RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+            }
+            precondition(callbacks == 1)
+            cancel()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+            precondition(callbacks == 1)
+        }
+        try check("real port check reports a held port as busy and a released one as free") {
+            let server = try LoopbackServer(greeting: nil)
+            let port = server.port
+            precondition(!SystemLocalPort.isFree(port: port))
+            server.close()
+            let deadline = Date().addingTimeInterval(2)
+            var freed = false
+            while !freed && Date() < deadline {
+                RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+                freed = SystemLocalPort.isFree(port: port)
+            }
+            precondition(freed)
         }
         check("panel: start needs an alias for VPS only and is disabled while active") {
             let h = Harness(), model = RemoteDesktopHandoffModel(controller: h.controller)
@@ -273,6 +371,30 @@ enum RemoteDesktopHandoffTests {
             model.hostAlias = "vps;touch bad"
             model.start()
             precondition(model.state == .idle && h.probe.ports.isEmpty)
+            precondition(model.failureMessage == SSHTunnelError.invalidAlias.errorDescription)
+        }
+        check("panel: stop is disabled while the viewer is launching") {
+            let h = Harness(allowTunnel: false), model = RemoteDesktopHandoffModel(controller: h.controller)
+            model.targetKind = .macSecondUser
+            model.start()
+            precondition(model.state == .probing && model.canStop)
+            h.probe.answerLast(true)
+            precondition(model.state == .openingViewer && !model.canStop)
+            h.launcher.completions[0](true)
+            precondition(model.state == .viewerOpened && model.canStop)
+        }
+        check("panel: an invalid alias after a stop shows only the error") {
+            let h = Harness(allowTunnel: false), model = RemoteDesktopHandoffModel(controller: h.controller)
+            model.targetKind = .macSecondUser
+            model.start()
+            h.probe.answerLast(true)
+            h.launcher.completions[0](true)
+            model.stop()
+            precondition(model.state == .stopped)
+            model.targetKind = .linuxVPS
+            model.hostAlias = "bad alias"
+            model.start()
+            precondition(model.statusText == nil)
             precondition(model.failureMessage == SSHTunnelError.invalidAlias.errorDescription)
         }
         check("panel: alias is trimmed and only kept in memory") {

@@ -26,6 +26,7 @@ final class RemoteDesktopHandoffModel: ObservableObject {
 
     var isActive: Bool { state.isActive }
     var isWorking: Bool { state == .openingTunnel || state == .probing || state == .openingViewer }
+    var canStop: Bool { state == .probing || state == .viewerOpened }
 
     var canStart: Bool {
         guard !isActive else { return false }
@@ -33,6 +34,7 @@ final class RemoteDesktopHandoffModel: ObservableObject {
     }
 
     var statusText: String? {
+        guard errorMessage == nil else { return nil }
         switch state {
         case .idle, .failed: return nil
         case .openingTunnel: return "正在建立 SSH 通道…"
