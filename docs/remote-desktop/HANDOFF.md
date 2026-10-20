@@ -29,10 +29,10 @@ status: 進行中，只在本機分支；不 push、不 merge、不發布
 | T1 | 遠端設定文件，以官方來源查證；任務說明見 [tasks/T1-setup-doc.md](tasks/T1-setup-doc.md) | **Antigravity**（Gemini，`agy` CLI） | `docs/remote-desktop/SETUP.md`（只新增這一個） | T0 | 完成，Claude 審閱並修正 |
 | T2 | 核心狀態機、探測、啟動器與離線測試 | Claude | `Sources/NeighborAgentCore/RemoteDesktopHandoff.swift`、`Tests/RemoteDesktopHandoffTests.swift`、`scripts/test-remote-desktop.sh` | T0 | 完成 |
 | T3 | 面板 UI 與預覽圖 | Claude | `Previews/RemoteAgent/RemoteDesktopHandoffModel.swift`、`RemoteAgentView.swift`、`PreviewMain.swift`、`PreviewRenderer.swift`、`build-preview.sh` | T2 | 完成 |
-| T4 | 審閱 T1、同步既有文件、完整回歸、commit | Claude | `docs/REMOTE_AGENT_PREVIEW.md`、`Previews/RemoteAgent/README.md`、工作區 `README.md` 該列 | T1、T2、T3 | 部分完成：等 T1 審閱 |
+| T4 | 審閱 T1、同步既有文件、完整回歸、commit | Claude | `docs/REMOTE_AGENT_PREVIEW.md`、`Previews/RemoteAgent/README.md`、工作區 `README.md` 該列 | T1、T2、T3 | 完成 |
 | R1 | 依獨立審閱修正：15901 佔用檢查、探測期限上限、開啟中停用結束、測試缺口；任務說明見 [tasks/R1-review-fixes.md](tasks/R1-review-fixes.md) | **Antigravity**（Gemini，`agy` CLI） | 核心、面板 model／View／Renderer、測試檔 | T2、T3 | 完成，Claude 審閱並通過 mutation 測試 |
-| T5a | 本機假 VNC 伺服器與螢幕共享 loopback 檢查工具；任務說明見 [tasks/T5a-loopback-check.md](tasks/T5a-loopback-check.md) | **Antigravity**（Gemini，`agy` CLI） | `scripts/fake-rfb-server.py`、`Tests/RemoteDesktopLiveCheck.swift`、`scripts/check-screen-sharing-loopback.sh` | R1 | 進行中 |
-| T5 | 真機驗證（第二使用者先，VPS 等資料） | 使用者＋Claude | 驗證紀錄 `reports/REMOTE_DESKTOP_HANDOFF_<日期>.md` | T4、遠端設定完成 | 未開始 |
+| T5a | 本機假 VNC 伺服器與螢幕共享 loopback 檢查工具；任務說明見 [tasks/T5a-loopback-check.md](tasks/T5a-loopback-check.md) | **Antigravity**（Gemini，`agy` CLI） | `scripts/fake-rfb-server.py`、`Tests/RemoteDesktopLiveCheck.swift`、`scripts/check-screen-sharing-loopback.sh` | R1 | 完成；R2 補 RFB 3.3 握手，Claude 修腳本並實測 |
+| T5 | 真機驗證（第二使用者先，VPS 等資料） | 使用者＋Claude | 驗證紀錄 `reports/REMOTE_DESKTOP_HANDOFF_<日期>.md` | T4、遠端設定完成 | 部分完成：loopback 實測完成；登入後畫面、真實 Vine Server／VPS 待使用者 |
 
 ## 規則（所有 agent）
 
@@ -61,3 +61,6 @@ status: 進行中，只在本機分支；不 push、不 merge、不發布
 - 2026-10-20 15:38｜Antigravity｜T1｜完成｜新增 docs/remote-desktop/SETUP.md｜以 Debian/TigerVNC 官方 manpage、Eggplant 論壇與 Homebrew formulae 查證參數與套件名稱；內容涵蓋目標說明、VPS 與 Mac 第二使用者設定、排錯對照與官方連結｜macOS 螢幕共享連本機 loopback 是否被擋、RFB 探測中斷是否計為失敗連線（依 PRD 第 10 節標註為未確認，待 T5 真機驗證）
 - 2026-10-20｜Claude｜T1 審閱｜完成｜修正 SETUP.md｜用 Homebrew API 查證：`vine-server` 自 2026-09-01 停用（fails_gatekeeper_check），原文的 `brew install` 會失敗，改寫為待決定選項；`tigervnc-viewer` 已查無，改為 `tigervnc`；依 Debian tigervncserver(1)，加上 `-localhost` 時預設已是 VncAuth，所以刪掉「不指定就一定失敗」的說法；Vine Server 改引上游 OSXvnc.html，GUI 勾選名稱標為未確認；排錯表加入 15901 被佔用一列｜第二使用者要用哪一個 VNC 伺服器，記入 PRD 第 10 節，待使用者決定
 - 2026-10-20｜Claude｜R1 審閱｜完成｜Gemini 修改 5 個檔案；Claude 補回 Comment Sicko 保留的 `.waiting` 註解，PRD 第 5～7、9 節同步｜`test-remote-desktop.sh` 32 情境通過；mutation 測試三組（拿掉埠號檢查、拿掉期限上限、拿掉 `.waiting`）都被抓到；8 張預覽圖重新產生｜—
+- 2026-10-20｜Gemini｜T5a｜完成｜新增 fake-rfb-server.py、RemoteDesktopLiveCheck.swift、check-screen-sharing-loopback.sh｜由 Claude 執行｜Gemini 指出：探測連線本身會讓「第一個連線後退出」的規格失效，所以把沒送客戶端版本的連線當成探測
+- 2026-10-20｜Gemini｜R2｜完成｜fake-rfb-server.py 支援 RFB 3.3 與 3.7 握手｜實測：螢幕共享回覆 RFB 003.003，3.3 協商成功｜—
+- 2026-10-20｜Claude｜T5（部分）｜完成｜刪掉檢查腳本與 Python 中逐步敘述的註解；修正畫面張數的計算、3.3 摘要；加入 CHECK_WAIT 與停在登入步驟的提示；新增 reports/REMOTE_DESKTOP_HANDOFF_2026-10-20.md｜真實螢幕共享會連進 127.0.0.1:5901，走到密碼對話框，所以 loopback 沒有被擋；Claude 依安全規則不在系統密碼框輸入，按取消後清理｜待使用者：用 CHECK_WAIT=90 重跑並輸入任意字元，以驗證畫面；決定第二使用者的 VNC 伺服器；提供 VPS 資料；預覽 App 的 UI 點擊

@@ -29,6 +29,14 @@ open "$PWD/build/remote-agent-preview/遠端分身預覽.app"
 ./scripts/test-remote-desktop.sh
 ```
 
+另外有一支需要畫面的檢查，`test-all.sh` 不會執行它。它會啟動本機假 VNC 伺服器，並實際開啟「螢幕共享」：
+
+```sh
+CHECK_WAIT=90 ./scripts/check-screen-sharing-loopback.sh
+```
+
+密碼對話框出現時，輸入任意字元即可，假伺服器不驗證密碼。
+
 重現八種原生畫面（只繪製本 App，不擷取桌面；包含接手中與窄版深色失敗兩張）：
 
 ```sh
