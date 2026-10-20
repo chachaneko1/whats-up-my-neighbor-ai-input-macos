@@ -26,10 +26,12 @@ status: 進行中，只在本機分支；不 push、不 merge、不發布
 | ID | 任務 | 負責 | 擁有的檔案 | 依賴 | 狀態 |
 |---|---|---|---|---|---|
 | T0 | PRD 與交接板 | Claude | `docs/remote-desktop/PRD.md`、`HANDOFF.md` | — | 完成 |
-| T1 | 遠端設定文件，以官方來源查證；任務說明見 [tasks/T1-setup-doc.md](tasks/T1-setup-doc.md) | **Antigravity** | `docs/remote-desktop/SETUP.md`（只新增這一個） | T0 | 已派工 |
+| T1 | 遠端設定文件，以官方來源查證；任務說明見 [tasks/T1-setup-doc.md](tasks/T1-setup-doc.md) | **Antigravity**（Gemini，`agy` CLI） | `docs/remote-desktop/SETUP.md`（只新增這一個） | T0 | 完成，Claude 審閱並修正 |
 | T2 | 核心狀態機、探測、啟動器與離線測試 | Claude | `Sources/NeighborAgentCore/RemoteDesktopHandoff.swift`、`Tests/RemoteDesktopHandoffTests.swift`、`scripts/test-remote-desktop.sh` | T0 | 完成 |
 | T3 | 面板 UI 與預覽圖 | Claude | `Previews/RemoteAgent/RemoteDesktopHandoffModel.swift`、`RemoteAgentView.swift`、`PreviewMain.swift`、`PreviewRenderer.swift`、`build-preview.sh` | T2 | 完成 |
 | T4 | 審閱 T1、同步既有文件、完整回歸、commit | Claude | `docs/REMOTE_AGENT_PREVIEW.md`、`Previews/RemoteAgent/README.md`、工作區 `README.md` 該列 | T1、T2、T3 | 部分完成：等 T1 審閱 |
+| R1 | 依獨立審閱修正：15901 佔用檢查、探測期限上限、開啟中停用結束、測試缺口；任務說明見 [tasks/R1-review-fixes.md](tasks/R1-review-fixes.md) | **Antigravity**（Gemini，`agy` CLI） | 核心、面板 model／View／Renderer、測試檔 | T2、T3 | 完成，Claude 審閱並通過 mutation 測試 |
+| T5a | 本機假 VNC 伺服器與螢幕共享 loopback 檢查工具；任務說明見 [tasks/T5a-loopback-check.md](tasks/T5a-loopback-check.md) | **Antigravity**（Gemini，`agy` CLI） | `scripts/fake-rfb-server.py`、`Tests/RemoteDesktopLiveCheck.swift`、`scripts/check-screen-sharing-loopback.sh` | R1 | 進行中 |
 | T5 | 真機驗證（第二使用者先，VPS 等資料） | 使用者＋Claude | 驗證紀錄 `reports/REMOTE_DESKTOP_HANDOFF_<日期>.md` | T4、遠端設定完成 | 未開始 |
 
 ## 規則（所有 agent）
@@ -56,3 +58,6 @@ status: 進行中，只在本機分支；不 push、不 merge、不發布
 - 2026-10-20｜Claude｜T2｜完成｜新增 RemoteDesktopHandoff.swift、RemoteDesktopHandoffTests.swift、test-remote-desktop.sh；PRD 第 5、6 節補 `openingViewer` 狀態與 SSH 兩種失敗文案｜`test-remote-desktop.sh` 18 情境通過（含真實 loopback 探測 4 種）；`test-agent-ssh.sh` 不變、通過｜UI 尚未接上（T3）
 - 2026-10-20｜Claude｜T3｜完成｜新增 RemoteDesktopHandoffModel.swift；修改 RemoteAgentView（側欄接手控制區、側欄可捲動、獨立預覽說明改寫）、PreviewMain、PreviewRenderer（8 張）、build-preview.sh；核心逾時文案依目標區分（第二使用者不再提 SSH）｜`test-remote-desktop.sh` 22 情境（含面板 4 種）、`test-agent-preview.sh`、`test-agent-core.sh` 通過；8 張預覽圖人工檢查｜窄版錯誤狀態底部說明需捲動才看得到（預期）；T1 SETUP.md 尚未收到
 - 2026-10-20｜Claude｜T4｜部分完成｜同步 REMOTE_AGENT_PREVIEW.md、Previews README、工作區 README；新增 tasks/T1-setup-doc.md（派工說明移入 worktree，不再依賴剪貼簿）｜`test-all.sh` 27 組全過；`build.sh` 通過（x86_64＋arm64，codesign 驗證）；正式 App 原始碼對 3101f03 差異 0 行；真實探測對無伺服器的 5901 實測 9.9 秒失敗、檢視器 0 次｜等 Antigravity 交 SETUP.md 後審閱並 commit；預覽 App UI 點擊未獲授權，未做
+- 2026-10-20 15:38｜Antigravity｜T1｜完成｜新增 docs/remote-desktop/SETUP.md｜以 Debian/TigerVNC 官方 manpage、Eggplant 論壇與 Homebrew formulae 查證參數與套件名稱；內容涵蓋目標說明、VPS 與 Mac 第二使用者設定、排錯對照與官方連結｜macOS 螢幕共享連本機 loopback 是否被擋、RFB 探測中斷是否計為失敗連線（依 PRD 第 10 節標註為未確認，待 T5 真機驗證）
+- 2026-10-20｜Claude｜T1 審閱｜完成｜修正 SETUP.md｜用 Homebrew API 查證：`vine-server` 自 2026-09-01 停用（fails_gatekeeper_check），原文的 `brew install` 會失敗，改寫為待決定選項；`tigervnc-viewer` 已查無，改為 `tigervnc`；依 Debian tigervncserver(1)，加上 `-localhost` 時預設已是 VncAuth，所以刪掉「不指定就一定失敗」的說法；Vine Server 改引上游 OSXvnc.html，GUI 勾選名稱標為未確認；排錯表加入 15901 被佔用一列｜第二使用者要用哪一個 VNC 伺服器，記入 PRD 第 10 節，待使用者決定
+- 2026-10-20｜Claude｜R1 審閱｜完成｜Gemini 修改 5 個檔案；Claude 補回 Comment Sicko 保留的 `.waiting` 註解，PRD 第 5～7、9 節同步｜`test-remote-desktop.sh` 32 情境通過；mutation 測試三組（拿掉埠號檢查、拿掉期限上限、拿掉 `.waiting`）都被抓到；8 張預覽圖重新產生｜—
