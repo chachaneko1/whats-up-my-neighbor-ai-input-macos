@@ -1,4 +1,5 @@
 """Offline release regressions. Uses disposable keys/files, never user credentials."""
+import hashlib
 import importlib.util
 import json
 import os
@@ -26,6 +27,16 @@ metadata = load_module("release_metadata", ROOT / "scripts/release_metadata.py")
 validator = load_module("release_validator", ROOT / "scripts/validate-release.py")
 signing = load_module("signing_validator", ROOT / "scripts/validate-signing.py")
 temporary_keychain = load_module("temporary_keychain", ROOT / "scripts/temporary-keychain.py")
+
+
+def make_test_app(app, marker):
+    """Tiny ad-hoc signed app carrying the release designated requirement."""
+    (app / "Contents/MacOS").mkdir(parents=True)
+    (app / "Contents/Resources").mkdir()
+    shutil.copy("/usr/bin/true", app / "Contents/MacOS/FreeVoiceType")
+    (app / "Contents/Info.plist").write_bytes((ROOT / "Resources/Info.plist").read_bytes())
+    (app / "Contents/Resources/version-marker").write_bytes(marker)
+    subprocess.run(["codesign", "--force", "--sign", "-", "--requirements", '=designated => identifier "tw.panh.FreeVoiceType"', str(app)], check=True, capture_output=True)
 
 
 class ReleaseContractTests(unittest.TestCase):
@@ -155,12 +166,7 @@ else: sys.exit(99)
             old_app = profile / "Library/Application Support/AI語音輸入/AI語音輸入.app"
             source_app = package / "AI語音輸入.app"
             for app, marker in [(old_app, b"old"), (source_app, b"new")]:
-                (app / "Contents/MacOS").mkdir(parents=True)
-                (app / "Contents/Resources").mkdir()
-                shutil.copy("/usr/bin/true", app / "Contents/MacOS/FreeVoiceType")
-                (app / "Contents/Info.plist").write_bytes((ROOT / "Resources/Info.plist").read_bytes())
-                (app / "Contents/Resources/version-marker").write_bytes(marker)
-                subprocess.run(["codesign", "--force", "--sign", "-", "--requirements", '=designated => identifier "tw.panh.FreeVoiceType"', str(app)], check=True, capture_output=True)
+                make_test_app(app, marker)
             preserved = {
                 "Library/Application Support/tw.panh.FreeVoiceType/cat.config.json": '{"version":1,"reply":"保留我的貓🐈"}'.encode(),
                 "Library/Application Support/tw.panh.FreeVoiceType/custom-cat.png": b"test-image-snapshot",
@@ -190,6 +196,53 @@ else: sys.exit(99)
             self.assertEqual((old_app / "Contents/Resources/version-marker").read_bytes(), b"new")
             for relative, data in preserved.items():
                 self.assertEqual((profile / relative).read_bytes(), data, relative)
+
+    def test_one_line_installer_pins_archive_and_reuses_bundled_installer(self):
+        template = (ROOT / "Packaging/install.sh.template").read_text()
+        code = "\n".join(line for line in template.splitlines() if not line.lstrip().startswith("#"))
+        # The curl path never re-signs, edits quarantine or asks for admin rights.
+        for forbidden in ("sudo", "xattr", "codesign", "--deep", "spctl", "pkgbuild", "installer -pkg"):
+            self.assertNotIn(forbidden, code)
+        version = plistlib.loads((ROOT / "Resources/Info.plist").read_bytes())["CFBundleShortVersionString"]
+        with tempfile.TemporaryDirectory(prefix="neko-one-line-test-") as directory:
+            base = Path(directory)
+            profile = base / "profile"
+            package = base / "dist" / f"Groq-AI語音輸入-v{version}"
+            package.mkdir(parents=True)
+            shutil.copy(ROOT / "Packaging/安裝.command", package / "安裝.command")
+            make_test_app(package / "AI語音輸入.app", b"new")
+            archive = base / "dist/package.zip"
+            subprocess.run(["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(package), str(archive)], check=True)
+            environment = dict(os.environ, NEKO_INSTALL_TEST_PROFILE=str(profile))
+
+            def install(sha256):
+                script = base / "install.sh"
+                subprocess.run([str(ROOT / "scripts/render-install-script.sh"), version, archive.as_uri(), sha256, str(script)], check=True, capture_output=True)
+                # Fed through stdin exactly like `curl … | zsh`.
+                return subprocess.run(["zsh"], input=script.read_text(), env=environment, capture_output=True, text=True)
+
+            result = install("0" * 64)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("SHA-256", result.stderr)
+            self.assertFalse(profile.exists())
+            result = install(hashlib.sha256(archive.read_bytes()).hexdigest())
+            self.assertEqual(result.returncode, 0, result.stderr)
+            installed = profile / "Applications/AI語音輸入.app"
+            self.assertEqual((installed / "Contents/Resources/version-marker").read_bytes(), b"new")
+            self.assertTrue((profile / "Library/LaunchAgents/tw.panh.FreeVoiceType.plist").is_file())
+
+    def test_install_script_renderer_rejects_unsafe_values(self):
+        with tempfile.TemporaryDirectory(prefix="neko-render-test-") as directory:
+            output = Path(directory) / "install.sh"
+            renderer = str(ROOT / "scripts/render-install-script.sh")
+            good = ["1.4.5", "https://github.com/example/repo/releases/download/v1.4.5/a.zip", "a" * 64]
+            for index, value in [(0, "1.4"), (1, "http://example.com/a.zip"), (1, "https://example.com/a.zip'; rm -rf ~"), (2, "A" * 64)]:
+                arguments = list(good)
+                arguments[index] = value
+                with self.subTest(value=value):
+                    result = subprocess.run([renderer, *arguments, str(output)], capture_output=True, text=True)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(output.exists())
 
     def test_real_signed_feed_archive_tampering_and_layout(self):
         tools = ROOT / "build/Sparkle-2.10.0/bin"
