@@ -191,7 +191,7 @@ VPS 的本機埠用 15901，避免跟第二使用者的 5901 撞埠。網址只�
 
 ## 10. 未確認事項
 
-- **螢幕共享 App 連同一台 Mac 的 loopback：已部分確認（2026-10-20 實測）。** 以本機假 RFB 伺服器測試：螢幕共享會連進 127.0.0.1:5901，使用 RFB 3.3，即使伺服器選 None 仍會跳出密碼對話框。這表示 loopback 沒有被擋。仍待確認的有兩件事：登入後的畫面傳輸，以及真正的 Vine Server 在另一個帳號裡是否可用。見 `reports/REMOTE_DESKTOP_HANDOFF_2026-10-20.md`。
+- **螢幕共享 App 連同一台 Mac 的 loopback：已部分確認（2026-10-20 實測）。** 以本機假 RFB 伺服器測試：螢幕共享會連進 127.0.0.1:5901，使用 RFB 3.3，即使伺服器選 None 仍會跳出密碼對話框。這表示 loopback 沒有被擋。仍待確認的有兩件事：登入後的畫面傳輸，以及真正的 Vine Server 在另一個帳號裡是否可用。另外，用本機 sshd 模擬 VPS 時，SSH 轉送這條路也已端到端走通。見 `reports/REMOTE_DESKTOP_HANDOFF_2026-10-20.md`。
   - 如果被擋：加入 TigerVNC Viewer 當備援（cask 名稱為 `tigervnc`，2026-10-20 查 Homebrew API；舊名 `tigervnc-viewer` 已查無），bundle ID 以安裝後的 Info.plist 為準。
 - **待使用者決定：第二使用者要用哪一個 VNC 伺服器。** Homebrew 的 `vine-server` 自 2026-09-01 起停用，原因是 `fails_gatekeeper_check`，`brew install` 會失敗。可選的做法有三種：
   - 手動下載並繞過 Gatekeeper。風險最高，因為它還要拿到螢幕錄製與輔助使用權限。

@@ -59,9 +59,10 @@
   - 開啟中停用「結束接手」。
   - 測試增為 32 情境，三組 mutation 測試都被抓到。
 - `scripts/check-screen-sharing-loopback.sh` 實測：真實的螢幕共享會連進 127.0.0.1:5901，使用 RFB 3.3，並走到密碼對話框。完整紀錄見 [reports/REMOTE_DESKTOP_HANDOFF_2026-10-20.md](../reports/REMOTE_DESKTOP_HANDOFF_2026-10-20.md)。
+- 預覽 App 的 UI 點擊已實際操作（使用者授權）：按鈕、狀態文字、「結束接手」都符合 PRD。
+- `scripts/check-vps-path-loopback.sh`：用本機 sshd 模擬 VPS，SSH 轉送這條路端到端通過。這次執行也抓到並修好了 TIME_WAIT 誤報「15901 被佔用」的 bug。
 
 **尚未驗證**
 - 真實 VNC 伺服器、螢幕共享實際開啟、VPS 端到端。
 - 登入後的畫面傳輸：需要有人在密碼框輸入。
 - 真正的 Vine Server：Homebrew cask 已停用，待使用者決定（見 PRD 第 10 節）。
-- 本機 UI 點擊操作：使用者這次沒有授權操作預覽 App，所以只做了不經 UI 的實測。

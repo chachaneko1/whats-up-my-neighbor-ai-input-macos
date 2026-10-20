@@ -37,6 +37,12 @@ CHECK_WAIT=90 ./scripts/check-screen-sharing-loopback.sh
 
 密碼對話框出現時，輸入任意字元即可，假伺服器不驗證密碼。
 
+要模擬 VPS 路徑時，執行下面這支。它會在 127.0.0.1:22922 用臨時金鑰跑一個一般使用者權限的 sshd，不碰 `~/.ssh`，也不需要 sudo：
+
+```sh
+CHECK_WAIT=10 ./scripts/check-vps-path-loopback.sh
+```
+
 重現八種原生畫面（只繪製本 App，不擷取桌面；包含接手中與窄版深色失敗兩張）：
 
 ```sh

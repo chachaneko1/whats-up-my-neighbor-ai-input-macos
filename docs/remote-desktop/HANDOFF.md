@@ -32,7 +32,9 @@ status: 進行中，只在本機分支；不 push、不 merge、不發布
 | T4 | 審閱 T1、同步既有文件、完整回歸、commit | Claude | `docs/REMOTE_AGENT_PREVIEW.md`、`Previews/RemoteAgent/README.md`、工作區 `README.md` 該列 | T1、T2、T3 | 完成 |
 | R1 | 依獨立審閱修正：15901 佔用檢查、探測期限上限、開啟中停用結束、測試缺口；任務說明見 [tasks/R1-review-fixes.md](tasks/R1-review-fixes.md) | **Antigravity**（Gemini，`agy` CLI） | 核心、面板 model／View／Renderer、測試檔 | T2、T3 | 完成，Claude 審閱並通過 mutation 測試 |
 | T5a | 本機假 VNC 伺服器與螢幕共享 loopback 檢查工具；任務說明見 [tasks/T5a-loopback-check.md](tasks/T5a-loopback-check.md) | **Antigravity**（Gemini，`agy` CLI） | `scripts/fake-rfb-server.py`、`Tests/RemoteDesktopLiveCheck.swift`、`scripts/check-screen-sharing-loopback.sh` | R1 | 完成；R2 補 RFB 3.3 握手，Claude 修腳本並實測 |
-| T5 | 真機驗證（第二使用者先，VPS 等資料） | 使用者＋Claude | 驗證紀錄 `reports/REMOTE_DESKTOP_HANDOFF_<日期>.md` | T4、遠端設定完成 | 部分完成：loopback 實測完成；登入後畫面、真實 Vine Server／VPS 待使用者 |
+| T5b | VPS 路徑本機 sshd 端到端檢查；任務說明見 [tasks/T5b-vps-path-loopback.md](tasks/T5b-vps-path-loopback.md) | **Antigravity**（Gemini，`agy` CLI） | `scripts/check-vps-path-loopback.sh`、`Tests/RemoteDesktopVPSLiveCheck.swift` | R2 | 完成，實測結束碼 0 |
+| R3 | 15901 佔用檢查改成判斷有沒有程式在監聽，避免 TIME_WAIT 誤報；任務說明見 [tasks/R3-port-check-time-wait.md](tasks/R3-port-check-time-wait.md) | **Antigravity**（Gemini，`agy` CLI） | 核心、測試檔 | T5b | 完成，重現測試在舊實作下會失敗 |
+| T5 | 真機驗證（第二使用者先，VPS 等資料） | 使用者＋Claude | 驗證紀錄 `reports/REMOTE_DESKTOP_HANDOFF_<日期>.md` | T4、遠端設定完成 | 可由 agent 完成的部分已全部完成：UI 點擊、螢幕共享 loopback、VPS 路徑本機 sshd 模擬。只剩使用者才能做的：在密碼框輸入、選第二使用者的伺服器並建帳號、提供真實 VPS |
 
 ## 規則（所有 agent）
 
@@ -64,3 +66,6 @@ status: 進行中，只在本機分支；不 push、不 merge、不發布
 - 2026-10-20｜Gemini｜T5a｜完成｜新增 fake-rfb-server.py、RemoteDesktopLiveCheck.swift、check-screen-sharing-loopback.sh｜由 Claude 執行｜Gemini 指出：探測連線本身會讓「第一個連線後退出」的規格失效，所以把沒送客戶端版本的連線當成探測
 - 2026-10-20｜Gemini｜R2｜完成｜fake-rfb-server.py 支援 RFB 3.3 與 3.7 握手｜實測：螢幕共享回覆 RFB 003.003，3.3 協商成功｜—
 - 2026-10-20｜Claude｜T5（部分）｜完成｜刪掉檢查腳本與 Python 中逐步敘述的註解；修正畫面張數的計算、3.3 摘要；加入 CHECK_WAIT 與停在登入步驟的提示；新增 reports/REMOTE_DESKTOP_HANDOFF_2026-10-20.md｜真實螢幕共享會連進 127.0.0.1:5901，走到密碼對話框，所以 loopback 沒有被擋；Claude 依安全規則不在系統密碼框輸入，按取消後清理｜待使用者：用 CHECK_WAIT=90 重跑並輸入任意字元，以驗證畫面；決定第二使用者的 VNC 伺服器；提供 VPS 資料；預覽 App 的 UI 點擊
+- 2026-10-20｜Claude｜T5 UI｜完成｜—｜使用者第二次授權預覽 App。選「本機第二使用者」→ 按接手控制 → 面板顯示成功文案，真實螢幕共享跳出 127.0.0.1:5901 密碼框 → 按結束接手 → 顯示結束文案；server.log 記到探測與 RFB 3.3 連入｜密碼框依安全規則未輸入，按了取消
+- 2026-10-20｜Gemini｜T5b｜完成｜新增 check-vps-path-loopback.sh、RemoteDesktopVPSLiveCheck.swift｜Claude 先用原型證實一般使用者權限可跑 sshd；第一次執行抓到 TIME_WAIT 誤報｜—
+- 2026-10-20｜Gemini｜R3、R3b｜完成｜SystemLocalPort.isFree 改用 connect；TIME_WAIT 重現測試照 Claude 原型的順序改寫｜33 情境通過；舊的 bind 實作在新測試下失敗；VPS 路徑模擬重跑結束碼 0，結束後 15901 立刻空出｜—
