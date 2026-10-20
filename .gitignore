@@ -14,3 +14,6 @@ xcuserdata/
 .codex/
 __pycache__/
 *.pyc
+
+# Machine-local installation, signing and settings verification stays local.
+reports/icons/local-install-*/
