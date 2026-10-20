@@ -4,7 +4,7 @@
 
 影響：DesktopPetModel 閒置循環、DesktopPetView 原生繪圖、DesktopPetController 排程、必要 Resources/DesktopPet SVG、DesktopPetTests 與版本／更新說明。沿用現有姿勢與距離步態、全螢幕／錄音／睡眠／收回 gate。舔掌採 25fps，其他姿勢沿用原排程；減少動態效果不啟用舔掌。
 
-保護：tw.panh.FreeVoiceType、既有簽章身分、Keychain、偏好與快捷鍵、API、貼上驗證、錄音 HUD 和圖示。風險中：正式閒置狀態機與發版；以既有 native fixture、完整離線測試、實際正式 renderer 逐像素對照、公開下載驗簽及替換前後保留檢查驗證。
+保護：既有 Bundle ID、既有簽章身分、Keychain、偏好與快捷鍵、API、貼上驗證、錄音 HUD 和圖示。風險中：正式閒置狀態機與發版；以既有 native fixture、完整離線測試、實際正式 renderer 逐像素對照、公開下載驗簽及替換前後保留檢查驗證。
 
 基線：main 11cab13；已安裝 1.4.3／1010。執行計畫：保留檢查 -> 小範圍整合 -> 本機完整測試與建置 -> 版本提交及既有簽署發布 -> 公開下載驗證 -> 保留設定更新本機並確認啟動。
 

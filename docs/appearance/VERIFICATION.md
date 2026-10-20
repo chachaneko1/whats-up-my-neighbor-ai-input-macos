@@ -7,7 +7,7 @@
 - 工作區：桌面協作入口下的 `worktrees/neko-appearance-v2`。
 - 分支：`codex/cat-appearance-v2`；基底與 HEAD 為 `3101f03`，功能變更尚未提交。
 - Mac 主線仍為 `3101f03`，沒有工作目錄變更。沒有安裝、推送、合併或發布，也沒有改寫正式 App 的設定。
-- 獨立預覽：`build/appearance/自然毛色預覽.app`，識別碼 `tw.panh.NekoAppearancePreview`；與正式 App 分開。
+- 獨立預覽：`build/appearance/自然毛色預覽.app`，使用獨立的識別碼，與正式 App 分開。
 - 完整資料範例：`Examples/CatAppearance/`，九份 JSON（八種自然毛色加原版黑貓），每份明列 16 個部位。
 
 ## 完成的行為

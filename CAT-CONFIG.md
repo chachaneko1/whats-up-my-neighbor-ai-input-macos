@@ -8,15 +8,11 @@ macOS 現在支援 **version 2**：問候、圖片設定之外，也能選自然
 2. 結束 App，編輯 `cat.config.json`，儲存為 **UTF-8 JSON**。
 3. 重新啟動 App。設定只在啟動時讀取，不會即時更新。
 
-也可以在 Finder 的「前往資料夾」輸入：
-
-```
-~/Library/Application Support/tw.panh.FreeVoiceType
-```
+資料夾位在 `~/Library/Application Support/` 底下、以 App 的 Bundle ID 命名；從選單打開是最簡單的方式。
 
 若沒有設定檔，直接使用以下預設值。Windows 使用 `%LOCALAPPDATA%\WhatsUpMyNeighbor`；兩個平台的設定資料夾各自獨立，不會自動同步。
 
-桌面模式的「放出／收回小黑貓」獨立儲存在本機偏好設定。version 2 的 `appearance` 同時用於桌面貓、錄音浮窗與問候；自訂 `image` 仍只用於錄音／問候，優先於毛色，且不會被重新著色。
+桌面模式的「放出／收回小黑貓」獨立儲存在本機偏好設定。version 2 的 `appearance` 同時用於桌面貓、錄音浮窗與問候；自訂 `image` 只用於錄音浮窗與問候，優先於毛色，且不會被重新著色；觸發句、回覆文字、字型、氣泡與嘴型設定只用於問候。
 
 ## 完整預設範本
 
@@ -38,9 +34,11 @@ macOS 現在支援 **version 2**：問候、圖片設定之外，也能選自然
 }
 ```
 
+這是 `main` 的範本。正式版 1.4.5 請把 `"version"` 改成 `1`，並刪掉 `"appearance"` 那一行（記得一併刪掉上一行結尾的逗號）；1.4.5 的完整說明見 [v1.4.5 的 CAT-CONFIG.md](https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/blob/v1.4.5/CAT-CONFIG.md)。
+
 | 欄位 | 說明 |
 | --- | --- |
-| `version` | 整數 `1` 或 `2`；`appearance` 必須使用 `2`。 |
+| `version` | 整數 `1` 或 `2`；`appearance` 必須使用 `2`。目前正式版 1.4.5 只接受 `1`，見下方「自然毛色」的提醒。 |
 | `appearance` | version 2 的整套毛色與部位覆蓋，詳見下方。 |
 | `image` | `null` 使用內建貓咪；自訂圖片填同資料夾內 PNG 檔名，例如 `"my-cat.png"`。 |
 | `triggers` | 1–32 個完整觸發句，每句 1–80 個 Unicode 字元。設定後取代整組預設觸發句。 |
@@ -84,7 +82,7 @@ macOS 現在支援 **version 2**：問候、圖片設定之外，也能選自然
 
 ## English quick start
 
-Choose “開啟貓咪設定資料夾…” from the app's menu-bar menu. This creates `~/Library/Application Support/tw.panh.FreeVoiceType` and copies the bundled template only if no configuration exists. Quit the app, edit `cat.config.json` as UTF-8 JSON, then restart. Settings and images are loaded only at startup.
+Choose “開啟貓咪設定資料夾…” from the app's menu-bar menu. This creates the app's folder under `~/Library/Application Support/` (named after its bundle ID) and copies the bundled template only if no configuration exists. Quit the app, edit `cat.config.json` as UTF-8 JSON, then restart. Settings and images are loaded only at startup.
 
 Version one remains readable. Version two adds macOS-only anatomical appearance; Windows v2 support is not implemented or verified. Omitted fields use defaults; unknown fields, invalid types, unsupported versions, unsafe image paths and out-of-range values invalidate the whole configuration without overwriting it. The config limit remains 16 KiB. Triggers match whole utterances only, and a match is consumed even during cooldown.
 
@@ -92,6 +90,9 @@ Use a same-folder PNG filename for `image`, or `null` for the built-in cat. PNGs
 
 
 ## 自然毛色與部位設定（macOS version 2）
+
+> [!IMPORTANT]
+> version 2 與 `appearance` 目前只在 `main`，尚未隨正式版發布。1.4.5（含）以前的 App 只接受 `"version": 1`，也不認得 `appearance` 欄位；讀到 version 2 的設定會讓**整份設定回到預設**（原檔保留）。在新版發布前，請維持 version 1。
 
 [完整部位說明與驗收方式](docs/appearance/README.md)。[可直接修改的範例](Examples/CatAppearance/)已將每隻貓的全部 16 個部位填好；App 於重新啟動時載入設定；預覽請按「載入 JSON…」重新載入。原有使用者設定不會被覆寫。
 

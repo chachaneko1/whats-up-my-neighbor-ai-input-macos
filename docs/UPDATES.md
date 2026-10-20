@@ -20,10 +20,10 @@
 
 | 項目 | 保留方式 |
 | --- | --- |
-| Groq API Key | Keychain service `tw.panh.FreeVoiceType.groq`、account `api-key` 不變；不進入 CI 或發佈包。 |
-| 快捷鍵與偏好 | `tw.panh.FreeVoiceType` 的既有 UserDefaults keys 不變，不刪除或重建偏好。 |
-| 貓咪設定／圖片 | `~/Library/Application Support/tw.panh.FreeVoiceType/cat.config.json` 與同資料夾 PNG 不寫入、不刪除；App 內 JSON 只是新使用者範本。 |
-| App 身分 | Bundle ID、固定簽章憑證，以及既有 `identifier "tw.panh.FreeVoiceType"` designated requirement 保持相容。 |
+| Groq API Key | App 專用的 Keychain service 與 account `api-key` 不變；不進入 CI 或發佈包。 |
+| 快捷鍵與偏好 | App Bundle ID 網域下既有的 UserDefaults keys 不變，不刪除或重建偏好。 |
+| 貓咪設定／圖片 | 貓咪設定資料夾裡的 `cat.config.json` 與同資料夾 PNG 不寫入、不刪除；App 內 JSON 只是新使用者範本。 |
+| App 身分 | Bundle ID、固定簽章憑證，以及只認 Bundle ID 的既有 designated requirement 保持相容。 |
 | 安裝位置 | Sparkle 在原位置替換 App。首次手動安裝也會讀取既有 LaunchAgent 的 App 位置，支援舊的 Application Support 安裝。 |
 | 登入啟動 | 更新保留既有 LaunchAgent，包括使用者原有的 `RunAtLoad` 設定；僅新安裝才建立登入項目。 |
 | 權限 | 不呼叫 TCC reset、不清除或修改麥克風／輔助使用權限資料庫。 |
@@ -51,7 +51,7 @@ GitHub repository 或 `macos-release` environment 只需要：
 
 ## CI 與發佈
 
-`.github/workflows/build.yml` 的一般 push／PR 工作不讀發佈 Secrets：編譯 Universal 2（arm64 + x86_64）、驗證簽章、執行 21 組離線測試，產出保留七天的開發安裝包與原生貓咪圖像。另有 `free-release-check`，只允許此 repository 的 main 或指定實作分支可信 push，實際匯入固定憑證、產生免費簽章安裝包及真實簽署 appcast，完全不提供付費 Apple／公證資料。該工作沒有發佈權限，不建立 tag、Release 或更新公開清單；PR／fork 不取得發佈憑證。
+`.github/workflows/build.yml` 的一般 push／PR 工作不讀發佈 Secrets：編譯 Universal 2（arm64 + x86_64）、驗證簽章、執行 24 組離線測試，產出保留七天的開發安裝包與原生貓咪圖像。另有 `free-release-check`，只允許此 repository 的 main 或指定實作分支可信 push，實際匯入固定憑證、產生免費簽章安裝包及真實簽署 appcast，完全不提供付費 Apple／公證資料。該工作沒有發佈權限，不建立 tag、Release 或更新公開清單；PR／fork 不取得發佈憑證。
 
 正式發佈：
 
