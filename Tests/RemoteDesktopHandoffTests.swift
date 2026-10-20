@@ -356,6 +356,21 @@ enum RemoteDesktopHandoffTests {
             }
             precondition(freed)
         }
+        try check("real port check: a port left in TIME_WAIT without a listener counts as free") {
+            let server = try LoopbackServer(greeting: nil)
+            let port = server.port
+            let client = NWConnection(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: UInt16(port))!, using: .tcp)
+            client.start(queue: .main)
+            let deadline = Date().addingTimeInterval(2)
+            while client.state != .ready && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+            precondition(client.state == .ready)
+            RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+            server.close()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+            client.cancel()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+            precondition(SystemLocalPort.isFree(port: port) == true)
+        }
         check("panel: start needs an alias for VPS only and is disabled while active") {
             let h = Harness(), model = RemoteDesktopHandoffModel(controller: h.controller)
             precondition(!model.canStart)

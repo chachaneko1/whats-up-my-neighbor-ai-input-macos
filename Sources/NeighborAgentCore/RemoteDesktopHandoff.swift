@@ -44,12 +44,15 @@ enum SystemLocalPort {
         addr.sin_family = sa_family_t(AF_INET)
         addr.sin_port = in_port_t(UInt16(port).bigEndian)
         addr.sin_addr = in_addr(s_addr: inet_addr("127.0.0.1"))
-        let bound = withUnsafePointer(to: &addr) { pointer in
+        let result = withUnsafePointer(to: &addr) { pointer in
             pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPointer in
-                bind(fd, sockaddrPointer, socklen_t(MemoryLayout<sockaddr_in>.size))
+                connect(fd, sockaddrPointer, socklen_t(MemoryLayout<sockaddr_in>.size))
             }
         }
-        return bound == 0
+        if result == 0 {
+            return false
+        }
+        return errno == ECONNREFUSED
     }
 }
 
