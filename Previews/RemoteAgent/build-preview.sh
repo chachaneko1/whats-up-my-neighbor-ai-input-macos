@@ -26,7 +26,7 @@ CORE_SOURCES=("$ROOT"/Sources/NeighborAgentCore/*.swift)
 swiftc -target "$PREVIEW_ARCH-apple-macos13.0" -swift-version 5 \
   -framework AppKit -framework SwiftUI -framework Combine \
   "${CORE_SOURCES[@]}" \
-  "$SOURCE/PreviewModel.swift" "$SOURCE/RemoteAgentView.swift" \
+  "$SOURCE/PreviewModel.swift" "$SOURCE/RemoteDesktopHandoffModel.swift" "$SOURCE/RemoteAgentView.swift" \
   "$SOURCE/PreviewRenderer.swift" "$SOURCE/PreviewMain.swift" \
   -o "$APP/Contents/MacOS/NeighborRemoteAgentPreview"
 plutil -lint "$APP/Contents/Info.plist"

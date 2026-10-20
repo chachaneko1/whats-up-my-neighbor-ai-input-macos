@@ -148,7 +148,7 @@ enum RemoteDesktopHandoffTests {
                 h.probe.answerLast(false)
                 if h.controller.state == .probing { h.time.runNext() }
             }
-            precondition(h.controller.state == .failed(RemoteDesktopHandoffController.probeTimeoutMessage(port: 15901)))
+            precondition(h.controller.state == .failed(RemoteDesktopHandoffController.probeTimeoutMessage(for: vps)))
             precondition(h.probe.ports.count == 20 && h.launcher.urls.isEmpty && h.process.stops == 1)
             precondition(h.time.queued.isEmpty)
         }
@@ -259,6 +259,48 @@ enum RemoteDesktopHandoffTests {
             RunLoop.main.run(until: Date().addingTimeInterval(0.1))
             let outcome = realProbe(port: port, timeout: 1)
             precondition(outcome.result == false && outcome.seconds < 2)
+        }
+        check("panel: start needs an alias for VPS only and is disabled while active") {
+            let h = Harness(), model = RemoteDesktopHandoffModel(controller: h.controller)
+            precondition(!model.canStart)
+            model.hostAlias = "   "; precondition(!model.canStart)
+            model.targetKind = .macSecondUser; precondition(model.canStart)
+            model.targetKind = .linuxVPS; model.hostAlias = "neighbor-vps"; precondition(model.canStart)
+            model.start()
+            precondition(model.isActive && model.isWorking && !model.canStart)
+            precondition(model.statusText == "正在確認 VNC 伺服器…")
+        }
+        check("panel: an invalid alias shows the SSH error and starts nothing") {
+            let h = Harness(allowTunnel: false), model = RemoteDesktopHandoffModel(controller: h.controller)
+            model.hostAlias = "vps;touch bad"
+            model.start()
+            precondition(model.state == .idle && h.probe.ports.isEmpty)
+            precondition(model.failureMessage == SSHTunnelError.invalidAlias.errorDescription)
+        }
+        check("panel: alias is trimmed and only kept in memory") {
+            let h = Harness(), model = RemoteDesktopHandoffModel(controller: h.controller)
+            model.hostAlias = "  neighbor-vps\n"
+            model.start()
+            precondition(Array(h.process.arguments.suffix(2)) == ["--", "neighbor-vps"])
+            precondition(model.hostAlias == "  neighbor-vps\n")
+        }
+        check("panel: status follows the controller through open, stop and failure") {
+            let h = Harness(), model = RemoteDesktopHandoffModel(controller: h.controller)
+            model.hostAlias = "neighbor-vps"
+            model.start(); h.probe.answerLast(true)
+            precondition(model.statusText == "正在開啟螢幕共享…")
+            h.launcher.completions[0](true)
+            precondition(model.state == .viewerOpened && !model.isWorking)
+            precondition(model.statusText!.contains("本 App 不保存密碼"))
+            model.stop()
+            precondition(model.statusText == "已結束接手，SSH 通道已關閉。" && model.failureMessage == nil)
+            model.targetKind = .macSecondUser
+            model.start(); h.probe.answerLast(false)
+            while model.isActive { h.time.runNext(); h.probe.answerLast(false) }
+            precondition(model.statusText == nil)
+            precondition(model.failureMessage == RemoteDesktopHandoffController.probeTimeoutMessage(for: .macSecondUser))
+            model.start(); h.probe.answerLast(true); h.launcher.completions.last!(true); model.stop()
+            precondition(model.statusText == "已結束接手。螢幕共享視窗若仍開著，請自行關閉。")
         }
         print("Remote desktop handoff tests passed (\(scenarios) scenarios; loopback only, no SSH or viewer launched)")
     }

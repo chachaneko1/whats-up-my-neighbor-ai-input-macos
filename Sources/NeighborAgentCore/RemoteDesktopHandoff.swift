@@ -150,8 +150,12 @@ final class RemoteDesktopHandoffController {
     static let tunnelFailedMessage = "SSH 通道沒有建立成功或已結束。請檢查 SSH 別名、金鑰登入與主機指紋後，再按一次「接手控制」。"
     static let tunnelLostMessage = "SSH 通道已中斷，螢幕共享畫面會停止。請確認連線後再按一次「接手控制」。"
     static let viewerFailedMessage = "無法開啟「螢幕共享」。請確認系統內建 App 可用後再試。"
-    static func probeTimeoutMessage(port: Int) -> String {
-        "找不到 VNC 伺服器：127.0.0.1:\(port) 在 10 秒內沒有回應 VNC 訊號。請確認遠端已啟動 VNC 伺服器，並檢查 SSH 別名與主機指紋。"
+    static func probeTimeoutMessage(for target: RemoteDesktopTarget) -> String {
+        let lead = "找不到 VNC 伺服器：127.0.0.1:\(target.probePort) 在 10 秒內沒有回應 VNC 訊號。"
+        switch target {
+        case .linuxVPS: return lead + "請確認遠端已啟動 VNC 伺服器，並檢查 SSH 別名與主機指紋。"
+        case .macSecondUser: return lead + "請確認第二使用者已登入，且 VNC 伺服器已啟動並只允許本機連線。"
+        }
     }
 
     private(set) var state: RemoteDesktopHandoffState = .idle
@@ -217,9 +221,11 @@ final class RemoteDesktopHandoffController {
     private func attemptProbe(generation token: UUID, deadline: Date) {
         guard generation == token, state == .probing, let port = target?.probePort else { return }
         pendingRetry = nil
-        cancelProbe = prober.probe(port: port, timeout: Self.probeAttemptTimeout) { [weak self] reachable in
+        let cancel = prober.probe(port: port, timeout: Self.probeAttemptTimeout) { [weak self] reachable in
             self?.probeFinished(reachable, generation: token, deadline: deadline)
         }
+        // A probe may answer synchronously; keep the handle only while it is still pending.
+        if generation == token, state == .probing, pendingRetry == nil { cancelProbe = cancel }
     }
 
     private func probeFinished(_ reachable: Bool, generation token: UUID, deadline: Date) {
@@ -231,7 +237,7 @@ final class RemoteDesktopHandoffController {
             return
         }
         guard now().addingTimeInterval(Self.probeInterval) < deadline else {
-            end(.failed(Self.probeTimeoutMessage(port: target.probePort)))
+            end(.failed(Self.probeTimeoutMessage(for: target)))
             return
         }
         let retry = DispatchWorkItem { [weak self] in self?.attemptProbe(generation: token, deadline: deadline) }

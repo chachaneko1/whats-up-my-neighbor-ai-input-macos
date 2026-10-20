@@ -20,33 +20,73 @@ enum PreviewRenderer {
         func makeTransport() -> AgentTransport { transport }
     }
 
+    private final class FixtureSSHProcess: SSHProcessRunning {
+        var onExit: ((Int32) -> Void)?
+        func start(arguments: [String]) throws {}
+        func stop() {}
+    }
+    private final class FixtureProbe: VNCServerProbing {
+        let reachable: Bool
+        init(reachable: Bool) { self.reachable = reachable }
+        func probe(port: Int, timeout: TimeInterval, completion: @escaping (Bool) -> Void) -> () -> Void {
+            completion(reachable)
+            return {}
+        }
+    }
+    private final class FixtureLauncher: RemoteViewerLaunching {
+        func open(_ url: URL, completion: @escaping (Bool) -> Void) { completion(true) }
+    }
+
+    /// No SSH process, socket or Screen Sharing launch; every collaborator is a fixture.
+    private static func handoffFixture(reachable: Bool) -> RemoteDesktopHandoffModel {
+        var readings = 0
+        let controller = RemoteDesktopHandoffController(
+            makeTunnel: { SSHTunnelController(makeProcess: { FixtureSSHProcess() }) },
+            prober: FixtureProbe(reachable: reachable), launcher: FixtureLauncher(),
+            schedule: { _, _ in },
+            // The second clock reading is past the deadline, so one failed probe ends it.
+            now: { readings += 1; return Date(timeIntervalSince1970: readings == 1 ? 0 : 60) })
+        return RemoteDesktopHandoffModel(controller: controller)
+    }
+
     static func render(to output: URL) throws {
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let transport = FixtureTransport()
+        let idleHandoff = handoffFixture(reachable: true)
         let model = RemoteAgentPreviewModel(preferences: PreviewPreferencesStore(directory: output.appendingPathComponent("render-preferences")),
             adapterFactory: { FixtureAdapter(provider: $0, transport: transport) })
         model.useExample()
-        try capture(model, name: "ready", output: output)
+        try capture(model, handoff: idleHandoff, name: "ready", output: output)
         model.startDemo()
         transport.emit(.progress, sequence: 0, message: "已接收任務，開始本機示範。", progress: 0.15)
         transport.emit(.progress, sequence: 1, message: "模擬查詢網頁；沒有實際開啟或讀取網站。", progress: 0.38)
-        try capture(model, name: "running", output: output)
+        try capture(model, handoff: idleHandoff, name: "running", output: output)
         model.cancel()
-        try capture(model, name: "cancelled", output: output)
+        try capture(model, handoff: idleHandoff, name: "cancelled", output: output)
         model.startDemo()
         transport.emit(.failed, sequence: 0, message: "示範連線中斷，請重新執行示範。")
-        try capture(model, name: "failed", output: output)
+        try capture(model, handoff: idleHandoff, name: "failed", output: output)
         model.startDemo()
         transport.emit(.completed, sequence: 0, message: "示範流程完成，未執行遠端任務。",
             result: "本次只驗證任務流程，沒有查詢網頁、呼叫 AI 或寫入備忘錄。\n\n接上並驗證 Linux VPS 後，這裡會呈現重點、來源與儲存位置。")
-        try capture(model, name: "completed", output: output)
-        try capture(model, name: "compact-dark", output: output, size: NSSize(width: 760, height: 680), dark: true)
-        print("Rendered six preview states: \(output.path)")
+        try capture(model, handoff: idleHandoff, name: "completed", output: output)
+        try capture(model, handoff: idleHandoff, name: "compact-dark", output: output, size: NSSize(width: 760, height: 680), dark: true)
+        let opened = handoffFixture(reachable: true)
+        opened.hostAlias = "neighbor-vps"
+        opened.start()
+        try capture(model, handoff: opened, name: "handoff-opened", output: output)
+        let failed = handoffFixture(reachable: false)
+        failed.targetKind = .macSecondUser
+        failed.start()
+        try capture(model, handoff: failed, name: "handoff-failed-compact-dark", output: output,
+                    size: NSSize(width: 760, height: 680), dark: true)
+        print("Rendered eight preview states: \(output.path)")
     }
 
-    private static func capture(_ model: RemoteAgentPreviewModel, name: String, output: URL,
+    private static func capture(_ model: RemoteAgentPreviewModel, handoff: RemoteDesktopHandoffModel,
+                                name: String, output: URL,
                                 size: NSSize = NSSize(width: 980, height: 780), dark: Bool = false) throws {
-        let view = NSHostingView(rootView: RemoteAgentView(model: model))
+        let view = NSHostingView(rootView: RemoteAgentView(model: model, handoff: handoff))
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.titled], backing: .buffered, defer: false)
         window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)

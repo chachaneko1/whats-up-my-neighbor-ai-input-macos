@@ -22,6 +22,7 @@ enum RemoteAgentPreviewMain {
 
 private final class PreviewAppDelegate: NSObject, NSApplicationDelegate {
     private let model = RemoteAgentPreviewModel()
+    private let handoff = RemoteDesktopHandoffModel()
     private var window: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -31,7 +32,7 @@ private final class PreviewAppDelegate: NSObject, NSApplicationDelegate {
         window.title = "遠端分身 · 示範模式"
         window.contentMinSize = NSSize(width: 760, height: 620)
         window.isReleasedWhenClosed = false
-        window.contentView = NSHostingView(rootView: RemoteAgentView(model: model))
+        window.contentView = NSHostingView(rootView: RemoteAgentView(model: model, handoff: handoff))
         window.center()
         window.makeKeyAndOrderFront(nil)
         self.window = window
@@ -39,7 +40,7 @@ private final class PreviewAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
-    func applicationWillTerminate(_ notification: Notification) { model.cancel() }
+    func applicationWillTerminate(_ notification: Notification) { model.cancel(); handoff.stop() }
 
     private func makeMenu() {
         let menu = NSMenu()

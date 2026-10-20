@@ -21,10 +21,16 @@ private enum PreviewPalette {
 // FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
 struct RemoteAgentView: View {
     @ObservedObject var model: RemoteAgentPreviewModel
+    @ObservedObject var handoff: RemoteDesktopHandoffModel
 
     var body: some View {
         HStack(spacing: 0) {
-            sidebar.frame(width: 220)
+            GeometryReader { proxy in
+                // Scrolls only when the take-control messages outgrow short windows.
+                ScrollView { sidebar.frame(minHeight: proxy.size.height) }
+            }
+            .frame(width: 220)
+            .background(Color(nsColor: .windowBackgroundColor))
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
@@ -62,6 +68,7 @@ struct RemoteAgentView: View {
                     .font(.callout).foregroundStyle(PreviewPalette.secondary)
                     .padding(.leading, 23)
             }
+            takeControl
             VStack(alignment: .leading, spacing: 10) {
                 Text("選擇 AI").font(.headline)
                 Picker("選擇 AI", selection: Binding(get: { model.provider }, set: { model.selectProvider($0) })) {
@@ -77,7 +84,7 @@ struct RemoteAgentView: View {
             Spacer(minLength: 12)
             VStack(alignment: .leading, spacing: 9) {
                 Label("獨立預覽", systemImage: "shield.lefthalf.filled").font(.headline)
-                Text("示範只在本機執行。\n不連線、不操作桌面，\n也不影響原本的語音輸入。")
+                Text("任務示範只在本機執行，\n不呼叫 AI、不操作桌面。\n「接手控制」只在按下時\n才連線並開啟螢幕共享。")
                     .font(.callout).foregroundStyle(PreviewPalette.secondary).lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -85,6 +92,47 @@ struct RemoteAgentView: View {
         .padding(20)
         .frame(maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var takeControl: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("接手控制").font(.headline)
+            Picker("接手目標", selection: $handoff.targetKind) {
+                ForEach(RemoteDesktopTargetKind.allCases, id: \.self) { kind in
+                    Text(kind.displayName).tag(kind)
+                }
+            }
+            .labelsHidden().disabled(handoff.isActive)
+            .accessibilityLabel("接手目標")
+            if handoff.targetKind == .linuxVPS {
+                TextField("SSH 主機別名", text: $handoff.hostAlias)
+                    .textFieldStyle(.roundedBorder).disabled(handoff.isActive)
+                    .onSubmit { handoff.start() }
+                    .accessibilityLabel("SSH 主機別名，需為 ssh_config 既有別名")
+            }
+            if handoff.isActive {
+                Button("結束接手") { handoff.stop() }
+            } else {
+                Button("接手控制") { handoff.start() }
+                    .disabled(!handoff.canStart)
+                    .help("確認 VNC 伺服器有回應後，用「螢幕共享」開啟遠端桌面")
+            }
+            if let status = handoff.statusText {
+                HStack(alignment: .top, spacing: 6) {
+                    if handoff.isWorking { ProgressView().controlSize(.small) }
+                    Text(status).font(.callout).foregroundStyle(PreviewPalette.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            if let failure = handoff.failureMessage {
+                Label(failure, systemImage: "exclamationmark.triangle")
+                    .font(.callout).foregroundStyle(PreviewPalette.error)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Text("需先在遠端啟動 VNC 伺服器，設定見 docs/remote-desktop/SETUP.md。")
+                .font(.caption).foregroundStyle(PreviewPalette.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private var header: some View {
