@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT="${0:A:h:h}"
+swift "$ROOT/scripts/generate-app-icon.swift"
 OUTPUT="$ROOT/build/AI語音輸入.app"
 SPARKLE_ROOT="$("$ROOT/scripts/fetch-sparkle.sh")"
 

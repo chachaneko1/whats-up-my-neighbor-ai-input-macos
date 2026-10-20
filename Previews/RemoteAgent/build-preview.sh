@@ -1,6 +1,7 @@
 #!/bin/zsh
 set -euo pipefail
 ROOT="${0:A:h:h:h}"
+swift "$ROOT/scripts/generate-app-icon.swift"
 SOURCE="$ROOT/Previews/RemoteAgent"
 OUTPUT="$ROOT/build/remote-agent-preview"
 APP="$OUTPUT/遠端分身預覽.app"

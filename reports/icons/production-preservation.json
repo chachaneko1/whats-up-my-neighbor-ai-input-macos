@@ -1,0 +1,8 @@
+{
+  "Resources/Info.plist": true,
+  "Resources/neko-base.png": true,
+  "Resources/DesktopPet/walk-front-face.svg": true,
+  "cat.config.json": true,
+  "installed_app_unchanged": true,
+  "source_icon_matches_bundle": true
+}
