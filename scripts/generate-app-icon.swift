@@ -21,6 +21,23 @@ let cropped = """
 """ + original[original.index(after: headerEnd)...]
 guard let artwork = NSImage(data: Data(cropped.utf8)) else { throw IconBuildError.invalidArtwork }
 
+// Portable vector geometry; the native ICNS renderer adds its outer shadow.
+let paths = original[original.index(after: headerEnd)...]
+    .replacingOccurrences(of: "</svg>", with: "")
+let faceWidth: CGFloat = 1024 * 0.88 * (1 - 2 * 0.065) * 0.94
+let faceHeight = faceWidth * 218 / 325
+let appSVG = """
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" role="img" aria-labelledby="title">
+  <title id="title">What's up my neighbor — approved white app icon</title>
+  <rect x="61.44" y="61.44" width="901.12" height="901.12" rx="202.752" fill="white"/>
+  <g transform="translate(\((1024 - faceWidth) / 2) \((1024 - faceHeight) / 2)) scale(\(faceWidth / 325)) translate(-20 -12)">
+\(paths)
+  </g>
+</svg>
+
+"""
+try Data(appSVG.utf8).write(to: resources.appendingPathComponent("AppIcon.svg"), options: .atomic)
+
 let temporary = root.appendingPathComponent("build", isDirectory: true)
     .appendingPathComponent("neighbor-icon-\(UUID().uuidString)", isDirectory: true)
 let iconset = temporary.appendingPathComponent("AppIcon.iconset", isDirectory: true)
