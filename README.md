@@ -1,0 +1,135 @@
+<p align="center">
+  <a href="https://nekonode.cloud">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/media/brand/app-icon.svg">
+      <img src="docs/media/brand/neko-round-face.svg" alt="What's up my neighbor 小黑貓 Logo" width="150">
+    </picture>
+  </a>
+</p>
+
+<h1 align="center">What's up my neighbor</h1>
+
+<p align="center">
+  <b>想到什麼，就說出來。</b><br>
+  住在 Mac 選單列的小黑貓語音輸入：按快捷鍵說話，文字貼回你正在打字的地方。
+</p>
+
+<p align="center">
+  <a href="https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/actions/workflows/build.yml"><img src="https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/actions/workflows/build.yml/badge.svg" alt="Build"></a>
+  <a href="https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/releases/latest"><img src="https://img.shields.io/github/v/release/yuipan0611/whats-up-my-neighbor-ai-input-macos" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/macOS-13%2B-101114?logo=apple" alt="macOS 13+">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
+  <a href="https://nekonode.cloud"><img src="https://img.shields.io/badge/website-nekonode.cloud-101114" alt="官方網站 nekonode.cloud"></a>
+</p>
+
+<p align="center">
+  <a href="https://nekonode.cloud"><b>官方網站</b></a> ·
+  <a href="https://nekonode.cloud/#download">下載</a> ·
+  <a href="https://nekonode.cloud/guide">使用教學</a> ·
+  <a href="docs/GUIDE.md">完整指南</a> ·
+  <a href="https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-windows">Windows 版</a>
+</p>
+
+<p align="center">
+  [<a href="README.md">繁體中文</a>] | [<a href="README.en.md">English</a>] | [<a href="README.ja.md">日本語</a>]
+</p>
+
+---
+
+What's up my neighbor 是輕量的原生 macOS 選單列語音輸入 App。在任何文字欄位按 `⌥↑` 開始錄音，再按一次停止；音訊送到 Groq `whisper-large-v3` 轉成文字，自動貼回原本的游標位置。錄音時，一隻小黑貓會出現在螢幕上陪你說話。
+
+<p align="center">
+  <img src="docs/media/screenshots/recording-hud.png" alt="錄音中的小黑貓浮窗：兩耳之間的音量條跟著聲音跳動，左眼叉叉是取消、右眼勾勾是完成" width="420">
+</p>
+
+## 特色
+
+- **一鍵錄音、貼回原位**：預設快捷鍵 `⌥↑`，可自訂；辨識完自動貼到原本的輸入框。
+- **黑貓錄音浮窗**：音量條跟著聲音跳動；左眼取消、右眼完成，不會搶走輸入框的焦點。
+- **三種文字輸出模式**：純逐字（預設）、標準、簡潔。全部是本機固定規則，不用改寫模型；法律用語與「第159條」不會被改動。
+- **語言保護**：一個主要語言加最多兩個混用語言。出現未允許的文字時，會攔下來並自動重試一次，不直接貼出。
+- **剪貼簿歷史**：最近 10 筆，按 `⌃⌥V` 叫出；Enter 只貼上，不會送出訊息。
+- **桌面小黑貓**：散步、舔掌、打哈欠、趴著睡；點她會「呼嚕～」，也可以抓起來放到別處。
+- **隱私優先**：API Key 只存在 macOS 鑰匙圈；沒有分析、廣告或自有後端。
+- **你決定何時更新**：Sparkle 每天檢查新版並通知，由你選擇是否安裝；不覆寫個人設定。
+
+## 操作畫面
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/media/greeting.gif" alt="對小黑貓說 what's up，她用右上方的氣泡回覆 what's up!" width="100%"><br>
+      <sub>整句只說 <code>what's up</code>，小黑貓會回你一句；這句不會貼進輸入框</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/media/desktop-pet-walking.gif" alt="桌面小黑貓散步的動畫" width="128"><br>
+      <sub>放出小黑貓後，她會在桌面邊緣散步、休息</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2">
+      <img src="docs/media/screenshots/desktop-pet-poses.png" alt="桌面小黑貓的七種姿勢：安靜坐著、站起來看看、散步中、有點好奇、舔舔前掌、打哈欠、趴著休息" width="100%"><br>
+      <sub>約 12 秒沒操作電腦，她會自己換姿勢；錄音、全螢幕或鎖定時會暫停</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2">
+      <img src="docs/media/screenshots/desktop-pet-interaction.png" alt="左邊是點了小黑貓後，她閉上眼睛說呼嚕～；右邊是按住拖曳時，她被拎起來" width="100%"><br>
+      <sub>點她一下會「呼嚕～」；按住拖曳可以拎起來，放手就坐回去</sub>
+    </td>
+  </tr>
+</table>
+
+## 安裝
+
+**系統需求**：macOS 13 Ventura 以上、自己的 Groq API Key、網路，以及「麥克風」與「輔助使用」權限。
+
+### 一行指令（熟悉終端機）
+
+```bash
+curl -fsSL https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/releases/latest/download/install.sh | zsh
+```
+
+會下載最新版、用腳本內固定的 SHA-256 核對，再執行安裝包裡的 `安裝.command`。不需要 Mac 密碼，也不改系統安全設定。
+
+> [!NOTE]
+> 這行指令從第一個附帶 `install.sh` 的正式版開始可用；在那之前請用下方 ZIP 方式。想先看腳本內容再執行，見[完整指南](docs/GUIDE.md#一行指令安裝熟悉終端機)。
+
+### 下載 ZIP
+
+1. 到 [Releases](https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/releases/latest) 下載最新 ZIP 並解壓縮。
+2. 第一次請對 `安裝.command` 按右鍵選「打開」（免費版沒有 Apple 公證）。仍被阻擋時，到「系統設定 → 隱私權與安全性」按「仍要打開」。
+3. 依首次啟動畫面貼上自己的 Groq API Key，並允許「麥克風」與「輔助使用」權限。
+4. 在任何文字欄位按 `⌥↑` 開始錄音，再按一次停止。
+
+也可以把 repo 連結交給 Claude Code、Codex 這類 AI 代為安裝，提示詞見[直接交給 AI 安裝](docs/GUIDE.md#直接交給-ai-安裝)。
+
+### Groq API Key
+
+到 [Groq Console](https://console.groq.com/keys) 建立以 `gsk_` 開頭的金鑰，只貼進 App 自己的輸入視窗。請勿使用別人的 Key。一般語音輸入很難碰到 Groq 免費方案上限，詳見[免費方案限制](docs/GUIDE.md#groq-免費方案限制--groq-free-tier-limits)。
+
+## 隱私
+
+- 錄音只為轉錄而傳到 Groq Speech-to-Text API；App 不包含分析、廣告或自有後端。
+- Groq API Key 只存在這台 Mac 的鑰匙圈，不寫入設定檔、repo 或日誌。
+- 剪貼簿歷史只存在本機，可隨時暫停或清除；不建立錄音檔歷史。
+
+完整說明見 [PRIVACY.md](PRIVACY.md)。
+
+## 文件
+
+| 想做什麼 | 看這裡 |
+|---|---|
+| 了解每個功能與設定 | [完整使用指南](docs/GUIDE.md)、[官網教學](https://nekonode.cloud/guide) |
+| 自訂小黑貓圖片與招呼 | [CAT-CONFIG.md](CAT-CONFIG.md) |
+| 看版本更新內容 | [CHANGELOG.md](CHANGELOG.md)、[官網更新紀錄](https://nekonode.cloud/changelog) |
+| 了解架構與資料流 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| 從原始碼建置、跑測試 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)、[docs/TESTING.md](docs/TESTING.md) |
+| 發佈與更新流程 | [docs/UPDATES.md](docs/UPDATES.md) |
+| 參與開發、回報問題 | [CONTRIBUTING.md](CONTRIBUTING.md)、[SECURITY.md](SECURITY.md) |
+
+配套的 iPhone App 仍在開發中，尚未發布。
+
+## 授權
+
+[MIT License](LICENSE)
