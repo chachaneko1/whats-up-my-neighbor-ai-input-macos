@@ -37,7 +37,7 @@
 ---
 
 > [!NOTE]
-> The app's interface, the official website and the full manual are currently in **Traditional Chinese only**. Menu names below are quoted in Chinese with an English gloss so you can find them in the app.
+> The app's interface, the official website and the full manual are currently in **Traditional Chinese only**. Chinese file names below keep their original text with a translation in brackets, so you can match them to what you see.
 
 What's up my neighbor is a lightweight, native macOS menu bar dictation app. Press `⌥↑` in any text field to start recording and press it again to stop. The audio is transcribed by Groq `whisper-large-v3` and pasted back at your cursor. While you talk, a little black cat keeps you company on screen.
 
@@ -52,7 +52,7 @@ What's up my neighbor is a lightweight, native macOS menu bar dictation app. Pre
 - **Three output modes**: Verbatim (default), Standard and Concise. All of them are fixed local rules, not a rewriting model, and legal terms and article numbers are never altered.
 - **Language guard**: pick one primary language plus up to two mixed-in languages from Traditional Chinese, English, Japanese, Korean, Thai, Vietnamese, Spanish, French and German. Text in a language you didn't allow is held back and retried once instead of being pasted.
 - **Clipboard history**: your last 10 entries, opened with `⌃⌥V`. Enter only pastes, it never sends the message.
-- **Desktop cat**: she strolls, licks her paw, yawns and naps. Click her to hear a purr, or pick her up and drop her somewhere else.
+- **Desktop cat**: she strolls, licks her paw, yawns and naps. Click her and a purr bubble pops up; click and drag to pick her up.
 - **Privacy first**: your API key lives only in the macOS Keychain. There is no analytics, no ads and no backend of our own.
 - **You decide when to update**: Sparkle checks for new versions daily and asks before installing. Your settings are never overwritten.
 
@@ -72,7 +72,7 @@ What's up my neighbor is a lightweight, native macOS menu bar dictation app. Pre
 
 <p align="center">
   <img src="docs/media/screenshots/desktop-pet-interaction.png" alt="Left: after a click the cat closes her eyes and purrs. Right: while dragged she is lifted off the ground" width="820"><br>
-  <sub>Click her for a purr; click and drag to pick her up, then let go to set her down</sub>
+  <sub>Click her and she purrs in a speech bubble; click and drag to pick her up, then let go to set her down</sub>
 </p>
 
 ## Install
