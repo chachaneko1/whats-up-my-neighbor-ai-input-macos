@@ -39,7 +39,7 @@
 What's up my neighbor 是輕量的原生 macOS 選單列語音輸入 App。在任何文字欄位按 `⌥↑` 開始錄音，再按一次停止；音訊送到 Groq `whisper-large-v3` 轉成文字，自動貼回原本的游標位置。錄音時，一隻小黑貓會出現在螢幕上陪你說話。
 
 <p align="center">
-  <img src="docs/media/screenshots/recording-hud.png" alt="錄音中的小黑貓浮窗：兩耳之間的音量條跟著聲音跳動，左眼叉叉是取消、右眼勾勾是完成" width="420">
+  <img src="docs/media/screenshots/recording-hud-card.png" alt="錄音中的小黑貓浮窗：兩耳之間的音量條跟著聲音跳動，左眼叉叉是取消、右眼勾勾是完成" width="420">
 </p>
 
 ## 特色
@@ -56,9 +56,9 @@ What's up my neighbor 是輕量的原生 macOS 選單列語音輸入 App。在�
 ## 操作畫面
 
 <p align="center">
-  <img src="docs/media/greeting.gif" alt="對小黑貓說 what's up，她用右上方的氣泡回覆 what's up!" width="400">
+  <img src="docs/media/screenshots/greeting-card.gif" alt="對小黑貓說 what's up，她用右上方的氣泡回覆 what's up!" width="400">
   &nbsp;&nbsp;
-  <img src="docs/media/desktop-pet-walking.gif" alt="桌面小黑貓散步的動畫" width="128"><br>
+  <img src="docs/media/screenshots/desktop-pet-walking-card.gif" alt="桌面小黑貓散步的動畫" width="250"><br>
   <sub>整句只說 <code>what's up</code>，小黑貓會回你一句（這句不會貼進輸入框）；放出小黑貓後，她會在桌面邊緣散步、休息</sub>
 </p>
 

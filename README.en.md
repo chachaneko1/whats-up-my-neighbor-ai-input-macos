@@ -42,7 +42,7 @@
 What's up my neighbor is a lightweight, native macOS menu bar dictation app. Press `⌥↑` in any text field to start recording and press it again to stop. The audio is transcribed by Groq `whisper-large-v3` and pasted back at your cursor. While you talk, a little black cat keeps you company on screen.
 
 <p align="center">
-  <img src="docs/media/screenshots/recording-hud.png" alt="The recording overlay: a black cat whose volume bars bounce between its ears; the X eye cancels and the check-mark eye finishes" width="420">
+  <img src="docs/media/screenshots/recording-hud-card.png" alt="The recording overlay: a black cat whose volume bars bounce between its ears; the X eye cancels and the check-mark eye finishes" width="420">
 </p>
 
 ## Features
@@ -59,9 +59,9 @@ What's up my neighbor is a lightweight, native macOS menu bar dictation app. Pre
 ## Screenshots
 
 <p align="center">
-  <img src="docs/media/greeting.gif" alt="Say what's up to the cat and she answers what's up! in a speech bubble" width="400">
+  <img src="docs/media/screenshots/greeting-card.gif" alt="Say what's up to the cat and she answers what's up! in a speech bubble" width="400">
   &nbsp;&nbsp;
-  <img src="docs/media/desktop-pet-walking.gif" alt="The desktop cat walking" width="128"><br>
+  <img src="docs/media/screenshots/desktop-pet-walking-card.gif" alt="The desktop cat walking" width="250"><br>
   <sub>Say just <code>what's up</code> and the cat replies (the phrase is not typed into your text field). Let her out and she wanders and rests along the edge of your screen.</sub>
 </p>
 

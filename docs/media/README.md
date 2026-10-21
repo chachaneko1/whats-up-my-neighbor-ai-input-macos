@@ -26,10 +26,19 @@ README 與 [完整使用指南](../GUIDE.md) 用的圖片。
 
 ## 操作畫面（`screenshots/`）
 
+原檔複製（網站同一 commit，未修改）：
+
 | 檔案 | 來源 | SHA-256 |
 |---|---|---|
-| `recording-hud.png` | 網站 `public/images/guide/recording-hud.png`（同一 commit） | `929c7d89202586be84ea474c6b6754998dde650963947b52bc979b923d8aa698` |
 | `desktop-pet-poses.png` | 網站 `public/images/guide/desktop-pet-poses.png` | `fead2039a29328304523abf94ec07fed1d3b78e0a3d9889a0c8385a9524973bd` |
 | `desktop-pet-interaction.png` | 網站 `public/images/guide/desktop-pet-interaction.png` | `fd2637eaf444ce19eaec367f8e6bade404ec793a8aed48c1036dc0f7bfe2278b` |
 
-App 改版讓畫面不同時，網站與這裡一起更新。
+加底卡版本：原圖是透明背景，黑貓在 GitHub 深色模式幾乎看不見，所以把原圖置中疊在網站插圖的底色 `#E6E8E3` 上。貓的圖形、影格與時間都不變，只加底色與留白。
+
+| 檔案 | 來源 | 尺寸 |
+|---|---|---|
+| `recording-hud-card.png` | 網站 `public/images/guide/recording-hud.png`（SHA-256 `929c7d89…a698`） | 736×384，原尺寸 |
+| `greeting-card.gif` | 本資料夾的 `../greeting.gif` | 480×300，四邊各留 20px |
+| `desktop-pet-walking-card.gif` | 本資料夾的 `../desktop-pet-walking.gif` | 300×300，四邊各留 22px |
+
+App 改版讓畫面不同時，網站與這裡一起更新；原圖更新後，重新產生加底卡版本。

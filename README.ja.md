@@ -42,7 +42,7 @@
 What's up my neighbor は、軽量なネイティブ macOS メニューバー音声入力アプリです。任意のテキスト欄で `⌥↑` を押すと録音が始まり、もう一度押すと止まります。音声は Groq `whisper-large-v3` で文字起こしされ、元のカーソル位置に自動で貼り付けられます。録音中は小さな黒猫が画面に現れ、話を聞いてくれます。
 
 <p align="center">
-  <img src="docs/media/screenshots/recording-hud.png" alt="録音中の黒猫オーバーレイ：両耳の間の音量バーが声に合わせて動き、左目の×でキャンセル、右目の✓で完了" width="420">
+  <img src="docs/media/screenshots/recording-hud-card.png" alt="録音中の黒猫オーバーレイ：両耳の間の音量バーが声に合わせて動き、左目の×でキャンセル、右目の✓で完了" width="420">
 </p>
 
 ## 特長
@@ -59,9 +59,9 @@ What's up my neighbor は、軽量なネイティブ macOS メニューバー音
 ## スクリーンショット
 
 <p align="center">
-  <img src="docs/media/greeting.gif" alt="黒猫に what's up と話しかけると、吹き出しで what's up! と返事をする" width="400">
+  <img src="docs/media/screenshots/greeting-card.gif" alt="黒猫に what's up と話しかけると、吹き出しで what's up! と返事をする" width="400">
   &nbsp;&nbsp;
-  <img src="docs/media/desktop-pet-walking.gif" alt="デスクトップの黒猫が歩くアニメーション" width="128"><br>
+  <img src="docs/media/screenshots/desktop-pet-walking-card.gif" alt="デスクトップの黒猫が歩くアニメーション" width="250"><br>
   <sub><code>what's up</code> とだけ言うと黒猫が返事をします（このフレーズは入力欄には入りません）。デスクトップに出すと、画面の端を散歩したり休んだりします。</sub>
 </p>
 
