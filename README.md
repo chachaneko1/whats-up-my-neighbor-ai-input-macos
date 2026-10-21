@@ -55,30 +55,22 @@ What's up my neighbor 是輕量的原生 macOS 選單列語音輸入 App。在�
 
 ## 操作畫面
 
-<table>
-  <tr>
-    <td align="center" width="50%">
-      <img src="docs/media/greeting.gif" alt="對小黑貓說 what's up，她用右上方的氣泡回覆 what's up!" width="100%"><br>
-      <sub>整句只說 <code>what's up</code>，小黑貓會回你一句；這句不會貼進輸入框</sub>
-    </td>
-    <td align="center" width="50%">
-      <img src="docs/media/desktop-pet-walking.gif" alt="桌面小黑貓散步的動畫" width="128"><br>
-      <sub>放出小黑貓後，她會在桌面邊緣散步、休息</sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" colspan="2">
-      <img src="docs/media/screenshots/desktop-pet-poses.png" alt="桌面小黑貓的七種姿勢：安靜坐著、站起來看看、散步中、有點好奇、舔舔前掌、打哈欠、趴著休息" width="100%"><br>
-      <sub>約 12 秒沒操作電腦，她會自己換姿勢；錄音、全螢幕或鎖定時會暫停</sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" colspan="2">
-      <img src="docs/media/screenshots/desktop-pet-interaction.png" alt="左邊是點了小黑貓後，她閉上眼睛說呼嚕～；右邊是按住拖曳時，她被拎起來" width="100%"><br>
-      <sub>點她一下會「呼嚕～」；按住拖曳可以拎起來，放手就坐回去</sub>
-    </td>
-  </tr>
-</table>
+<p align="center">
+  <img src="docs/media/greeting.gif" alt="對小黑貓說 what's up，她用右上方的氣泡回覆 what's up!" width="400">
+  &nbsp;&nbsp;
+  <img src="docs/media/desktop-pet-walking.gif" alt="桌面小黑貓散步的動畫" width="128"><br>
+  <sub>整句只說 <code>what's up</code>，小黑貓會回你一句（這句不會貼進輸入框）；放出小黑貓後，她會在桌面邊緣散步、休息</sub>
+</p>
+
+<p align="center">
+  <img src="docs/media/screenshots/desktop-pet-poses.png" alt="桌面小黑貓的七種姿勢：安靜坐著、站起來看看、散步中、有點好奇、舔舔前掌、打哈欠、趴著休息" width="820"><br>
+  <sub>約 12 秒沒操作電腦，她會自己換姿勢；錄音、全螢幕或鎖定時會暫停</sub>
+</p>
+
+<p align="center">
+  <img src="docs/media/screenshots/desktop-pet-interaction.png" alt="左邊是點了小黑貓後，她閉上眼睛說呼嚕～；右邊是按住拖曳時，她被拎起來" width="820"><br>
+  <sub>點她一下會「呼嚕～」；按住拖曳可以拎起來，放手就坐回去</sub>
+</p>
 
 ## 安裝
 

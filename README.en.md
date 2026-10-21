@@ -58,30 +58,22 @@ What's up my neighbor is a lightweight, native macOS menu bar dictation app. Pre
 
 ## Screenshots
 
-<table>
-  <tr>
-    <td align="center" width="50%">
-      <img src="docs/media/greeting.gif" alt="Say what's up to the cat and she answers what's up! in a speech bubble" width="100%"><br>
-      <sub>Say just <code>what's up</code> and the cat replies; that phrase is not typed into your text field</sub>
-    </td>
-    <td align="center" width="50%">
-      <img src="docs/media/desktop-pet-walking.gif" alt="The desktop cat walking" width="128"><br>
-      <sub>Let her out and she wanders and rests along the edge of your screen</sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" colspan="2">
-      <img src="docs/media/screenshots/desktop-pet-poses.png" alt="Seven desktop cat poses: sitting, standing up, walking, curious, licking a paw, yawning and lying down" width="100%"><br>
-      <sub>After about 12 seconds without input she changes pose on her own; she pauses while you record, go full screen or lock the Mac</sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" colspan="2">
-      <img src="docs/media/screenshots/desktop-pet-interaction.png" alt="Left: after a click the cat closes her eyes and purrs. Right: while dragged she is lifted off the ground" width="100%"><br>
-      <sub>Click her for a purr; click and drag to pick her up, then let go to set her down</sub>
-    </td>
-  </tr>
-</table>
+<p align="center">
+  <img src="docs/media/greeting.gif" alt="Say what's up to the cat and she answers what's up! in a speech bubble" width="400">
+  &nbsp;&nbsp;
+  <img src="docs/media/desktop-pet-walking.gif" alt="The desktop cat walking" width="128"><br>
+  <sub>Say just <code>what's up</code> and the cat replies (the phrase is not typed into your text field). Let her out and she wanders and rests along the edge of your screen.</sub>
+</p>
+
+<p align="center">
+  <img src="docs/media/screenshots/desktop-pet-poses.png" alt="Seven desktop cat poses: sitting, standing up, walking, curious, licking a paw, yawning and lying down" width="820"><br>
+  <sub>After about 12 seconds without input she changes pose on her own; she pauses while you record, go full screen or lock the Mac</sub>
+</p>
+
+<p align="center">
+  <img src="docs/media/screenshots/desktop-pet-interaction.png" alt="Left: after a click the cat closes her eyes and purrs. Right: while dragged she is lifted off the ground" width="820"><br>
+  <sub>Click her for a purr; click and drag to pick her up, then let go to set her down</sub>
+</p>
 
 ## Install
 

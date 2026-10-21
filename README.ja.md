@@ -58,30 +58,22 @@ What's up my neighbor は、軽量なネイティブ macOS メニューバー音
 
 ## スクリーンショット
 
-<table>
-  <tr>
-    <td align="center" width="50%">
-      <img src="docs/media/greeting.gif" alt="黒猫に what's up と話しかけると、吹き出しで what's up! と返事をする" width="100%"><br>
-      <sub><code>what's up</code> とだけ言うと黒猫が返事をします。このフレーズは入力欄には入りません</sub>
-    </td>
-    <td align="center" width="50%">
-      <img src="docs/media/desktop-pet-walking.gif" alt="デスクトップの黒猫が歩くアニメーション" width="128"><br>
-      <sub>デスクトップに出すと、画面の端を散歩したり休んだりします</sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" colspan="2">
-      <img src="docs/media/screenshots/desktop-pet-poses.png" alt="黒猫の 7 つのポーズ：座る、立ち上がる、歩く、首をかしげる、前足をなめる、あくび、寝そべる" width="100%"><br>
-      <sub>約 12 秒操作がないと自分でポーズを変えます。録音中、フルスクリーン、ロック中は止まります</sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" colspan="2">
-      <img src="docs/media/screenshots/desktop-pet-interaction.png" alt="左：クリックすると目を閉じてゴロゴロ。右：ドラッグすると持ち上げられる" width="100%"><br>
-      <sub>クリックで「ゴロゴロ」、押したままドラッグで持ち上げ、離すと座り直します</sub>
-    </td>
-  </tr>
-</table>
+<p align="center">
+  <img src="docs/media/greeting.gif" alt="黒猫に what's up と話しかけると、吹き出しで what's up! と返事をする" width="400">
+  &nbsp;&nbsp;
+  <img src="docs/media/desktop-pet-walking.gif" alt="デスクトップの黒猫が歩くアニメーション" width="128"><br>
+  <sub><code>what's up</code> とだけ言うと黒猫が返事をします（このフレーズは入力欄には入りません）。デスクトップに出すと、画面の端を散歩したり休んだりします。</sub>
+</p>
+
+<p align="center">
+  <img src="docs/media/screenshots/desktop-pet-poses.png" alt="黒猫の 7 つのポーズ：座る、立ち上がる、歩く、首をかしげる、前足をなめる、あくび、寝そべる" width="820"><br>
+  <sub>約 12 秒操作がないと自分でポーズを変えます。録音中、フルスクリーン、ロック中は止まります</sub>
+</p>
+
+<p align="center">
+  <img src="docs/media/screenshots/desktop-pet-interaction.png" alt="左：クリックすると目を閉じてゴロゴロ。右：ドラッグすると持ち上げられる" width="820"><br>
+  <sub>クリックで「ゴロゴロ」、押したままドラッグで持ち上げ、離すと座り直します</sub>
+</p>
 
 ## インストール
 
