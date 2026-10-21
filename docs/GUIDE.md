@@ -1,18 +1,18 @@
-# What's up my neighbor AI Input — macOS
+# What's up my neighbor macOS 完整使用指南
 
-[![Build](https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/actions/workflows/build.yml/badge.svg)](https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/actions/workflows/build.yml) [![Latest release](https://img.shields.io/github/v/release/yuipan0611/whats-up-my-neighbor-ai-input-macos)](https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/releases/latest) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Build](https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/actions/workflows/build.yml/badge.svg)](https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/actions/workflows/build.yml) [![Latest release](https://img.shields.io/github/v/release/yuipan0611/whats-up-my-neighbor-ai-input-macos)](https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/releases/latest) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](../LICENSE)
 
-Windows 測試版已獨立至 [Windows repo](https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-windows)，功能、測試與發佈各自維護。拆分與舊網址相容說明見 [repo 搬遷紀錄](docs/REPOSITORY_MIGRATION.md)。
+Windows 測試版已獨立至 [Windows repo](https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-windows)，功能、測試與發佈各自維護。拆分與舊網址相容說明見 [repo 搬遷紀錄](REPOSITORY_MIGRATION.md)。
 
 一個輕量的原生 macOS 選單列語音輸入 App。按下自訂全域快捷鍵開始錄音，再按一次停止；音訊會送到 Groq `whisper-large-v3`，轉成繁體中文後貼到原本游標位置。也可與配套 iPhone App 在附近直接連線，從手機修改轉錄文字並明確選擇「只貼上」或「貼到 Mac 並送出」（iPhone App 仍在開發中，尚未發布）。
 
 ## 更新與自動發佈
 
-目前版本：**1.4.5（build 1012）**。黑貓選單會顯示實際安裝版本；完整紀錄見 [CHANGELOG.md](CHANGELOG.md)。版本與 build 統一以 `Resources/Info.plist` 為準；提高編號的新版本合併 main 後，由 GitHub Actions 自動測試、簽章、發佈安裝包與更新清單。
+目前版本：**1.4.5（build 1012）**。黑貓選單會顯示實際安裝版本；完整紀錄見 [CHANGELOG.md](../CHANGELOG.md)。版本與 build 統一以 `Resources/Info.plist` 為準；提高編號的新版本合併 main 後，由 GitHub Actions 自動測試、簽章、發佈安裝包與更新清單。
 
 macOS 版加入 Sparkle：每日偵測新版並通知，由使用者自行選擇是否下載安裝。錄音、辨識或等待重試時延後提示與重新啟動；選單提供「檢查更新…」與「自動偵測新版本」。既有 API Key、快捷鍵及使用者資料夾的 `cat.config.json`／圖片不覆寫。
 
-舊版需先手動安裝一次包含更新器的版本。發佈採用免費方案：固定的既有程式碼簽章憑證，加上 Sparkle 更新驗證金鑰，不需要付費 Apple Developer、Developer ID 或 Apple 公證。安裝工具沿用既有安裝位置，保留個人設定；macOS 首次開啟仍可能要求安全確認。首次發佈成功前，不代表更新服務已上線。[完整發佈設定與驗證範圍](docs/UPDATES.md)。
+舊版需先手動安裝一次包含更新器的版本。發佈採用免費方案：固定的既有程式碼簽章憑證，加上 Sparkle 更新驗證金鑰，不需要付費 Apple Developer、Developer ID 或 Apple 公證。安裝工具沿用既有安裝位置，保留個人設定；macOS 首次開啟仍可能要求安全確認。首次發佈成功前，不代表更新服務已上線。[完整發佈設定與驗證範圍](UPDATES.md)。
 
 ## 已保留的桌面功能
 
@@ -25,13 +25,13 @@ macOS 版加入 Sparkle：每日偵測新版並通知，由使用者自行選擇
 
 ## 桌面小黑貓
 
-<img src="docs/media/desktop-pet-walking.gif" alt="桌面小黑貓散步的動畫" width="128">
+<img src="media/desktop-pet-walking.gif" alt="桌面小黑貓散步的動畫" width="128">
 
 從選單點「放出小黑貓」，就能讓牠待在桌面；想專心時點「收回小黑貓」。App 會記住這個選擇，第一次使用預設收回。
 
 你操作電腦時牠會安靜坐在螢幕邊緣；約 12 秒沒操作後，牠會散步、站起來、偶爾冒問號、舔舔前掌、打哈欠，再趴下睡覺。桌面資料夾的圖示可見且位置可讀時，也會走去趴在上面；否則就在邊緣休息。牠旁邊的透明處滑鼠可直接點穿；1.4.5 起點牠一下會回「呼嚕～」，按住拖曳可以抓起、放手坐回。錄音、選取剪貼簿、全螢幕工作、鎖定或休眠時會暫停。牠不會讓電腦保持喚醒。
 
-配合 macOS「減少動態效果」時保持靜止。此模式不開啟麥克風、不連網，也不啟用手機接力；詳見 [桌面夥伴說明](docs/DESKTOP_PET.md)。
+配合 macOS「減少動態效果」時保持靜止。此模式不開啟麥克風、不連網，也不啟用手機接力；詳見 [桌面夥伴說明](DESKTOP_PET.md)。
 
 ## 剪貼簿歷史
 
@@ -41,15 +41,15 @@ macOS 版加入 Sparkle：每日偵測新版並通知，由使用者自行選擇
 
 ## 非工程師技術教學
 
-想了解錄音、辨識、文字處理與貼上之間怎麼串起來，以及為什麼不會隨便按 Enter，請閱讀 [架構與資料流](docs/ARCHITECTURE.md)。想參與開發，從 [開發者文件](#開發者文件) 開始。
+想了解錄音、辨識、文字處理與貼上之間怎麼串起來，以及為什麼不會隨便按 Enter，請閱讀 [架構與資料流](ARCHITECTURE.md)。想參與開發，從 [開發者文件](#開發者文件) 開始。
 
 ## 貓咪錄音與招呼彩蛋
 
-<img src="docs/media/greeting.gif" alt="對小黑貓說 what's up，她回覆 what's up! 的動畫" width="330">
+<img src="media/greeting.gif" alt="對小黑貓說 what's up，她回覆 what's up! 的動畫" width="330">
 
 錄音時在螢幕上方中央（可改到下方中央）顯示原生黑貓浮窗，兩耳之間的音量條跟著聲音跳動；左眼取消、右眼完成，不搶走原本輸入框的焦點。結束一段錄音後，辨識結果若整句是 `what’s up`、`whats up` 或 `what is up`，貓咪會出現在滑鼠所在螢幕的下方中間，用她右上方的微斜氣泡回覆 `what’s up!` 約三秒，並無聲地動一下小貓嘴。這句口令不會貼入輸入框；五秒冷卻期間也會被消費。包含口令的長句仍照常輸入。
 
-彩蛋使用既有錄音的辨識結果，不會常駐監聽或額外呼叫 AI。可從「開啟貓咪設定資料夾…」取得 `cat.config.json`，調整圖片、文字、字型與時間，重啟後載入。[設定格式與安全限制](CAT-CONFIG.md)。
+彩蛋使用既有錄音的辨識結果，不會常駐監聽或額外呼叫 AI。可從「開啟貓咪設定資料夾…」取得 `cat.config.json`，調整圖片、文字、字型與時間，重啟後載入。[設定格式與安全限制](../CAT-CONFIG.md)。
 
 ## 文字輸出模式
 
@@ -352,7 +352,7 @@ Mac 在執行前與貼上後都會重新確認焦點。若 App、視窗或輸入
 - iPhone 遠端文字與明確動作只在已配對裝置間加密傳送，不經過開發者伺服器。
 - Groq API Key 儲存在 Keychain。
 - 啟用剪貼簿記錄時，語音結果與一般複製文字會保留在本機最近 10 筆歷史；重開 App 後仍保留，可暫停或清除。歷史不另外傳到雲端，也不建立錄音檔歷史。
-- 詳細內容見 [PRIVACY.md](PRIVACY.md)。
+- 詳細內容見 [PRIVACY.md](../PRIVACY.md)。
 
 ## 從原始碼建置
 
@@ -385,13 +385,13 @@ Mac 在執行前與貼上後都會重新確認焦點。若 App、視窗或輸入
 
 ## 開發者文件
 
-- [參與方式](CONTRIBUTING.md)：回報問題、修正文件、送程式修正。
-- [開發環境與本機建置](docs/DEVELOPMENT.md)：取得原始碼、跑離線測試、建置與打包。
-- [架構與資料流](docs/ARCHITECTURE.md)：從快捷鍵到貼上，每個模組負責什麼。
-- [測試方式與驗證範圍](docs/TESTING.md)：每組測試保護什麼、哪些只能實機確認。
-- [發布與使用者選擇更新](docs/UPDATES.md)：版本、簽章、Sparkle 更新流程。
-- [安全政策](SECURITY.md)：安全性問題請用私密管道回報。
+- [參與方式](../CONTRIBUTING.md)：回報問題、修正文件、送程式修正。
+- [開發環境與本機建置](DEVELOPMENT.md)：取得原始碼、跑離線測試、建置與打包。
+- [架構與資料流](ARCHITECTURE.md)：從快捷鍵到貼上，每個模組負責什麼。
+- [測試方式與驗證範圍](TESTING.md)：每組測試保護什麼、哪些只能實機確認。
+- [發布與使用者選擇更新](UPDATES.md)：版本、簽章、Sparkle 更新流程。
+- [安全政策](../SECURITY.md)：安全性問題請用私密管道回報。
 
 ## 授權
 
-[MIT License](LICENSE)
+[MIT License](../LICENSE)
