@@ -12,6 +12,7 @@ final class StatusMenuController {
     private(set) var cancelMenuItem: NSMenuItem!
     private(set) var modeMenuItems: [TextOutputMode: NSMenuItem] = [:]
     private var nekoPositionItems: [NekoHUDPosition: NSMenuItem] = [:]
+    private var catCoatItems: [String: NSMenuItem] = [:]
 
     func configure(target: AnyObject, toggleTitle: String, relayTitle: String, clipboardMenu: NSMenu? = nil, actions: [String: Selector]) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -71,6 +72,12 @@ final class StatusMenuController {
         desktopPetMenuItem = NSMenuItem(title: "放出小黑貓", action: actions["toggleDesktopPet"], keyEquivalent: "")
         desktopPetMenuItem.target = target
         menu.addItem(desktopPetMenuItem)
+
+        if let action = actions["selectCatCoat"] {
+            let (catCoatItem, items) = CatCoatMenu.make(target: target, action: action)
+            catCoatItems = items
+            menu.addItem(catCoatItem)
+        }
 
         let nekoPreview = NSMenuItem(title: "小黑貓介面預覽…", action: actions["showNekoPreview"], keyEquivalent: "")
         nekoPreview.target = target
@@ -163,6 +170,10 @@ final class StatusMenuController {
 
     func updateDesktopPet(_ released: Bool) {
         desktopPetMenuItem.title = released ? "收回小黑貓" : "放出小黑貓"
+    }
+
+    func updateCatCoat(_ selected: String) {
+        for (id, item) in catCoatItems { item.state = id == selected ? .on : .off }
     }
 
     func updateIcon(_ state: NekoMenuBarIcon.State, description: String) {
