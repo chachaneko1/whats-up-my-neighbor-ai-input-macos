@@ -1,0 +1,61 @@
+import Foundation
+
+enum CatCoatSelection {
+    enum Error: LocalizedError {
+        case unknownCoat
+        case invalidConfiguration
+        case customAppearance
+        case unsafeFile
+        case configurationTooLarge
+
+        var errorDescription: String? {
+            switch self {
+            case .unknownCoat: return "找不到這種貓咪花色。"
+            case .invalidConfiguration: return "現有貓咪設定格式無效；為避免覆寫，請先從設定資料夾修正。"
+            case .customAppearance: return "現有設定包含自訂部位或花紋；選單不會覆寫它們。請從貓咪設定資料夾調整。"
+            case .unsafeFile: return "貓咪設定檔不是一般檔案；為避免覆寫，請先檢查設定資料夾。"
+            case .configurationTooLarge: return "貓咪設定超過大小限制，無法儲存花色。"
+            }
+        }
+    }
+
+    /// Selects a complete preset without changing greetings, custom images or other settings.
+    /// A detailed per-part appearance stays under the user's manual control.
+    static func save(_ preset: String, to file: URL = CatConfiguration.directoryURL.appendingPathComponent("cat.config.json")) throws {
+        guard CatAppearance.presetIDs.contains(preset) else { throw Error.unknownCoat }
+        let manager = FileManager.default
+        var document: [String: Any] = [:]
+        if (try? manager.destinationOfSymbolicLink(atPath: file.path)) != nil { throw Error.unsafeFile }
+        if manager.fileExists(atPath: file.path) {
+            let values = try file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+            guard values.isRegularFile == true, values.isSymbolicLink != true else { throw Error.unsafeFile }
+            guard CatConfiguration.load(from: file).loadError == nil else { throw Error.invalidConfiguration }
+            var original = try Data(contentsOf: file)
+            if original.starts(with: [0xEF, 0xBB, 0xBF]) { original.removeFirst(3) }
+            guard let parsed = try JSONSerialization.jsonObject(with: original) as? [String: Any] else {
+                throw Error.invalidConfiguration
+            }
+            document = parsed
+            if let appearance = document["appearance"] as? [String: Any] {
+                let parts = appearance["parts"] as? [String: [String: Any]] ?? [:]
+                let seed = appearance["seed"] as? Int ?? 1
+                guard parts.values.allSatisfy(\.isEmpty), seed == 1 else { throw Error.customAppearance }
+            }
+        }
+
+        document["version"] = 2
+        document["appearance"] = ["preset": preset]
+        let data = try JSONSerialization.data(withJSONObject: document, options: [.prettyPrinted, .sortedKeys])
+        guard data.count <= CatConfiguration.maximumFileBytes else { throw Error.configurationTooLarge }
+
+        let directory = file.deletingLastPathComponent()
+        try manager.createDirectory(at: directory, withIntermediateDirectories: true)
+        let validationFile = directory.appendingPathComponent(".cat-coat-check-\(UUID().uuidString)")
+        defer { try? manager.removeItem(at: validationFile) }
+        try data.write(to: validationFile, options: .atomic)
+        let validated = CatConfiguration.load(from: validationFile)
+        guard validated.loadError == nil, validated.appearance.preset == preset else { throw Error.invalidConfiguration }
+        try data.write(to: file, options: .atomic)
+        try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+    }
+}

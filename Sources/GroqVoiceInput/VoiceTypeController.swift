@@ -175,6 +175,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     private func configureStatusItem() {
         statusMenu.configure(target: self, toggleTitle: toggleMenuTitle(), relayTitle: relayMenuTitle(), clipboardMenu: clipboardHistoryMenu.menu, actions: [
             "openCatSettings": #selector(openCatSettings),
+            "selectCatCoat": #selector(selectCatCoat(_:)),
             "showVocabularyWindow": #selector(showVocabularyWindow),
             "showNekoPreview": #selector(showNekoPreview),
             "toggleDesktopPet": #selector(toggleDesktopPet),
@@ -201,6 +202,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         statusMenu.updateClipboardShortcut(clipboardShortcutTitle)
         updateTextOutputModeMenu()
         statusMenu.updateNekoPosition(nekoHUD.position)
+        statusMenu.updateCatCoat(catConfiguration.appearance.preset)
         updateRelayMenu()
         renderDictationState(.idle)
     }
@@ -789,6 +791,38 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
             }
             NSWorkspace.shared.open(CatConfiguration.directoryURL)
         } catch { showError("無法開啟貓咪設定資料夾：\(error.localizedDescription)") }
+    }
+
+    @objc private func selectCatCoat(_ sender: NSMenuItem) {
+        guard let preset = sender.representedObject as? String,
+              let appearance = CatAppearance.makePreset(preset) else { return }
+        guard dictation.state == .idle else {
+            showError("請先完成目前的錄音或辨識，再切換貓咪花色。")
+            return
+        }
+        do {
+            try CatCoatSelection.save(preset)
+            statusMenu.updateCatCoat(preset)
+            let alert = NSAlert()
+            alert.messageText = "已選擇\(appearance.title)"
+            alert.informativeText = catConfiguration.image == nil
+                ? "花色已存到這台 Mac。重新啟動 App 後，桌面貓、錄音浮窗與問候會使用新花色。"
+                : "花色已存到這台 Mac。重新啟動後桌面貓會換色；錄音浮窗與問候仍會使用你原本指定的圖片。"
+            alert.addButton(withTitle: "現在重新啟動")
+            alert.addButton(withTitle: "稍後")
+            NSApp.activate(ignoringOtherApps: true)
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.createsNewApplicationInstance = true
+            NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { [weak self] _, error in
+                DispatchQueue.main.async {
+                    if let error { self?.showError("無法重新啟動 App：\(error.localizedDescription)。花色已儲存，下次開啟時會套用。") }
+                    else { NSApp.terminate(nil) }
+                }
+            }
+        } catch {
+            showError(error.localizedDescription)
+        }
     }
 
     private func insertDictationText(_ text: String) -> Bool {
