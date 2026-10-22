@@ -1,7 +1,7 @@
 ---
 title: 貓咪辦公室手機直連：交接板
 date: 2026-10-22
-status: M1–M6 主要流程已完成；手動斷網重送與撤銷這台 iPhone 尚未實測
+status: M1–M6 主要流程已完成；main 5f9c559 已部署到 VPS，新聊天介面與附件待 iPhone 驗收；手動斷網重送與撤銷這台 iPhone 尚未實測
 ---
 
 # 交接板
@@ -18,7 +18,7 @@ status: M1–M6 主要流程已完成；手動斷網重送與撤銷這台 iPhone
 | M3 | 配對（VPS CLI）、devices、session、撤銷 | Claude | 同 M1 | M1 | 完成（本機） |
 | M4 | 手機版面、配對頁、補狀態、WebSocket、重連、退回輪詢 | Codex | `office/static/*` | PRD 第 13 節（已定稿） | 完成（本機）。見 `reports/office-mobile/LOCAL-VERIFICATION.md` |
 | M5 | 網路前置：SSH 收緊，加上 Caddy、DNS（office.nekonode.cloud）、ufw 80/443 | YUI（root、hPanel） | VPS 設定；Codex 的範本 `office/services/*.example` 與 `docs/mobile/DEPLOY.md` | 取得 YUI 部署同意 | 完成；見 `DEPLOY.md` |
-| M6 | 部署與 iPhone 實機驗收 | Claude＋YUI | 驗證紀錄 `reports/office-mobile/` | M1–M5，另取 YUI 部署同意 | 主要流程完成；手動斷網重送與撤銷這台 iPhone 尚未實測 |
+| M6 | 部署與 iPhone 實機驗收 | Claude＋YUI | 驗證紀錄 `reports/office-mobile/` | M1–M5，另取 YUI 部署同意 | 主要流程完成；`current` 已切到 main `5f9c559`，新聊天介面與附件待 iPhone 驗收；手動斷網重送與撤銷這台 iPhone 尚未實測 |
 
 **驗收範圍**：public HTTPS/WSS、配對、交辦與鎖屏後查看成果已驗證；手動斷網重送及撤銷這台 iPhone 尚未實測。詳細證據與限制見 `DEPLOY.md`。
 
@@ -51,3 +51,4 @@ status: M1–M6 主要流程已完成；手動斷網重送與撤銷這台 iPhone
   ｜未做：部署、DNS、Caddy、iPhone 實機（M5、M6）。Codex 的 static/README/DEPLOY/services 由 Codex 自行 commit。
 - 2026-10-22｜Claude｜M0 狀態同步｜完成｜只改 PRD.md、HANDOFF.md｜依 Codex 的本機整合紀錄，把 M4 標為本機完成；PRD 第 10 節勾選已通過的後端項目；S 標為不適用｜M5、M6 未做；public HTTPS/WSS 與真機待部署驗收。Codex 先前誤讀 ws_send，是 sed 範圍重疊造成的，程式本身沒有問題
 - 2026-10-22｜Claude｜M3 修正｜完成（本機）｜`Store.device_active()` 改成與 cookie 檢查同一條規則（未撤銷，且 last_seen 在 30 天內）；PRD 13.4 補上有效期說明｜Codex 指出：已開著的 WebSocket 原本只檢查 revoked，到期後仍會繼續收事件。新增 2 項測試：到期時 2 秒內以 4401 關閉，之後 HTTP 與握手都回 401；還在有效期內的連線不會被誤關。全部 64 項通過；把規則改回只看 revoked 的 mutation 會讓新測試失敗｜不依賴 Caddy 的逾時設定
+- 2026-10-22｜Claude｜M6 部署 5f9c559｜完成（公網）｜YUI 同意後依 DEPLOY.md 的 release 流程部署：`current` 由 `releases/public-20261022-fix3` 切到 `releases/public-20261022-5f9c559`，備份在 `backups/pre-5f9c559-20261022T070121Z`｜VPS 上 69 項測試通過；公網檢查 24/24 通過，包括短暫測試裝置配對 201、WSS 101 與 hello、撤銷後 4401｜新聊天介面與附件待 YUI 用 iPhone 驗收（要先重新整理頁面）。紀錄見 `reports/office-mobile/DEPLOY-5f9c559-2026-10-22.md`
