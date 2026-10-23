@@ -31,7 +31,10 @@
 </p>
 
 <p align="center">
-  [<a href="README.md">繁體中文</a>] | [<a href="README.en.md">English</a>] | [<a href="README.ja.md">日本語</a>]
+  語言：
+  <a href="README.md"><kbd>繁體中文 ✓</kbd></a>
+  <a href="README.en.md"><kbd>English</kbd></a>
+  <a href="README.ja.md"><kbd>日本語</kbd></a>
 </p>
 
 ---
@@ -76,23 +79,14 @@ What's up my neighbor 是輕量的原生 macOS 選單列語音輸入 App。在�
 
 **系統需求**：macOS 13 Ventura 以上、自己的 Groq API Key、網路，以及「麥克風」與「輔助使用」權限。
 
-### 一行指令（熟悉終端機）
-
-```bash
-curl -fsSL https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/releases/latest/download/install.sh | zsh
-```
-
-會下載最新版、用腳本內固定的 SHA-256 核對，再執行安裝包裡的 `安裝.command`。不需要 Mac 密碼，也不改系統安全設定。
-
-> [!NOTE]
-> 這行指令從第一個附帶 `install.sh` 的正式版開始可用；在那之前請用下方 ZIP 方式。想先看腳本內容再執行，見[完整指南](docs/GUIDE.md#一行指令安裝熟悉終端機)。
-
 ### 下載 ZIP
 
 1. 到 [Releases](https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/releases/latest) 下載最新 ZIP 並解壓縮。
 2. 第一次請對 `安裝.command` 按右鍵選「打開」（免費版沒有 Apple 公證）。仍被阻擋時，到「系統設定 → 隱私權與安全性」按「仍要打開」。
 3. 依首次啟動畫面貼上自己的 Groq API Key，並允許「麥克風」與「輔助使用」權限。
 4. 在任何文字欄位按 `⌥↑` 開始錄音，再按一次停止。
+
+目前最新正式版尚未附帶一行安裝腳本；請使用上述 ZIP 安裝方式。未來版本若附帶腳本，再依[完整指南](docs/GUIDE.md#一行指令安裝熟悉終端機)操作。
 
 也可以把 repo 連結交給 Claude Code、Codex 這類 AI 代為安裝，提示詞見[直接交給 AI 安裝](docs/GUIDE.md#直接交給-ai-安裝)。
 

@@ -31,7 +31,10 @@
 </p>
 
 <p align="center">
-  [<a href="README.md">繁體中文</a>] | [<a href="README.en.md">English</a>] | [<a href="README.ja.md">日本語</a>]
+  言語：
+  <a href="README.md"><kbd>繁體中文</kbd></a>
+  <a href="README.en.md"><kbd>English</kbd></a>
+  <a href="README.ja.md"><kbd>日本語 ✓</kbd></a>
 </p>
 
 ---
@@ -79,23 +82,14 @@ What's up my neighbor は、軽量なネイティブ macOS メニューバー音
 
 **動作環境**：macOS 13 Ventura 以降、ご自身の Groq API キー、インターネット接続、「マイク」と「アクセシビリティ」の許可。
 
-### 1 行インストール（ターミナル）
-
-```bash
-curl -fsSL https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/releases/latest/download/install.sh | zsh
-```
-
-最新版をダウンロードし、スクリプトに固定された SHA-256 で照合してから、パッケージ内の `安裝.command`（インストーラー）を実行します。Mac のパスワードは不要で、システムのセキュリティ設定も変更しません。
-
-> [!NOTE]
-> このコマンドは `install.sh` を同梱した最初の正式リリースから使えます。それまでは下の ZIP の手順を使ってください。
-
 ### ZIP をダウンロード
 
 1. [Releases](https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/releases/latest) から最新の ZIP をダウンロードして展開します。
 2. 無料版は Apple の公証を受けていないため、初回は `安裝.command` を右クリックして「開く」を選びます。それでもブロックされる場合は「システム設定 → プライバシーとセキュリティ」で「このまま開く」を押します。
 3. 初回起動画面に従ってご自身の Groq API キーを貼り付け、「マイク」と「アクセシビリティ」を許可します。
 4. 任意のテキスト欄で `⌥↑` を押して録音を始め、もう一度押して止めます。
+
+現行の正式リリースには、1 行インストール用のスクリプトはまだ含まれていません。上記の ZIP 手順を使用してください。今後のリリースにスクリプトが含まれた場合は、[詳細ガイド](docs/GUIDE.md#一行指令安裝熟悉終端機)を参照してください。
 
 ### Groq API キー
 

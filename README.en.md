@@ -31,7 +31,10 @@
 </p>
 
 <p align="center">
-  [<a href="README.md">繁體中文</a>] | [<a href="README.en.md">English</a>] | [<a href="README.ja.md">日本語</a>]
+  Language:
+  <a href="README.md"><kbd>繁體中文</kbd></a>
+  <a href="README.en.md"><kbd>English ✓</kbd></a>
+  <a href="README.ja.md"><kbd>日本語</kbd></a>
 </p>
 
 ---
@@ -79,23 +82,14 @@ What's up my neighbor is a lightweight, native macOS menu bar dictation app. Pre
 
 **Requirements**: macOS 13 Ventura or later, your own Groq API key, an internet connection, and Microphone and Accessibility permissions.
 
-### One-line install (Terminal)
-
-```bash
-curl -fsSL https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/releases/latest/download/install.sh | zsh
-```
-
-It downloads the latest release, checks it against the SHA-256 pinned in the script, then runs the `安裝.command` installer from the package. No Mac password is needed and no system security setting is changed.
-
-> [!NOTE]
-> This command works from the first release that ships `install.sh`. Until then, use the ZIP below.
-
 ### Download the ZIP
 
 1. Download the latest ZIP from [Releases](https://github.com/yuipan0611/whats-up-my-neighbor-ai-input-macos/releases/latest) and unzip it.
 2. The first time, right-click `安裝.command` (Install) and choose **Open**, because the free build is not notarised by Apple. If macOS still blocks it, go to **System Settings → Privacy & Security** and click **Open Anyway**.
 3. Follow the first-launch window to paste your own Groq API key, then allow Microphone and Accessibility access.
 4. In any text field, press `⌥↑` to start recording and press it again to stop.
+
+The latest release does not yet include the one-line installer. Use the ZIP steps above. If a later release includes the script, follow the [full manual](docs/GUIDE.md#一行指令安裝熟悉終端機).
 
 ### Groq API key
 
