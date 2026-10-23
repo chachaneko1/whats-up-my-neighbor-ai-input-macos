@@ -34,7 +34,8 @@
 
 | 文件 | 內容 |
 |---|---|
-| `README.md` | 功能總覽、安裝、Groq 額度、設定 |
+| `README.md`、`README.en.md`、`README.ja.md` | 三語產品首頁：特色、截圖、安裝、文件入口；三份要一起改 |
+| `docs/GUIDE.md` | 完整使用指南：每個功能、設定、Groq 額度、iPhone 接力、移除 |
 | `PRIVACY.md` | 資料傳輸與本機儲存的完整說明 |
 | `CAT-CONFIG.md` | `cat.config.json` 格式 |
 | `Packaging/使用說明.md` | 會放進安裝包給使用者看的說明 |
