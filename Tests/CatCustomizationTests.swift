@@ -29,15 +29,19 @@ import AppKit
         content.cacheDisplay(in: content.bounds, to: bitmap)
         // The native window supplies its background separately from the
         // content view. Include that background in the standalone QA capture.
+        let contentImage = NSImage(size: content.bounds.size)
+        contentImage.addRepresentation(bitmap)
         let capture = NSImage(size: content.bounds.size)
         capture.lockFocus()
         editor.window!.effectiveAppearance.performAsCurrentDrawingAppearance {
             editor.window!.backgroundColor.setFill()
             NSBezierPath(rect: content.bounds).fill()
-            bitmap.draw(in: content.bounds)
+            contentImage.draw(in: content.bounds, from: .zero, operation: .sourceOver, fraction: 1)
         }
         capture.unlockFocus()
         let flattened = NSBitmapImageRep(data: capture.tiffRepresentation!)!
+        precondition(flattened.colorAt(x: 0, y: 0)!.alphaComponent > 0.99,
+                     "Standalone editor capture includes the opaque native window background")
         try flattened.representation(using: .png, properties: [:])!.write(to: output.appendingPathComponent("customization-window.png"))
         editor.testDisableLeftEye()
         precondition(editor.draft.features.eyes.left == nil)
