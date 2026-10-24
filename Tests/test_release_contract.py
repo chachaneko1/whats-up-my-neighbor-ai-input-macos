@@ -345,14 +345,22 @@ else: sys.exit(99)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(tree_snapshot(app), original)
             subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app)], check=True, capture_output=True)
-            with zipfile.ZipFile(output) as archive:
-                prefix = "NekoNode-客製貓咪/"
-                self.assertEqual(archive.read(prefix + "FirstCat.nekocatsetup"), cat.read_bytes())
-                self.assertEqual(archive.read(prefix + "我的貓.nekocat"), cat.read_bytes())
-                self.assertEqual(archive.read(prefix + "AI語音輸入.app/Contents/Resources/version-marker"), b"one-shared-app")
-                self.assertFalse(any(name.endswith(".nekocat") and "/Contents/" in name for name in archive.namelist()))
-                installer = archive.read(prefix + "安裝.command").decode()
-                self.assertIn('open -a "$TARGET_APP" "$PENDING_CAT"', installer)
+            # Exercise the native macOS delivery, including its Unicode file
+            # names and resource metadata, instead of assuming Python's ZIP
+            # filename decoding matches ditto's archive conventions.
+            extracted = base / "extracted delivery"
+            subprocess.run(["ditto", "-x", "-k", str(output), str(extracted)], check=True, capture_output=True)
+            delivery = extracted / "NekoNode-客製貓咪"
+            self.assertTrue(delivery.is_dir())
+            self.assertEqual((delivery / "FirstCat.nekocatsetup").read_bytes(), cat.read_bytes())
+            self.assertEqual((delivery / "我的貓.nekocat").read_bytes(), cat.read_bytes())
+            delivered_app = delivery / "AI語音輸入.app"
+            self.assertEqual(tree_snapshot(delivered_app), original)
+            subprocess.run(["codesign", "--verify", "--deep", "--strict", str(delivered_app)], check=True, capture_output=True)
+            self.assertFalse(list((delivered_app / "Contents").rglob("*.nekocat")))
+            self.assertFalse(list((delivered_app / "Contents").rglob("*.nekocatsetup")))
+            installer = (delivery / "安裝.command").read_text()
+            self.assertIn('open -a "$TARGET_APP" "$PENDING_CAT"', installer)
             checksum = Path(str(output) + ".sha256").read_text().split()[0]
             self.assertEqual(checksum, hashlib.sha256(output.read_bytes()).hexdigest())
             archive_bytes = output.read_bytes()
