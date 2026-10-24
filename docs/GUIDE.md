@@ -444,14 +444,19 @@ Mac 在執行前與貼上後都會重新確認焦點。若 App、視窗或輸入
 
 ## 移除
 
-執行 Release 裡的 `移除.command`，會停止 App，移除登入啟動設定、`~/Applications/AI語音輸入.app`、偏好設定（含快捷鍵）與 Keychain 裡的 API Key。
+執行 Release 裡的 `移除.command`，會停止 App，移除 App、登入啟動設定、偏好設定（含快捷鍵與本機詞典）與 Keychain 裡的 API Key。
 
-目前的移除工具**不會**刪除以下資料夾，想完全清除請手動刪除：
+移除工具找 App 的位置和[安裝位置](#安裝位置)相同：登入啟動設定記錄的位置、`~/Applications`、`~/Library/Application Support/AI語音輸入/`、`/Applications`。找到幾份就刪幾份，但每一份都要先確認 Bundle ID 是 `tw.panh.FreeVoiceType`；檔名相同、Bundle ID 不同的 App 會略過，並在終端機視窗列出。
 
-- `~/Library/Application Support/AI語音輸入/`（剪貼簿歷史）
-- 貓咪設定資料夾（`cat.config.json` 與自訂圖片）：移除前從小黑貓選單「開啟貓咪設定資料夾…」打開，整個丟到垃圾桶
+移除工具**不會**刪除以下資料，會在終端機視窗列出位置，想完全清除請手動刪除：
 
-較早的版本可能裝在 `~/Library/Application Support/AI語音輸入/` 或 `/Applications` 等其他位置，之後升級會沿用原位置；移除工具只刪 `~/Applications` 裡的那一份，其他位置請手動移到垃圾桶。不確定裝在哪裡時，先執行「安裝前檢查」的指令。
+- `~/Library/Application Support/AI語音輸入/ClipboardHistory/`（剪貼簿歷史）
+- 貓咪設定資料夾 `~/Library/Application Support/tw.panh.FreeVoiceType/`（`cat.config.json` 與自訂圖片）：也可以在移除前從小黑貓選單「開啟貓咪設定資料夾…」打開
+- 安裝工具留下的舊版備份：App 所在資料夾裡以 `.neighbor-update.` 開頭的資料夾，例如 `~/Library/Application Support/AI語音輸入/.neighbor-update.*`。名稱以點開頭，Finder 預設隱藏，按 `Command + Shift + .` 可以顯示
+
+由 AI 或腳本執行時，可以用 `NEKO_INSTALL_NO_DIALOG=1 zsh 移除.command` 略過最後的視窗；不設定時，視窗也會在 2 分鐘後自動關閉。
+
+以上是 v1.4.5 之後的移除工具。v1.4.5 和更早的版本附的移除工具只刪 `~/Applications` 裡的那一份；App 裝在其他位置時，先執行「安裝前檢查」的指令找到它，再手動移到垃圾桶。
 
 ## 開發者文件
 
