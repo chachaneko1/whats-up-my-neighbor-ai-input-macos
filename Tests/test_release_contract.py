@@ -329,6 +329,15 @@ else: sys.exit(99)
             original = tree_snapshot(app)
             cat = base / "麻糬.nekocat"
             make_test_cat_pack(cat)
+            app_alias = base / "source-app-alias"
+            app_alias.symlink_to(app, target_is_directory=True)
+            inside_bundle = subprocess.run([
+                "zsh", str(ROOT / "scripts/package-custom-cat.sh"), str(app), str(cat),
+                str(app_alias / "new folder/inside.zip"),
+            ], capture_output=True, text=True)
+            self.assertNotEqual(inside_bundle.returncode, 0)
+            self.assertEqual(tree_snapshot(app), original)
+            self.assertFalse((app / "new folder").exists())
             output = base / "output with spaces/Mochi macOS.zip"
             result = subprocess.run([
                 "zsh", str(ROOT / "scripts/package-custom-cat.sh"), str(app), str(cat), str(output),

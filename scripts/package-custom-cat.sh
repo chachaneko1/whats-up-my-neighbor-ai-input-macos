@@ -9,7 +9,9 @@ if (( $# != 3 )); then
 fi
 SOURCE_APP="${1:A}"
 CAT_PACK="${2:a}"
-OUTPUT="${3:a}"
+# Resolve existing parent symlinks before checking that output stays outside
+# the signed source bundle, including when the output file is still absent.
+OUTPUT="${3:A}"
 [[ -d "$SOURCE_APP" && "$SOURCE_APP" == *.app ]] || { print -u2 '找不到已建置的 App。'; exit 1; }
 [[ -f "$CAT_PACK" && ! -L "$CAT_PACK" && "$CAT_PACK" == *.nekocat ]] || { print -u2 '請提供一般 .nekocat 檔案。'; exit 1; }
 PACK_BYTES="$(/usr/bin/stat -f %z "$CAT_PACK")"
