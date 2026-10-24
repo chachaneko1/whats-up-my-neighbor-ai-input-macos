@@ -6,6 +6,7 @@ or production profile is used. Both Chrome processes retain their sandbox.
 import asyncio
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import os
+import json
 from pathlib import Path
 import sys
 import tempfile
@@ -33,7 +34,9 @@ class RemoteFixture(BaseHTTPRequestHandler):
 <h1>Same Chrome, one owner</h1><input id="remote" autofocus aria-label="Synthetic input">
 <p id="marker">Synthetic session only</p><script>
 localStorage.setItem('synthetic-owner', 'preserved');
-window.pointerEvents=0; document.addEventListener('pointerdown',()=>window.pointerEvents++);
+window.pointerEvents=0; window.syntheticKeys=[];
+document.addEventListener('pointerdown',()=>window.pointerEvents++);
+document.addEventListener('keydown',event=>syntheticKeys.push(event.key));
 </script>''')
 
 
@@ -179,10 +182,32 @@ class ViewerE2E(unittest.IsolatedAsyncioTestCase):
         self.assertTrue((await self.controller.state('local-owner'))['control_connected'])
 
         # Input through the actual UI lands in that same headed Chrome/profile.
+        # CDP DOM focus in setUp does not set X11 window focus on a bare Xvfb.
+        # A human first taps the visible remote field, then opens the keyboard.
+        point = await self.remote_page.evaluate('''() => {
+          const r=document.querySelector('#remote').getBoundingClientRect();
+          return {x:screenX+(outerWidth-innerWidth)/2+r.x+r.width/2,
+                  y:screenY+(outerHeight-innerHeight)+r.y+r.height/2};
+        }''')
+        control_canvas = page.locator('#rfb-screen canvas')
+        bounds = await control_canvas.bounding_box()
+        dimensions = await control_canvas.evaluate('c => ({w:c.width,h:c.height})')
+        await control_canvas.click(position={'x': point['x'] * bounds['width'] / dimensions['w'],
+                                             'y': point['y'] * bounds['height'] / dimensions['h']})
+        await self.remote_page.wait_for_function('pointerEvents > 0')
         await page.locator('#keyboard-toggle').click()
         keyboard = page.locator('#keyboard-input')
         await keyboard.press('a')
-        await self.remote_page.wait_for_function("document.querySelector('#remote').value === 'a'")
+        try:
+            await self.remote_page.wait_for_function("document.querySelector('#remote').value === 'a'")
+        except Exception:
+            # This fixture contains only test-generated text. Never add this
+            # diagnostic to the application or a real-account acceptance run.
+            diagnostic = await self.remote_page.evaluate('''() => ({
+              value:document.querySelector('#remote').value,
+              focused:document.activeElement.id, pointerEvents, keys:syntheticKeys
+            })''')
+            self.fail('Synthetic keyboard fixture: ' + json.dumps(diagnostic))
         self.assertNotIn('a', await keyboard.input_value())
         self.assertEqual(await self.remote_page.evaluate("localStorage.getItem('synthetic-owner')"), 'preserved')
         self.assertIn('remote_session=synthetic', await self.remote_page.evaluate('document.cookie'))
