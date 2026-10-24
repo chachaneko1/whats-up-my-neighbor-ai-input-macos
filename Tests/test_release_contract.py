@@ -42,6 +42,36 @@ def make_test_app(app, marker, version=None):
     subprocess.run(["codesign", "--force", "--sign", "-", "--requirements", '=designated => identifier "tw.panh.FreeVoiceType"', str(app)], check=True, capture_output=True)
 
 
+def make_other_app(app):
+    """Same file name as ours but another bundle ID, which no tool may delete."""
+    (app / "Contents/Resources").mkdir(parents=True)
+    (app / "Contents/Info.plist").write_bytes(plistlib.dumps({"CFBundleIdentifier": "com.example.OtherVoiceInput"}))
+    (app / "Contents/Resources/version-marker").write_bytes(b"other")
+
+
+SYSTEM_TOOLS = ("pkill", "launchctl", "defaults", "security", "osascript", "open")
+
+
+def make_tool_stubs(directory, log, tools=SYSTEM_TOOLS, failing=(), rm_inside=None):
+    """Stand-ins that only log their arguments (NUL-separated, since dialog
+    text spans lines), so tests never stop apps or change login jobs,
+    preferences, Keychain or UI. With rm_inside, rm really deletes, but only
+    paths under that folder; anything else is logged and refused."""
+    directory.mkdir()
+    for tool in tools:
+        stub = directory / tool
+        stub.write_text(f'#!/bin/sh\nprintf "%s\\0" "${{0##*/}} $*" >> "{log}"\nexit {1 if tool in failing else 0}\n')
+        stub.chmod(0o755)
+    if rm_inside:
+        guard = directory / "rm"
+        guard.write_text(f'#!/bin/sh\nfor arg; do case "$arg" in -*|"{rm_inside}"/*) ;; *) printf "%s\\0" "rm $*" >> "{log}"; exit 1;; esac; done\nexec /bin/rm "$@"\n')
+        guard.chmod(0o755)
+
+
+def tree_snapshot(root):
+    return {str(path.relative_to(root)): path.read_bytes() for path in sorted(root.rglob("*")) if path.is_file()}
+
+
 class ReleaseContractTests(unittest.TestCase):
     def test_publication_timeout_reconciles_server_state_without_masking_failure(self):
         # Exercise the actual workflow shell, including macOS's Bash behavior.
@@ -205,17 +235,159 @@ else: sys.exit(99)
             for relative, data in preserved.items():
                 self.assertEqual((profile / relative).read_bytes(), data, relative)
 
-    def test_installer_dialogs_never_block_unattended_installs(self):
-        script = (ROOT / "Packaging/安裝.command").read_text()
-        self.assertIn('"${NEKO_INSTALL_NO_DIALOG:-}" == 1', script)
-        dialogs = [line for line in script.splitlines() if "osascript" in line]
-        self.assertEqual(len(dialogs), 2)
-        for line in dialogs:
-            with self.subTest(line=line):
-                self.assertIn("giving up after", line)
-                # A dialog that fails after the app is installed must not turn
-                # a finished install into a reported failure.
-                self.assertTrue(line.rstrip().endswith("|| true"))
+    def test_install_and_uninstall_dialogs_never_block_unattended_runs(self):
+        for name, count in (("安裝.command", 2), ("移除.command", 1)):
+            script = (ROOT / "Packaging" / name).read_text()
+            self.assertIn('"${NEKO_INSTALL_NO_DIALOG:-}" == 1', script)
+            dialogs = [line for line in script.splitlines() if "osascript" in line]
+            self.assertEqual(len(dialogs), count, name)
+            for line in dialogs:
+                with self.subTest(line=line):
+                    self.assertIn("giving up after", line)
+                    # A dialog that fails after the work is done must not turn
+                    # a finished install or removal into a reported failure.
+                    self.assertTrue(line.rstrip().endswith("|| true"))
+
+    def test_uninstaller_removes_the_app_the_installer_updated_and_keeps_user_data(self):
+        with tempfile.TemporaryDirectory(prefix="neko-uninstall-test-") as directory:
+            base = Path(directory)
+            profile = base / "profile"
+            # HOME points at a decoy, so even a broken test mode cannot reach the real profile.
+            home = base / "home"
+            decoy_app = home / "Applications/AI語音輸入.app"
+            make_test_app(decoy_app, b"decoy")
+            log = base / "tools.log"
+            make_tool_stubs(base / "bin", log, rm_inside=base)
+            package = base / "package"
+            package.mkdir()
+            for name in ("安裝.command", "移除.command"):
+                shutil.copy(ROOT / "Packaging" / name, package / name)
+            make_test_app(package / "AI語音輸入.app", b"new")
+            legacy_app = profile / "Library/Application Support/AI語音輸入/AI語音輸入.app"
+            make_test_app(legacy_app, b"old", ("1.0.0", "1000"))
+            other_app = profile / "Applications/AI語音輸入.app"
+            make_other_app(other_app)
+            launch_agent = profile / "Library/LaunchAgents/tw.panh.FreeVoiceType.plist"
+            launch_agent.parent.mkdir(parents=True)
+            launch_agent.write_bytes(plistlib.dumps({"Label": "tw.panh.FreeVoiceType", "ProgramArguments": ["/usr/bin/open", "-gj", str(legacy_app)], "RunAtLoad": False}))
+            preserved = {
+                "Library/Application Support/AI語音輸入/ClipboardHistory/manifest.json": '{"items":["保留我的剪貼簿"]}'.encode(),
+                "Library/Application Support/AI語音輸入/ClipboardHistory/clip.png": b"clipboard-image-snapshot",
+                "Library/Application Support/tw.panh.FreeVoiceType/cat.config.json": '{"version":1,"reply":"保留我的貓🐈"}'.encode(),
+                "Library/Application Support/tw.panh.FreeVoiceType/custom-cat.png": b"test-image-snapshot",
+                "Library/Preferences/tw.panh.FreeVoiceType.plist": plistlib.dumps({"recordingHotKeyCode": 97, "recordingHotKeyModifiers": 768}),
+                "Library/Keychains/login.keychain-db": b"synthetic-keychain-sentinel-not-a-real-keychain",
+                "Library/Application Support/com.apple.TCC/TCC.db": b"synthetic-permission-sentinel-not-a-real-TCC-db",
+            }
+            for relative, data in preserved.items():
+                path = profile / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+            home_before = tree_snapshot(home)
+            environment = dict(os.environ, HOME=str(home), PATH=f"{base / 'bin'}:{os.environ['PATH']}")
+            # The installer updates the early-version location in place and keeps a backup.
+            result = subprocess.run(["zsh", str(package / "安裝.command")], env=dict(environment, NEKO_INSTALL_TEST_PROFILE=str(profile)), capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((legacy_app / "Contents/Resources/version-marker").read_bytes(), b"new")
+            backup = next(legacy_app.parent.glob(".neighbor-update.*"))
+
+            uninstall = ["zsh", str(package / "移除.command")]
+            environment["NEKO_UNINSTALL_TEST_PROFILE"] = str(profile)
+            result = subprocess.run(uninstall, env=environment, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(legacy_app.exists())
+            self.assertFalse(launch_agent.exists())
+            self.assertIn(f"已刪除 App：{legacy_app}", result.stdout)
+            self.assertEqual((other_app / "Contents/Resources/version-marker").read_bytes(), b"other")
+            self.assertIn(f"略過（Bundle ID 不是 tw.panh.FreeVoiceType）：{other_app}", result.stdout)
+            # Backups stay until the user decides; the output says where they are.
+            self.assertEqual((backup / "Previous.app/Contents/Resources/version-marker").read_bytes(), b"old")
+            self.assertIn(f"保留（需要時請手動刪除）：{backup}", result.stdout)
+            self.assertIn(f"保留（需要時請手動刪除）：{legacy_app.parent / 'ClipboardHistory'}", result.stdout)
+            for relative, data in preserved.items():
+                self.assertEqual((profile / relative).read_bytes(), data, relative)
+            self.assertEqual(tree_snapshot(home), home_before)
+            self.assertFalse(log.exists(), log.read_text() if log.exists() else "")
+
+            # A second run finds nothing left to remove and changes nothing.
+            profile_before = tree_snapshot(profile)
+            result = subprocess.run(uninstall, env=environment, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("沒有找到已安裝的 App。", result.stdout)
+            self.assertEqual(tree_snapshot(profile), profile_before)
+            self.assertFalse(log.exists())
+
+    def test_uninstaller_removes_every_verified_copy_inside_the_test_profile_only(self):
+        with tempfile.TemporaryDirectory(prefix="neko-uninstall-test-") as directory:
+            base = Path(directory)
+            profile = base / "profile"
+            home = base / "home"
+            home.mkdir()
+            copies = [profile / "Applications/AI語音輸入.app", profile / "Library/Application Support/AI語音輸入/AI語音輸入.app"]
+            for app in copies:
+                make_test_app(app, b"copy")
+            # Test mode ignores a login item that points outside the disposable profile.
+            outside_app = base / "outside/AI語音輸入.app"
+            make_test_app(outside_app, b"outside")
+            launch_agent = profile / "Library/LaunchAgents/tw.panh.FreeVoiceType.plist"
+            launch_agent.parent.mkdir(parents=True)
+            launch_agent.write_bytes(plistlib.dumps({"Label": "tw.panh.FreeVoiceType", "ProgramArguments": ["/usr/bin/open", "-gj", str(outside_app)]}))
+            log = base / "tools.log"
+            make_tool_stubs(base / "bin", log, rm_inside=profile)
+            environment = dict(os.environ, HOME=str(home), PATH=f"{base / 'bin'}:{os.environ['PATH']}", NEKO_UNINSTALL_TEST_PROFILE=str(profile))
+            result = subprocess.run(["zsh", str(ROOT / "Packaging/移除.command")], env=environment, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for app in copies:
+                self.assertFalse(app.exists(), app)
+            self.assertEqual((outside_app / "Contents/Resources/version-marker").read_bytes(), b"outside")
+            self.assertFalse(launch_agent.exists())
+            self.assertFalse(log.exists(), log.read_text() if log.exists() else "")
+
+    def test_uninstaller_outside_test_mode_runs_only_the_expected_commands(self):
+        with tempfile.TemporaryDirectory(prefix="neko-uninstall-test-") as directory:
+            base = Path(directory)
+            home = base / "home"
+            app = home / "Library/Application Support/AI語音輸入/AI語音輸入.app"
+            make_test_app(app, b"old")
+            launch_agent = home / "Library/LaunchAgents/tw.panh.FreeVoiceType.plist"
+            launch_agent.parent.mkdir(parents=True)
+            launch_agent.write_bytes(plistlib.dumps({"Label": "tw.panh.FreeVoiceType", "ProgramArguments": ["/usr/bin/open", "-gj", str(app)]}))
+            log = base / "tools.log"
+            # PATH holds nothing but logging stubs (rm included), so this run
+            # cannot change the machine; it only records what it would do.
+            make_tool_stubs(base / "bin", log, ("rm",) + SYSTEM_TOOLS, failing=("osascript",))
+            uninstaller = str(ROOT / "Packaging/移除.command")
+            environment = {"HOME": str(home), "PATH": str(base / "bin"), "LC_ALL": "C"}
+
+            # Unsafe test profiles are refused before anything runs.
+            for unsafe in (str(home), "relative/profile"):
+                with self.subTest(profile=unsafe):
+                    result = subprocess.run(["/bin/zsh", uninstaller], env=dict(environment, NEKO_UNINSTALL_TEST_PROFILE=unsafe), capture_output=True, text=True)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(log.exists())
+
+            expected = [
+                "pkill -x FreeVoiceType",
+                f"launchctl bootout gui/{os.getuid()} {launch_agent}",
+                f"rm -rf {app}",
+                f"rm -f {launch_agent}",
+                "defaults delete tw.panh.FreeVoiceType",
+                "security delete-generic-password -s tw.panh.FreeVoiceType.groq -a api-key",
+            ]
+            dialog = "osascript -e on run argv -e display alert (item 1 of argv) message (item 2 of argv) giving up after 120 -e end run 已移除 AI 語音輸入 "
+            for no_dialog in ("1", ""):
+                with self.subTest(no_dialog=no_dialog):
+                    log.unlink(missing_ok=True)
+                    result = subprocess.run(["/bin/zsh", uninstaller], env=dict(environment, NEKO_INSTALL_NO_DIALOG=no_dialog), capture_output=True, text=True)
+                    # The failing dialog stub must not turn a finished removal into a failure.
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    # A stubbed rm never runs, so /Applications is only read; it is
+                    # logged when this Mac happens to have a copy there.
+                    calls = [call for call in log.read_bytes().decode().split("\0")[:-1] if call != "rm -rf /Applications/AI語音輸入.app"]
+                    self.assertEqual(calls[:len(expected)], expected)
+                    dialogs = calls[len(expected):]
+                    self.assertEqual(len(dialogs), 0 if no_dialog else 1, dialogs)
+                    self.assertTrue(all(call.startswith(dialog) for call in dialogs), dialogs)
 
     def test_one_line_installer_pins_archive_and_reuses_bundled_installer(self):
         template = (ROOT / "Packaging/install.sh.template").read_text()

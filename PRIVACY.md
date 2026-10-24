@@ -39,7 +39,7 @@ iPhone 接力每次啟動預設關閉，不廣播也不接受手機連線；只�
 
 ## 刪除
 
-執行 `移除.command` 可刪除 App、本機啟動設定及 Keychain 中的 Groq API Key。本機剪貼簿歷史也會刪除；目前系統剪貼簿內容由 macOS 管理。
+執行 `移除.command` 可刪除 App、本機啟動設定、偏好設定（含快捷鍵與本機詞典）及 Keychain 中的 Groq API Key。本機剪貼簿歷史（`~/Library/Application Support/AI語音輸入/ClipboardHistory`）與自訂貓咪設定不會刪除，移除工具會列出位置，需要時請手動刪除；也可以在移除前從小黑貓選單清除全部剪貼簿紀錄。目前系統剪貼簿內容由 macOS 管理。
 
 ## 本機詞典與修正學習
 
