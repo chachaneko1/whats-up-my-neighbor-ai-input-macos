@@ -37,7 +37,7 @@ services:
       - "127.0.0.1:${JAEGER_LAB_UI_PORT:-16686}:16686"
       - "127.0.0.1:${JAEGER_LAB_OTLP_PORT:-4318}:4318"
     environment:
-      # Wildcard binding is only inside this private container network.
+      # Wildcard binding is only inside this project's container network.
       JAEGER_LAB_HOST: "0.0.0.0"
     volumes:
       - ./jaeger.yaml:/etc/jaeger/lab.yaml:ro
@@ -46,7 +46,9 @@ services:
 
 networks:
   lab:
-    internal: true
+    # A standard bridge supports the host's published loopback ports.
+    # This controls inbound exposure; it is not an outbound firewall.
+    driver: bridge
 
 volumes:
   # Diagnostic data only; never mount the office task database here.

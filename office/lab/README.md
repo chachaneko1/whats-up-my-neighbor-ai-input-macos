@@ -48,7 +48,8 @@ office/.venv-observability/bin/python -I office/lab/verify_backends.py --check-u
 | Jaeger | `http://127.0.0.1:16686` | Viewer、查詢 API |
 | Jaeger OTLP | `http://127.0.0.1:4318/v1/traces` | HTTP/protobuf 寫入 |
 
-Compose 只向 host 的 `127.0.0.1` 發布上述 ports，容器使用 internal network。
+Compose 只向 host 的 `127.0.0.1` 發布上述 ports，容器使用獨立的標準 bridge network，
+讓宿主機上的 Office 與驗證程式能連線。這項設定限制對外發布的入口，沒有封鎖容器主動連外。
 Phoenix 關閉 agent assistant、MCP server、外部資源、產品 telemetry 與 Prometheus。
 Jaeger 使用明確的最小 pipeline，未設定對外 exporter、AI/MCP 或自身追蹤。
 兩個後端不掛載 Office 的正式資料庫。
@@ -149,6 +150,7 @@ loopback。可設定 `JAEGER_LAB_UI_PORT`、`JAEGER_LAB_OTLP_PORT`、
 
 ## 上游依據
 
+- [Docker Compose 的標準 bridge、host ports 與 internal network 邊界](https://docs.docker.com/compose/how-tos/networking/)
 - [Phoenix 固定版本配置與環境變數](https://github.com/Arize-ai/phoenix/blob/arize-phoenix-v20.26.0/src/phoenix/config.py)
 - [Phoenix 固定版本 OTLP 接收路由](https://github.com/Arize-ai/phoenix/blob/arize-phoenix-v20.26.0/src/phoenix/server/api/routers/v1/traces.py)
 - [Phoenix 固定版本 spans 查詢路由](https://github.com/Arize-ai/phoenix/blob/arize-phoenix-v20.26.0/src/phoenix/server/api/routers/v1/spans.py)
