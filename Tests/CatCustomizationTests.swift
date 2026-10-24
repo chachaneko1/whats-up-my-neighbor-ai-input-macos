@@ -23,17 +23,28 @@ import AppKit
         RunLoop.current.run(until: Date().addingTimeInterval(0.08))
         editor.testSave()
         precondition(saved == original && name == "麻糬", "Opening and saving an existing pack preserves every feature")
+        let content = editor.window!.contentView!
+        content.layoutSubtreeIfNeeded()
+        let bitmap = content.bitmapImageRepForCachingDisplay(in: content.bounds)!
+        content.cacheDisplay(in: content.bounds, to: bitmap)
+        // The native window supplies its background separately from the
+        // content view. Include that background in the standalone QA capture.
+        let capture = NSImage(size: content.bounds.size)
+        capture.lockFocus()
+        editor.window!.effectiveAppearance.performAsCurrentDrawingAppearance {
+            editor.window!.backgroundColor.setFill()
+            NSBezierPath(rect: content.bounds).fill()
+            bitmap.draw(in: content.bounds)
+        }
+        capture.unlockFocus()
+        let flattened = NSBitmapImageRep(data: capture.tiffRepresentation!)!
+        try flattened.representation(using: .png, properties: [:])!.write(to: output.appendingPathComponent("customization-window.png"))
         editor.testDisableLeftEye()
         precondition(editor.draft.features.eyes.left == nil)
         precondition(editor.draft.features.eyes.right == original.features.eyes.right,
                      "Editing one eye must not replace the other eye")
         precondition(editor.draft.features.bow == original.features.bow)
         precondition(editor.draft.parts == original.parts, "Feature controls must preserve custom body colors")
-        let content = editor.window!.contentView!
-        content.layoutSubtreeIfNeeded()
-        let bitmap = content.bitmapImageRepForCachingDisplay(in: content.bounds)!
-        content.cacheDisplay(in: content.bounds, to: bitmap)
-        try bitmap.representation(using: .png, properties: [:])!.write(to: output.appendingPathComponent("customization-window.png"))
         editor.close()
         precondition(saved == original, "Closing unsaved edits does not change the last applied appearance")
         print("CatCustomizationTests passed")
