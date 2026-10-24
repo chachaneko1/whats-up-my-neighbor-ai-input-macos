@@ -45,7 +45,7 @@
 | `test-clipboard-history-monitor.sh` | 只收新變更、排除敏感與暫存標記、檔案與圖片不收錄 |
 | `test-clipboard-history-insertion.sh` | 語音結果寫入歷史，即使自動貼上被拒絕也保留 |
 | `test-clipboard-history-menu.sh`、`test-clipboard-picker.sh` | 剪貼簿選單與快捷視窗的選取、Enter 只貼上、Esc 關閉 |
-| `test-clipboard-paste-gesture.sh` | 一般貼上重播、按住 Command＋V 再按方向鍵開啟歷史、放開按鍵不貼上、取消與目標改變時丟棄待送事件 |
+| `test-clipboard-paste-gesture.sh` | 鍵碼狀態機、一般貼上回放決策、按住 Command＋V 再按方向鍵開啟歷史、歷史導覽與取消／reset |
 | `test-paste-correction-monitor.sh` | 貼上後修正的觀察範圍、時限、競態與診斷 |
 | `test-vocabulary-correction.sh`、`test-vocabulary-learning.sh` | 修正候選的萃取、六秒提示後加入、拒絕與提示額度 |
 | `test-vocabulary-toast.sh` | 學習提示的倒數、滑鼠停留暫停與畫面位置 |
