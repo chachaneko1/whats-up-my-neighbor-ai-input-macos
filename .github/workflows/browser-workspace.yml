@@ -41,7 +41,8 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends xvfb xauth tigervnc-scraping-server
       - name: Browser controller and private gateway checks with optional dependencies
-        run: "$RUNNER_TEMP/browser-venv/bin/python" -I -m unittest discover -s office/tests -p 'test_browser_*.py' -v
+        run: |
+          "$RUNNER_TEMP/browser-venv/bin/python" -I -m unittest discover -s office/tests -p 'test_browser_*.py' -v
       - name: Real headed Chrome persistence and ownership checks
         env:
           NEKO_BROWSER_E2E: '1'
@@ -50,7 +51,8 @@ jobs:
       - name: Real Chrome, TigerVNC, noVNC and Office viewer handoff
         env:
           NEKO_VIEWER_E2E: '1'
-        run: "$RUNNER_TEMP/browser-venv/bin/python" -I -m unittest discover -s office/tests -p 'test_browser_viewer_e2e.py' -v
+        run: |
+          "$RUNNER_TEMP/browser-venv/bin/python" -I -m unittest discover -s office/tests -p 'test_browser_viewer_e2e.py' -v
       - name: Reproduce the pinned self-hosted viewer bundle
         working-directory: office/browser_workspace/vendor
         run: |
