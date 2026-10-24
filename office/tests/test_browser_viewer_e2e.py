@@ -195,9 +195,11 @@ class ViewerE2E(unittest.IsolatedAsyncioTestCase):
         await control_canvas.click(position={'x': point['x'] * bounds['width'] / dimensions['w'],
                                              'y': point['y'] * bounds['height'] / dimensions['h']})
         await self.remote_page.wait_for_function('pointerEvents > 0')
+        await self.remote_page.wait_for_function("document.activeElement.id === 'remote' && document.hasFocus()")
         await page.locator('#keyboard-toggle').click()
         keyboard = page.locator('#keyboard-input')
         await keyboard.press('a')
+        self.assertEqual(await keyboard.input_value(), '_' * 32)
         try:
             await self.remote_page.wait_for_function("document.querySelector('#remote').value === 'a'")
         except Exception:
@@ -208,7 +210,6 @@ class ViewerE2E(unittest.IsolatedAsyncioTestCase):
               focused:document.activeElement.id, pointerEvents, keys:syntheticKeys
             })''')
             self.fail('Synthetic keyboard fixture: ' + json.dumps(diagnostic))
-        self.assertNotIn('a', await keyboard.input_value())
         self.assertEqual(await self.remote_page.evaluate("localStorage.getItem('synthetic-owner')"), 'preserved')
         self.assertIn('remote_session=synthetic', await self.remote_page.evaluate('document.cookie'))
 
@@ -241,4 +242,26 @@ class ViewerE2E(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(released['control_connected'])
         snapshot = await self.controller.agent_current(released['epoch'])
         self.assertEqual(snapshot.title, 'Synthetic remote workspace')
+
+        # Repeat the hostile view input AFTER proving native focus and working
+        # control input. Otherwise an unfocused window could make the first
+        # view-only keyboard assertion pass for the wrong reason.
+        pointer_count = await self.remote_page.evaluate('pointerEvents')
+        await adversary.bring_to_front()
+        await adversary.evaluate('''async epoch => {
+          const {default:RFB}=await import('/browser/novnc.js');
+          const host=document.body.firstElementChild;
+          syntheticRfb.disconnect(); host.replaceChildren();
+          window.syntheticRfb=new RFB(host, `ws://${location.host}/api/browser/ws?mode=view&epoch=${epoch}`);
+          syntheticRfb.viewOnly=false; syntheticRfb.scaleViewport=true;
+          await new Promise((resolve,reject)=>{
+            syntheticRfb.addEventListener('connect',resolve,{once:true});
+            syntheticRfb.addEventListener('disconnect',()=>reject(new Error('fixture connection failed')),{once:true});
+          });
+          syntheticRfb.sendKey(0x62,'KeyB');
+        }''', released['epoch'])
+        await adversary.locator('canvas').click(position={'x': 100, 'y': 200})
+        await asyncio.sleep(.3)
+        self.assertEqual(await self.remote_page.locator('#remote').input_value(), 'a')
+        self.assertEqual(await self.remote_page.evaluate('pointerEvents'), pointer_count)
         self.assertEqual(errors, [])
