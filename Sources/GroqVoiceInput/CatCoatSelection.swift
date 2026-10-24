@@ -29,17 +29,20 @@ enum CatCoatSelection {
         if manager.fileExists(atPath: file.path) {
             let values = try file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
             guard values.isRegularFile == true, values.isSymbolicLink != true else { throw Error.unsafeFile }
-            guard CatConfiguration.load(from: file).loadError == nil else { throw Error.invalidConfiguration }
+            let configuration = CatConfiguration.load(from: file)
+            guard configuration.loadError == nil else { throw Error.invalidConfiguration }
             var original = try Data(contentsOf: file)
             if original.starts(with: [0xEF, 0xBB, 0xBF]) { original.removeFirst(3) }
             guard let parsed = try JSONSerialization.jsonObject(with: original) as? [String: Any] else {
                 throw Error.invalidConfiguration
             }
             document = parsed
-            if let appearance = document["appearance"] as? [String: Any] {
-                let parts = appearance["parts"] as? [String: [String: Any]] ?? [:]
-                let seed = appearance["seed"] as? Int ?? 1
-                guard parts.values.allSatisfy(\.isEmpty), seed == 1 else { throw Error.customAppearance }
+            if document["appearance"] != nil {
+                // The bundled full examples resolve to the same preset. Only
+                // actual custom colors, patterns or seeds need manual care.
+                guard configuration.appearance == CatAppearance.makePreset(configuration.appearance.preset) else {
+                    throw Error.customAppearance
+                }
             }
         }
 

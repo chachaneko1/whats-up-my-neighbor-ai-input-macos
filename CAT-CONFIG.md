@@ -4,9 +4,21 @@ macOS 現在支援 **version 2**：問候、圖片設定之外，也能選自然
 
 ## macOS 開始使用
 
+### 從選單切換毛色
+
+在選單列點選 App →「選擇貓咪花色」，直接選擇原版黑貓、黑貓、白貓、灰貓、橘虎斑、賓士貓、三花貓、玳瑁貓或重點色貓。這九款已內建，**不必準備圖片或編輯 JSON**。
+
+選擇後立即替換桌面貓、錄音浮窗與問候的毛色，不需要重新啟動。若桌面貓已收回，這次選擇會把牠放出來；已在桌面上的貓保持位置與動作。選擇會保存在這台 Mac，下次開啟仍沿用；未設定時使用原版黑貓。錄音或辨識期間需先完成該次工作再切換。
+
+自訂 `image` 仍優先於錄音／問候毛色。選單保留問候與其他設定；若曾手動修改部位或種子，會保留原檔並提示從設定資料夾調整。直接使用專案附的完整毛色範例仍可切換，只要其內容尚未自訂。
+
+這是開發版的操作方式；正式版 1.4.5 尚未包含此選單，需安裝包含這項改動的 QA 版或後續新版。[QA 安裝與桌面驗收](docs/QA_CLIPBOARD_CAT.md)。
+
+### 手動編輯其他設定
+
 1. 在選單列點選 App，選擇「開啟貓咪設定資料夾…」。這會建立設定資料夾，並在尚無設定檔時複製隨附範本；不會覆蓋既有檔案。
 2. 結束 App，編輯 `cat.config.json`，儲存為 **UTF-8 JSON**。
-3. 重新啟動 App。設定只在啟動時讀取，不會即時更新。
+3. 重新啟動 App。手動修改的檔案只在啟動時讀取；選單切換毛色會即時套用。
 
 資料夾位在 `~/Library/Application Support/` 底下、以 App 的 Bundle ID 命名；從選單打開是最簡單的方式。
 
@@ -82,7 +94,9 @@ macOS 現在支援 **version 2**：問候、圖片設定之外，也能選自然
 
 ## English quick start
 
-Choose “開啟貓咪設定資料夾…” from the app's menu-bar menu. This creates the app's folder under `~/Library/Application Support/` (named after its bundle ID) and copies the bundled template only if no configuration exists. Quit the app, edit `cat.config.json` as UTF-8 JSON, then restart. Settings and images are loaded only at startup.
+In a development build containing live coat selection, choose “選擇貓咪花色” from the menu bar to switch among nine bundled coats immediately. Selecting a coat also releases a recalled desktop pet; an already-visible pet keeps its position and pose. The selection persists across launches. Original black is the default. Explicit custom images and genuinely customized parts or seeds are preserved. The released 1.4.5 build does not include this menu.
+
+For other settings, choose “開啟貓咪設定資料夾…”. This creates the app's folder under `~/Library/Application Support/` (named after its bundle ID) and copies the bundled template only if no configuration exists. Quit the app, edit `cat.config.json` as UTF-8 JSON, then restart. Manual file edits and images are loaded only at startup; menu coat choices apply live.
 
 Version one remains readable. Version two adds macOS-only anatomical appearance; Windows v2 support is not implemented or verified. Omitted fields use defaults; unknown fields, invalid types, unsupported versions, unsafe image paths and out-of-range values invalidate the whole configuration without overwriting it. The config limit remains 16 KiB. Triggers match whole utterances only, and a match is consumed even during cooldown.
 
@@ -92,9 +106,9 @@ Use a same-folder PNG filename for `image`, or `null` for the built-in cat. PNGs
 ## 自然毛色與部位設定（macOS version 2）
 
 > [!IMPORTANT]
-> version 2 與 `appearance` 目前只在 `main`，尚未隨正式版發布。1.4.5（含）以前的 App 只接受 `"version": 1`，也不認得 `appearance` 欄位；讀到 version 2 的設定會讓**整份設定回到預設**（原檔保留）。在新版發布前，請維持 version 1。
+> version 2 與 `appearance` 已提供於開發／QA 版，尚未隨正式版發布。1.4.5（含）以前的 App 只接受 `"version": 1`，也不認得 `appearance` 欄位；讀到 version 2 的設定會讓**整份設定回到預設**（原檔保留）。仍使用正式版時，請維持 version 1。
 
-[完整部位說明與驗收方式](docs/appearance/README.md)。[可直接修改的範例](Examples/CatAppearance/)已將每隻貓的全部 16 個部位填好；App 於重新啟動時載入設定；預覽請按「載入 JSON…」重新載入。原有使用者設定不會被覆寫。
+[完整部位說明與驗收方式](docs/appearance/README.md)。[可直接修改的範例](Examples/CatAppearance/)已將每隻貓的全部 16 個部位填好；手動修改後請重新啟動 App 載入，或在獨立預覽按「載入 JSON…」。直接從 App 選單選毛色會立即套用並儲存該選擇，不改動其他設定。
 
 `appearance.preset` 可選 `original`（原版黑貓）、`black`、`white`、`blue`（灰貓）、`orange-tabby`、`tuxedo`、`calico`、`tortoiseshell`、`colorpoint`。未提供 `appearance` 使用原版黑貓。
 

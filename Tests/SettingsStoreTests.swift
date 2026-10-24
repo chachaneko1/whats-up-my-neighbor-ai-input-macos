@@ -14,6 +14,7 @@ enum SettingsStoreTests {
             precondition(defaults.string(forKey: "unrelatedPreference") == "retained")
             precondition(store.loadHotKey() == defaultHotKey)
             precondition(store.loadClipboardHotKey() == defaultClipboardHotKey)
+            precondition(store.usesClipboardPasteGesture(), "First use enables the held-paste gesture")
             precondition(defaults.object(forKey: "clipboardHotKeyCode") == nil,
                          "Reading the first-use default must not write preferences")
             precondition(store.loadOutputMode() == .verbatim)
@@ -79,10 +80,13 @@ enum SettingsStoreTests {
             )
             store.saveClipboardHotKey(clipboard)
             precondition(SettingsStore(defaults: defaults).loadClipboardHotKey() == clipboard)
+            precondition(!store.usesClipboardPasteGesture(), "Keep the user's custom shortcut without intercepting paste")
             precondition(defaults.integer(forKey: "clipboardHotKeyCode") == Int(kVK_ANSI_C))
             precondition(defaults.integer(forKey: "clipboardHotKeyModifiers") == Int(clipboard.modifiers))
 
             store.saveClipboardHotKey(nil)
+            precondition(!SettingsStore(defaults: defaults).usesClipboardPasteGesture(),
+                         "An explicitly disabled shortcut must not silently enable the gesture")
             precondition(SettingsStore(defaults: defaults).loadClipboardHotKey() == nil,
                          "Explicitly disabled clipboard shortcut must stay disabled after relaunch")
             precondition(defaults.object(forKey: "clipboardHotKeyCode") != nil)
@@ -90,11 +94,13 @@ enum SettingsStoreTests {
             precondition(defaults.integer(forKey: "clipboardHotKeyModifiers") == 0)
 
             store.saveClipboardHotKey(defaultClipboardHotKey)
+            precondition(store.usesClipboardPasteGesture(), "The legacy default enables the restored gesture")
             precondition(SettingsStore(defaults: defaults).loadClipboardHotKey() == defaultClipboardHotKey,
                          "A disabled shortcut can be enabled again")
             defaults.removeObject(forKey: "clipboardHotKeyModifiers")
             precondition(store.loadClipboardHotKey() == defaultClipboardHotKey,
                          "Partial preferences fall back to the first-use shortcut")
+            precondition(store.usesClipboardPasteGesture())
             precondition(store.loadHotKey() == main)
             precondition(store.loadRelaySettings() == relayBefore)
             precondition(store.loadTextSettings() == textBefore,

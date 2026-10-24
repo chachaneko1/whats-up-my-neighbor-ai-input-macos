@@ -7,7 +7,7 @@ final class CatOverlay {
     var onFinish: (() -> Void)?
     var onGreetingFinished: (() -> Void)?
 
-    private let configuration: CatConfiguration
+    private var configuration: CatConfiguration
     private let panel: CatOverlayPanel
     private let artwork: CatArtworkView
     private var mouthTimer: Timer?
@@ -49,6 +49,13 @@ final class CatOverlay {
             guard let self = self, NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
             self.stopMouthAnimation()
         }
+    }
+
+    func setAppearance(_ appearance: CatAppearance) {
+        precondition(Thread.isMainThread)
+        guard !disposed else { return }
+        configuration = configuration.replacingAppearance(appearance)
+        artwork.setAppearance(appearance)
     }
 
     func showRecording() {
@@ -172,9 +179,10 @@ private enum CatOverlayMode { case recording, greeting }
 private final class CatArtworkView: NSView {
     let cancel = CatEyeButton()
     let finish = CatEyeButton()
-    let configuration: CatConfiguration
-    private let originalImage: NSImage?
-    private let mouthlessImage: NSImage?
+    private var configuration: CatConfiguration
+    private let bundledImage: NSBitmapImageRep?
+    private var originalImage: NSImage?
+    private var mouthlessImage: NSImage?
     var canReplaceMouth: Bool { mouthlessImage != nil }
     var catAppearance: CatOverlayMode = .recording {
         didSet { layoutTargets(); needsDisplay = true }
@@ -196,21 +204,9 @@ private final class CatArtworkView: NSView {
 
     init(configuration: CatConfiguration, bundledImageURL: URL?) {
         self.configuration = configuration
-        let bundled = CatPNG.read(bundledImageURL)
-        let selected = configuration.imageData.flatMap(CatPNG.decode)
-        let image = selected ?? bundled
-        if configuration.image == nil && !configuration.appearance.isOriginal, let bundled {
-            let painter = CatAppearanceArtwork(configuration.appearance)
-            let source = CatPNG.image(bundled)
-            originalImage = painter.image(source, layout: .hud)
-            mouthlessImage = painter.image(source, layout: .hud, removeMouth: true)
-        } else {
-            originalImage = image.map(CatPNG.image)
-            // An explicit custom selection is never repainted, even when that
-            // file fails to load and the bundled fallback is displayed instead.
-            mouthlessImage = configuration.image == nil ? bundled.flatMap(CatPNG.withoutNeutralMouth) : nil
-        }
+        bundledImage = CatPNG.read(bundledImageURL)
         super.init(frame: NSRect(x: 0, y: 0, width: 340, height: 220))
+        updateImages()
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
         setAccessibilityLabel("小黑貓語音輸入")
@@ -224,6 +220,30 @@ private final class CatArtworkView: NSView {
     }
 
     required init?(coder: NSCoder) { nil }
+
+    func setAppearance(_ appearance: CatAppearance) {
+        guard configuration.appearance != appearance else { return }
+        configuration = configuration.replacingAppearance(appearance)
+        updateImages()
+        needsDisplay = true
+    }
+
+    private func updateImages() {
+        let bundled = bundledImage
+        let selected = configuration.imageData.flatMap(CatPNG.decode)
+        let image = selected ?? bundled
+        if configuration.image == nil && !configuration.appearance.isOriginal, let bundled {
+            let painter = CatAppearanceArtwork(configuration.appearance)
+            let source = CatPNG.image(bundled)
+            originalImage = painter.image(source, layout: .hud)
+            mouthlessImage = painter.image(source, layout: .hud, removeMouth: true)
+        } else {
+            originalImage = image.map(CatPNG.image)
+            // An explicit custom selection is never repainted, even when that
+            // file fails to load and the bundled fallback is displayed instead.
+            mouthlessImage = configuration.image == nil ? bundled.flatMap(CatPNG.withoutNeutralMouth) : nil
+        }
+    }
 
     func layoutTargets() {
         let cat = catBounds
