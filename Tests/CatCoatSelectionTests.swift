@@ -31,6 +31,20 @@ import Foundation
         precondition(saved["image"] as? String == "my-cat.png")
         precondition(CatConfiguration.load(from: file).appearance.preset == "tuxedo")
 
+        // Full shipped examples are still built-in presets, not custom coats.
+        saved["appearance"] = CatAppearance.makePreset("orange-tabby")!.jsonObject
+        try JSONSerialization.data(withJSONObject: saved).write(to: file)
+        try CatCoatSelection.save("white", to: file)
+        precondition(CatConfiguration.load(from: file).appearance == CatAppearance.makePreset("white"))
+        precondition(CatConfiguration.load(from: file).reply == "我的問候")
+
+        let customSeed = #"{"version":2,"appearance":{"preset":"calico","seed":42}}"#
+        try Data(customSeed.utf8).write(to: file)
+        do { try CatCoatSelection.save("blue", to: file); preconditionFailure("Custom seed must be preserved") }
+        catch CatCoatSelection.Error.customAppearance { }
+        let preservedCustomSeed = try Data(contentsOf: file)
+        precondition(preservedCustomSeed == Data(customSeed.utf8))
+
         let custom = ##"{"version":2,"appearance":{"preset":"calico","parts":{"tail":{"color":"#ffffff"}}}}"##
         try Data(custom.utf8).write(to: file)
         do { try CatCoatSelection.save("blue", to: file); preconditionFailure("Custom parts must be preserved") }

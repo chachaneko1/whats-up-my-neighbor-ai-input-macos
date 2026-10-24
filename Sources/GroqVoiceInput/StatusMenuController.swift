@@ -28,6 +28,11 @@ final class StatusMenuController {
         let installedVersion = NSMenuItem(title: "版本 \(version)（\(build)）", action: nil, keyEquivalent: "")
         installedVersion.isEnabled = false
         menu.addItem(installedVersion)
+        if let revision = Bundle.main.object(forInfoDictionaryKey: "NekoDevelopmentRevision") as? String {
+            let qaBuild = NSMenuItem(title: "QA 測試版 · \(revision.prefix(7))", action: nil, keyEquivalent: "")
+            qaBuild.isEnabled = false
+            menu.addItem(qaBuild)
+        }
         menu.addItem(NSMenuItem.separator())
 
         toggleMenuItem = NSMenuItem(title: toggleTitle, action: actions["toggleFromMenu"], keyEquivalent: "")

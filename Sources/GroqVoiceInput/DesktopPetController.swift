@@ -102,6 +102,14 @@ final class DesktopPetController {
 
     var isReleased: Bool { model.released }
 
+    /// An explicit coat choice also brings a recalled pet onto the desktop.
+    func show(appearance: CatAppearance) {
+        guard !disposed else { return }
+        artwork.setAppearance(appearance)
+        if model.released { refresh() }
+        else { setReleased(true) }
+    }
+
     func setReleased(_ value: Bool) {
         guard !disposed else { return }
         let now = clock()

@@ -112,7 +112,15 @@ struct DesktopPetInteractionTests {
                                              clock: { testTime }, pressedButtons: { buttons })
         let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
         let key = NSApp.keyWindow, main = NSApp.mainWindow
-        controller.setReleased(true)
+        var releaseChanges: [Bool] = []
+        controller.onReleasedChange = { releaseChanges.append($0) }
+        let petPanel = controller.testPanel, petArtwork = controller.testArtwork
+        controller.show(appearance: CatAppearance.makePreset("white")!)
+        expect(controller.isReleased && controller.testPanel.isVisible && releaseChanges == [true],
+               "an explicit coat choice releases a recalled pet and publishes the persisted release state")
+        controller.show(appearance: .original)
+        expect(controller.testPanel === petPanel && controller.testArtwork === petArtwork && releaseChanges == [true],
+               "switching visible coats retains the controller, window, view and release state")
         expect(!controller.testPanel.canBecomeKey && !controller.testPanel.canBecomeMain, "pet panel cannot take keyboard focus")
         expect(controller.testPanel.styleMask.contains(.nonactivatingPanel), "pet panel is nonactivating")
         let frame = controller.model.frame
@@ -129,8 +137,13 @@ struct DesktopPetInteractionTests {
         testTime = 0.1
         controller.pointerUp()
         expect(controller.model.pose == .petted, "controller forwards completed click")
+        let petOrigin = controller.model.origin, petPhase = controller.model.phase
+        controller.show(appearance: CatAppearance.makePreset("calico")!)
+        expect(controller.model.pose == .petted && controller.model.origin == petOrigin && controller.model.phase == petPhase,
+               "changing coat preserves a live interaction's pose, position and animation progress")
+        controller.show(appearance: .original)
         expect(NSApp.keyWindow === key && NSApp.mainWindow === main &&
-               NSWorkspace.shared.frontmostApplication?.processIdentifier == front, "click callback preserves foreground and typing target")
+               NSWorkspace.shared.frontmostApplication?.processIdentifier == front, "click and coat changes preserve foreground and typing target")
         controller.pointerDown(at: CGPoint(x: frame.midX, y: frame.midY))
         controller.pointerDragged(to: CGPoint(x: frame.midX - 100, y: frame.midY + 100))
         expect(controller.model.isDragging, "native controller forwards dragging")
@@ -154,6 +167,9 @@ struct DesktopPetInteractionTests {
         controller.refresh()
         controller.testSuspend(true)
         expect(!controller.testPanel.isVisible && controller.testPanel.ignoresMouseEvents, "suspended panel is invisible and cannot block clicks")
+        controller.show(appearance: CatAppearance.makePreset("blue")!)
+        expect(!controller.testPanel.isVisible && controller.isReleased, "coat selection respects screen-lock suspension")
+        controller.show(appearance: .original)
         controller.testSuspend(false)
         controller.setReleased(false)
         expect(!controller.testPanel.isVisible, "recalled preview panel stays hidden")

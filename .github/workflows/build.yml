@@ -20,6 +20,8 @@ jobs:
         with:
           persist-credentials: false
       - name: Build and verify app
+        env:
+          NEKO_DEVELOPMENT_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
         run: ./scripts/build.sh
       - name: Existing offline regression tests
         run: ./scripts/test-all.sh
@@ -39,7 +41,10 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: macos-cat-native-renders
-          path: build/cat-render/
+          path: |
+            build/cat-render/
+            build/appearance/*.png
+            build/clipboard-picker-*.png
           if-no-files-found: warn
 
   free-release-check:

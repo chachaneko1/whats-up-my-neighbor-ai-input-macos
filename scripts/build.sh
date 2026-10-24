@@ -23,6 +23,13 @@ if [[ -n "${RELEASE_BUILD:-}" ]]; then
   /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $RELEASE_BUILD" "$OUTPUT/Contents/Info.plist"
 fi
 
+# Identify the exact QA installer without changing the published version or
+# letting development metadata enter the separately signed release build.
+if [[ "${RELEASE_SIGNING:-0}" != 1 && -n "${NEKO_DEVELOPMENT_REVISION:-}" ]]; then
+  [[ "$NEKO_DEVELOPMENT_REVISION" =~ '^[a-fA-F0-9]{40}$' ]] || { print -u2 'Invalid development revision'; exit 1; }
+  /usr/libexec/PlistBuddy -c "Add :NekoDevelopmentRevision string $NEKO_DEVELOPMENT_REVISION" "$OUTPUT/Contents/Info.plist"
+fi
+
 SOURCES=("$ROOT"/Sources/GroqVoiceInput/*.swift)
 
 for architecture in arm64 x86_64; do

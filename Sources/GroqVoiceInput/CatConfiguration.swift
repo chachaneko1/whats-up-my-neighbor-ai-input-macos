@@ -12,7 +12,8 @@ import Glibc
 /// Version one remains portable; version two adds macOS anatomical appearance.
 /// Invalid configuration
 /// falls back as a whole; missing/undecodable artwork only falls back to the cat.
-/// Values are immutable snapshots and are loaded once at app startup.
+/// File values are snapshots loaded at startup; explicit menu choices can
+/// replace the in-memory appearance without reloading other settings.
 struct CatConfiguration {
     static let maximumFileBytes = 16 * 1024
     static let maximumImageBytes = 4 * 1024 * 1024

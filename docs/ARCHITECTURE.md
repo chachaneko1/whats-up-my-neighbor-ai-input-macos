@@ -19,7 +19,7 @@ App 是選單列常駐程式（`LSUIElement`），沒有主視窗、沒有自己
 
 | 步驟 | 負責的檔案 | 說明 |
 |---|---|---|
-| 註冊全域快捷鍵 | `HotKeyManager.swift` | Carbon hot key；主快捷鍵預設 `⌥↑`，iPhone 接力 `⌃⌥↑`，剪貼簿歷史 `⌃⌥V` |
+| 註冊全域快捷鍵 | `HotKeyManager.swift`、`ClipboardPasteGesture.swift` | Carbon hot key：錄音 `⌥↑`、iPhone 接力 `⌃⌥↑`、剪貼簿備用 `⌃⌥V`；QA 版另以事件 tap 接回按住 `⌘V` 再按方向鍵的歷史手勢 |
 | 串起所有元件 | `main.swift`、`VoiceTypeController.swift` | `main.swift` 只建立 `NSApplication` 並交給 `VoiceTypeController`（`NSApplicationDelegate`）；啟動時建立各服務、請求權限、顯示首次引導 |
 | 錄音狀態機 | `DictationCoordinator.swift` | 一次只管一段錄音；狀態 `idle → starting → recording → finalizing → transcribing → delivering`，失敗時進 `awaitingRetry` |
 | 鎖定輸入目標 | `FocusTargetService.swift` | 記下當下前景 App、視窗與焦點元素的身分（不讀文字內容、不截圖） |

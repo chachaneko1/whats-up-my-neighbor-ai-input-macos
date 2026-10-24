@@ -5,7 +5,7 @@ import Foundation
 final class UpdateDiagnostics {
     enum Event: String, Codable {
         case launch, apiKeyAccess, microphoneAuthorized, accessibilityAllowed
-        case recordingHotKey, clipboardHotKey, updaterStarted, updateDetected
+        case recordingHotKey, clipboardHotKey, clipboardPasteGesture, updaterStarted, updateDetected
         case notificationPermission, notificationQueued, manualCheck, sessionFinished
         case relaunchDeferred, relaunchStarted
     }

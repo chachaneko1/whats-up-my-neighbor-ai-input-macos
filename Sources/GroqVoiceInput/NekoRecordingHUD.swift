@@ -85,7 +85,7 @@ final class NekoRecordingView: NSView {
     private let statusLabel = NSTextField(labelWithString: "")
     private let detailLabel = NSTextField(labelWithString: "")
     private let introductionLabel = NSTextField(labelWithString: "左眼取消，右眼完成。")
-    private let catImage: NSImage?
+    private var catImage: NSImage?
     private var meter = NekoSignalMeter()
     private var currentState: DictationState = .idle
     private let catRect = NSRect(x: 2, y: 0, width: 180, height: 90)
@@ -142,6 +142,11 @@ final class NekoRecordingView: NSView {
     }
 
     required init?(coder: NSCoder) { nil }
+
+    func setImage(_ image: NSImage?) {
+        catImage = image
+        needsDisplay = true
+    }
 
     func update(state: DictationState) {
         startButton.isHidden = true
@@ -288,6 +293,10 @@ final class NekoRecordingHUD {
         if state == .recording { if startedAt == nil { startedAt = Date() } }
         else { startedAt = nil }
         present()
+    }
+
+    func setImage(_ image: NSImage?) {
+        view.setImage(image)
     }
 
     func updateMeter(decibels: Float?) {

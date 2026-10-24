@@ -13,15 +13,16 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     private var relayMenuItem: NSMenuItem { statusMenu.relayMenuItem }
     private var modeMenuItems: [TextOutputMode: NSMenuItem] { statusMenu.modeMenuItems }
     private let hotKeys = HotKeyManager()
+    private let clipboardPasteGesture = ClipboardPasteGesture()
     private let settings = SettingsStore()
     private let credentials = KeychainStore()
     private let recordingStore = TemporaryRecordingStore()
     private let micRecorder = PinnedMicrophoneRecorder()
-    private let catConfiguration = CatConfiguration.load()
-    private lazy var recordingCatImage: NSImage? = {
+    private var catConfiguration = CatConfiguration.load()
+    private var recordingCatImage: NSImage? {
         guard catConfiguration.image == nil, let original = NekoAppearance.catImage else { return NekoAppearance.catImage }
         return CatAppearanceArtwork(catConfiguration.appearance).image(original, layout: .hud)
-    }()
+    }
     private lazy var nekoHUD = NekoRecordingHUD(image: catConfiguration.imageData.flatMap(NSImage.init(data:)) ?? recordingCatImage)
     private lazy var catGreeting = CatGreeting(configuration: catConfiguration)
     private lazy var catOverlay = CatOverlay(configuration: catConfiguration)
@@ -76,7 +77,11 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     private var currentHotKey = defaultHotKey
     private var clipboardHotKey: HotKeyShortcut? = defaultClipboardHotKey
     private var clipboardHotKeyRegistrationFailed = false
+    private var clipboardPermissionObserver: NSObjectProtocol?
     private var clipboardShortcutTitle: String {
+        if settings.usesClipboardPasteGesture(), clipboardPasteGesture.isRunning {
+            return ClipboardPasteGesture.title
+        }
         guard let clipboardHotKey else { return "未設定" }
         let title = shortcutDisplayName(clipboardHotKey)
         return clipboardHotKeyRegistrationFailed ? "\(title)，無法使用" : title
@@ -162,6 +167,10 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         desktopPet.dispose()
         correctionMonitor.stop()
         dictation.shutdown()
+        if let clipboardPermissionObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(clipboardPermissionObserver)
+        }
+        clipboardPasteGesture.stop()
         hotKeys.unregisterAll()
         remoteBridge.stop()
     }
@@ -466,6 +475,23 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         }
         let registerStatus = registerCurrentHotKey()
         UpdateDiagnostics.shared.record(.recordingHotKey, succeeded: registerStatus == noErr)
+        clipboardPasteGesture.canBegin = { [weak self] in
+            guard let self else { return false }
+            return self.dictation.state == .idle && !self.clipboardPicker.isVisible && NSApp.modalWindow == nil
+        }
+        clipboardPasteGesture.pickerVisible = { [weak self] in self?.clipboardPicker.isVisible == true }
+        clipboardPasteGesture.onOpen = { [weak self] _ in self?.openClipboardPicker(initialIndex: 1) }
+        clipboardPasteGesture.onMove = { [weak self] in self?.clipboardPicker.moveSelection(by: $0) }
+        refreshClipboardPasteGesture()
+        if clipboardPermissionObserver == nil {
+            // Accessibility can be granted after the app launched. Switching
+            // back from System Settings enables the gesture without a restart.
+            clipboardPermissionObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+            ) { [weak self] _ in self?.refreshClipboardPasteGesture() }
+        }
+        // Keep the existing shortcut available even when the gesture is active.
+        // It also works if Accessibility permission cannot enable the event tap.
         if let clipboardHotKey {
             let clipboardStatus = hotKeys.register(shortcut: clipboardHotKey, id: HotKeyManager.clipboardID)
             UpdateDiagnostics.shared.record(.clipboardHotKey, succeeded: clipboardStatus == noErr)
@@ -480,6 +506,19 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         if installStatus != noErr || registerStatus != noErr {
             showError("無法註冊快捷鍵 \(shortcutDisplayName(currentHotKey))。可能已被其他程式使用。")
         }
+    }
+
+    private func refreshClipboardPasteGesture() {
+        let wasRunning = clipboardPasteGesture.isRunning
+        if settings.usesClipboardPasteGesture(), AXIsProcessTrusted() {
+            if !wasRunning { _ = clipboardPasteGesture.start() }
+        } else {
+            clipboardPasteGesture.stop()
+        }
+        if wasRunning != clipboardPasteGesture.isRunning {
+            UpdateDiagnostics.shared.record(.clipboardPasteGesture, succeeded: clipboardPasteGesture.isRunning)
+        }
+        statusMenu.updateClipboardShortcut(clipboardShortcutTitle)
     }
 
     private func registerCurrentHotKey() -> OSStatus {
@@ -669,8 +708,14 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     }
 
     @objc private func showClipboardPicker() {
+        clipboardPasteGesture.cancelPending()
         guard dictation.state == .idle else { NSSound.beep(); return }
         if clipboardPicker.isVisible { clipboardPicker.dismiss(); desktopPet.refresh(); return }
+        openClipboardPicker()
+    }
+
+    private func openClipboardPicker(initialIndex: Int = 0) {
+        guard dictation.state == .idle, !clipboardPicker.isVisible else { return }
         clipboardHistory.checkForChanges()
         correctionMonitor.stop(reason: "正在選擇剪貼簿歷史；下一次語音貼上後重新觀察修正。")
         var target: FocusTarget?
@@ -680,11 +725,12 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         catch { failure = .noEditableTarget }
         clipboardPicker.show(items: clipboardHistoryStore.items,
                              shortcutTitle: clipboardShortcutTitle,
-                             target: target, captureFailure: failure)
+                             target: target, captureFailure: failure, initialIndex: initialIndex)
         desktopPet.refresh()
     }
 
     func toggleRecording(useAlternateMode: Bool = false) {
+        clipboardPasteGesture.cancelPending()
         clipboardPicker.dismiss()
         if PasteDiagnostics.shared.isEnabled {
             var event = PasteDiagnostics.Event(tag: .toggle)
@@ -802,24 +848,15 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         }
         do {
             try CatCoatSelection.save(preset)
+            catConfiguration = catConfiguration.replacingAppearance(appearance)
+            // Keep existing controllers, focus and the pet's position. Hide
+            // transient previews so the selected desktop cat is visible now.
+            nekoHUD.hide()
+            catOverlay.hide()
+            nekoHUD.setImage(catConfiguration.imageData.flatMap(NSImage.init(data:)) ?? recordingCatImage)
+            catOverlay.setAppearance(appearance)
+            desktopPet.show(appearance: appearance)
             statusMenu.updateCatCoat(preset)
-            let alert = NSAlert()
-            alert.messageText = "已選擇\(appearance.title)"
-            alert.informativeText = catConfiguration.image == nil
-                ? "花色已存到這台 Mac。重新啟動 App 後，桌面貓、錄音浮窗與問候會使用新花色。"
-                : "花色已存到這台 Mac。重新啟動後桌面貓會換色；錄音浮窗與問候仍會使用你原本指定的圖片。"
-            alert.addButton(withTitle: "現在重新啟動")
-            alert.addButton(withTitle: "稍後")
-            NSApp.activate(ignoringOtherApps: true)
-            guard alert.runModal() == .alertFirstButtonReturn else { return }
-            let configuration = NSWorkspace.OpenConfiguration()
-            configuration.createsNewApplicationInstance = true
-            NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { [weak self] _, error in
-                DispatchQueue.main.async {
-                    if let error { self?.showError("無法重新啟動 App：\(error.localizedDescription)。花色已儲存，下次開啟時會套用。") }
-                    else { NSApp.terminate(nil) }
-                }
-            }
         } catch {
             showError(error.localizedDescription)
         }
