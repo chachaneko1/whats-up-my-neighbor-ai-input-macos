@@ -2,7 +2,7 @@
 
 這份文件說明哪些行為有自動化測試保護、怎麼執行，以及哪些事情**只能在真實 Mac 上用手驗收**。送 PR 前，至少跑過和你改動相關的那幾組。
 
-對照版本：1.4.5（build 1012）。
+對照版本：1.4.6（build 1013）。
 
 ## 怎麼跑
 
@@ -45,6 +45,7 @@
 | `test-clipboard-history-monitor.sh` | 只收新變更、排除敏感與暫存標記、檔案與圖片不收錄 |
 | `test-clipboard-history-insertion.sh` | 語音結果寫入歷史，即使自動貼上被拒絕也保留 |
 | `test-clipboard-history-menu.sh`、`test-clipboard-picker.sh` | 剪貼簿選單與快捷視窗的選取、Enter 只貼上、Esc 關閉 |
+| `test-clipboard-paste-gesture.sh` | 鍵碼狀態機、一般貼上回放決策、按住 Command＋V 再按方向鍵開啟歷史、歷史導覽與取消／reset |
 | `test-paste-correction-monitor.sh` | 貼上後修正的觀察範圍、時限、競態與診斷 |
 | `test-vocabulary-correction.sh`、`test-vocabulary-learning.sh` | 修正候選的萃取、六秒提示後加入、拒絕與提示額度 |
 | `test-vocabulary-toast.sh` | 學習提示的倒數、滑鼠停留暫停與畫面位置 |
@@ -53,7 +54,7 @@
 | `test-cat.sh` | `cat.config.json` 的格式驗證（317 項）、招呼觸發與冷卻、浮窗與嘴型動畫 |
 | `test-desktop-pet.sh` | 桌面小黑貓的動作循環、資料夾停靠、減少動態效果、點擊穿透與焦點保留 |
 | `test-desktop-pet-interaction.sh` | 1.4.5 的點擊、抓起與放下：原生滑鼠事件路徑、座標換算、漏接放開、快速重新抓取、暫停與焦點保留 |
-| `test-cat-appearance.sh` | 毛色外觀（`main` 上尚未發布）：預設與覆蓋解析、只重新上色、保留原圖透明度與輪廓 |
+| `test-cat-appearance.sh` | 九種毛色與覆蓋解析、只重新上色、保留原圖透明度與輪廓、即時換色與繪圖快取更新 |
 | `test-updates.sh` | 更新提醒延後與去重；發布檔的版本、簽章、SHA-256 與 Sparkle Ed25519 驗證（含竄改拒絕） |
 
 ## 只能在真實 Mac 上確認的事

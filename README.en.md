@@ -54,17 +54,17 @@ What's up my neighbor is a lightweight, native macOS menu bar dictation app. Pre
 - **Black cat recording overlay**: volume bars follow your voice. Click the left (X) eye to cancel or the right (✓) eye to finish. The overlay never steals focus from your text field.
 - **Three output modes**: Verbatim (default), Standard and Concise. All of them are fixed local rules, not a rewriting model, and legal terms and article numbers are never altered.
 - **Language guard**: pick one primary language plus up to two mixed-in languages from Traditional Chinese, English, Japanese, Korean, Thai, Vietnamese, Spanish, French and German. Text in a language you didn't allow is held back and retried once instead of being pasted.
-- **Clipboard history**: your last 10 entries, opened with `⌃⌥V`. Enter only pastes, it never sends the message.
+- **Clipboard history**: your last 10 entries. Hold `⌘V`, then press `↑` or `↓` to open them; `⌃⌥V` also remains available. Enter only pastes, it never sends the message.
 - **Desktop cat**: she strolls, licks her paw, yawns and naps. Click her and a purr bubble pops up; click and drag to pick her up.
 - **Privacy first**: your API key lives only in the macOS Keychain. There is no analytics, no ads and no backend of our own.
 - **You decide when to update**: Sparkle checks for new versions daily and asks before installing. Your settings are never overwritten.
 
-### QA features (not yet released)
+### What's new in 1.4.6
 
 - **Command+V history gesture**: a normal tap of `⌘V` pastes as usual. Hold `⌘V`, then press `↑` or `↓` to open history. Enter confirms, Esc closes; `⌃⌥V` and the menu entry remain available.
 - **Nine coats, applied immediately**: choose “選擇貓咪花色” (Choose cat coat) from the menu bar. The real desktop cat changes coat and appears if hidden, without restarting. The original black cat is the default, and your selection is remembered.
 
-Release 1.4.5 does not include these two features. The QA installer adds a “QA 測試版” label and source revision to the menu. [Installation and desktop QA steps (Traditional Chinese)](docs/QA_CLIPBOARD_CAT.md).
+Choose “檢查更新…” (Check for Updates) from the cat menu to install **1.4.6 (build 1013)** and try both features directly on your desktop. [Update and desktop QA steps (Traditional Chinese)](docs/QA_CLIPBOARD_CAT.md).
 
 ## Screenshots
 
@@ -96,7 +96,7 @@ Release 1.4.5 does not include these two features. The QA installer adds a “QA
 3. Follow the first-launch window to paste your own Groq API key, then allow Microphone and Accessibility access.
 4. In any text field, press `⌥↑` to start recording and press it again to stop.
 
-The latest release does not yet include the one-line installer. Use the ZIP steps above. If a later release includes the script, follow the [full manual](docs/GUIDE.md#一行指令安裝熟悉終端機).
+Version 1.4.6 also includes a one-line installer for users comfortable with Terminal; see the [full manual](docs/GUIDE.md#一行指令安裝熟悉終端機). If the app is already installed, use “檢查更新…” (Check for Updates) from its menu.
 
 Already installed? The installer keeps the existing location and settings. To find the app or check the result, see [install location, names and verification](docs/GUIDE.md#安裝位置名稱對照與驗證) (Traditional Chinese).
 
