@@ -194,7 +194,7 @@ final class DesktopPetView: NSView {
     private func drawPickupFrame() {
         // No sway, morph, blended image, or per-frame scale: show the sliced
         // Gemini drawing at its fixed grip anchor, including both idle ends.
-        let index = max(0, min(Self.pickupSampleCount - 1, DesktopPetLift.imageIndex(for: lift.spriteFrame)))
+        let index = max(0, min(Self.pickupSampleCount - 1, DesktopPetLift.sourceImageIndex(for: lift.spriteFrame)))
         pickupImage(at: index)?.draw(in: CGRect(origin: .zero, size: Self.panelSize), from: .zero,
                                  operation: .sourceOver, fraction: 1, respectFlipped: true,
                                  hints: [.interpolation: NSImageInterpolation.high])
@@ -511,6 +511,17 @@ final class DesktopPetView: NSView {
             ? .lifting(elapsed: reduceMotion ? 1 : phase, lean: reduceMotion ? 0 : carryLean)
             : DesktopPetLift())
         let image = NSImage(size: bounds.size, flipped: true) { _ in self.draw(self.bounds); return true }
+        let bitmap = NSBitmapImageRep(data: image.tiffRepresentation!)!
+        return bitmap.representation(using: .png, properties: [:])!
+    }
+    /// Reference rendering of a complete original source at the native point size.
+    func renderPickupSourcePNG(_ index: Int) -> Data {
+        let image = NSImage(size: bounds.size, flipped: true) { _ in
+            self.pickupImage(at: index)?.draw(in: self.bounds, from: .zero,
+                operation: .sourceOver, fraction: 1, respectFlipped: true,
+                hints: [.interpolation: NSImageInterpolation.high])
+            return true
+        }
         let bitmap = NSBitmapImageRep(data: image.tiffRepresentation!)!
         return bitmap.representation(using: .png, properties: [:])!
     }

@@ -59,12 +59,18 @@ What's up my neighbor is a lightweight, native macOS menu bar dictation app. Pre
 - **Privacy first**: your API key lives only in the macOS Keychain. There is no analytics, no ads and no backend of our own.
 - **You decide when to update**: Sparkle checks for new versions daily and asks before installing. Your settings are never overwritten.
 
+### What's new in 1.4.7
+
+- The cat now stops when seated after a drop, without the extra stand-up or rebound. Pickup stays at 0.85 seconds; landing uses 50ms per drawing over 0.40 seconds.
+- Original size, all nine coats, early release and re-grab continuity are preserved.
+- Choose “檢查更新…” (Check for Updates) to get **1.4.7 (build 1014)**. Existing settings are preserved and installation remains your choice.
+
 ### What's new in 1.4.6
 
 - **Command+V history gesture**: a normal tap of `⌘V` pastes as usual. Hold `⌘V`, then press `↑` or `↓` to open history. Enter confirms, Esc closes; `⌃⌥V` and the menu entry remain available.
 - **Nine coats, applied immediately**: choose “選擇貓咪花色” (Choose cat coat) from the menu bar. The real desktop cat changes coat and appears if hidden, without restarting. The original black cat is the default, and your selection is remembered.
 
-Choose “檢查更新…” (Check for Updates) from the cat menu to install **1.4.6 (build 1013)** and try both features directly on your desktop. [Update and desktop QA steps (Traditional Chinese)](docs/QA_CLIPBOARD_CAT.md).
+Choose “檢查更新…” (Check for Updates) from the cat menu to install **1.4.7 (build 1014)** and try both features directly on your desktop. [Update and desktop QA steps (Traditional Chinese)](docs/QA_CLIPBOARD_CAT.md).
 
 ## Screenshots
 
