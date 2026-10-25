@@ -389,14 +389,14 @@
       0.75,
       0.8,
       0.85,
-      0.95,
+      0.9,
+      0.9500000000000001,
+      1.0,
       1.05,
-      1.15,
-      1.25,
-      1.35,
-      1.45,
-      1.55,
-      1.65
+      1.1,
+      1.1500000000000001,
+      1.2000000000000002,
+      1.2500000000000002
     ],
     "source_indices": [
       0,
@@ -429,7 +429,7 @@
       35
     ],
     "pickup_seconds": 0.85,
-    "landing_seconds": 0.8,
-    "method": "Native complete PNG playback: pickup source00..19 unchanged at 850ms; landing source20..26 then original native source35 at 100ms per drawing, 800ms total. Skip rebound sources27..34. Keep original PNGs, native subject size, and interrupted/re-grab continuity."
+    "landing_seconds": 0.4,
+    "method": "Native complete PNG playback: source00..26 then original native source35 sitting. Original source records and PNGs remain unchanged; no rebound tail, new drawing or interpolation."
   }
 }

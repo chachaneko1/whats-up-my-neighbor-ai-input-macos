@@ -13,12 +13,11 @@ struct DesktopPetLift: Equatable {
     static let carryFrame: CGFloat = 15
     static let lastFrame: CGFloat = 23
     static let pickupDuration: Double = 0.85
-    static let landingDuration: Double = 0.80
+    static let landingDuration: Double = 0.40
 
     // Logical positions identify complete Gemini PNGs, never interpolated poses.
     // Only source 08→10 expands to 200ms, with dwell intervals in 1/60s units for
-    // the five unevenly spaced drawings. Remaining pickup drawings stay 50ms;
-    // selected landing drawings use 100ms each without the rebound tail.
+    // the five unevenly spaced drawings. All other drawing intervals stay 50ms.
     static let framePositions: [CGFloat] = [
         0, 1, 2, 3, 4, 5, 6, 7,
         7.333333333333333, 7.666666666666667, 8,
@@ -31,14 +30,13 @@ struct DesktopPetLift: Equatable {
         0, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35,
         0.416666666666667, 0.433333333333333, 0.45,
         0.483333333333333, 0.516666666666667,
-        0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.95,
-        1.05, 1.15, 1.25, 1.35, 1.45, 1.55, 1.65
+        0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90,
+        0.95, 1.00, 1.05, 1.10, 1.15, 1.20, 1.25
     ]
 
     // Keep pickup and the first landing drawings, then the original native
     // resting frame 35. Website frame 00 is smaller and must not replace it.
     // Timeline positions stay distinct so a re-grab can reverse from rest.
-    // Landing holds each selected drawing for 100ms, preserving its 800ms total.
     static let sourceImageIndices: [Int] = [
         0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
         14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 35

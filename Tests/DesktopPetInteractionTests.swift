@@ -402,16 +402,16 @@ struct DesktopPetInteractionTests {
             expect(DesktopPetLift.lifting(from: caught, elapsed: 0, lean: 0).spriteFrame == selected,
                    "re-grab retains every inserted drawing exactly")
         }
-        expect(DesktopPetLift.pickupDuration == 0.85 && DesktopPetLift.landingDuration == 0.8,
-               "pickup remains 850ms and stable landing preserves its 800ms duration")
+        expect(DesktopPetLift.pickupDuration == 0.85 && DesktopPetLift.landingDuration == 0.4,
+               "pickup remains 850ms and restored landing preserves the approved 400ms duration")
         let fullPose = DesktopPetLift(shoulder: 1, hip: 1, paws: 1, spriteFrame: DesktopPetLift.carryFrame)
         for step in 0...90 {
             let state = fullPose.landing(elapsed: Double(step) / 100)
-            expect(state.spriteFrame == min(23, CGFloat(15 + step / 10)),
-                   "landing advances one selected drawing per 100ms and retains its last frame")
+            expect(state.spriteFrame == min(23, CGFloat(15 + step / 5)),
+                   "landing advances one selected drawing per 50ms and retains its last frame")
         }
-        expect(abs(fullPose.returnDuration - 0.8) < 0.0000001,
-               "the actual full landing timeline lasts 800ms")
+        expect(abs(fullPose.returnDuration - 0.4) < 0.0000001,
+               "the actual restored landing timeline lasts 400ms")
         for rate in [30, 60, 120] {
             var landingModel = DesktopPetModel(seed: 42)
             landingModel.setReleased(true, now: 40, world: world)
@@ -427,11 +427,11 @@ struct DesktopPetInteractionTests {
                 let source = DesktopPetLift.sourceImageIndex(for: landingModel.lift.spriteFrame)
                 visitedSources.insert(source)
                 expect(!(27...34).contains(source), "actual landing never replays the rebound tail")
-                if elapsed < 0.8 {
-                    expect(landingModel.isSettling, "landing is not shortened below 800ms")
-                } else if elapsed > 0.8 {
+                if elapsed < 0.4 {
+                    expect(landingModel.isSettling, "restored landing keeps its approved 400ms duration")
+                } else if elapsed > 0.4 {
                     expect(!landingModel.isSettling && source == 35,
-                           "after 800ms the original sitting image stays still")
+                           "after 400ms the original sitting image stays still")
                 }
             }
             expect(visitedSources == Set(Array(19...26) + [35]),
@@ -474,7 +474,7 @@ struct DesktopPetInteractionTests {
         model.pointerDragged(to: CGPoint(x: finalGrip.x - 40, y: finalGrip.y + 20), now: 20.01, world: world)
         model.tick(now: 21, world: world)
         model.pointerUp(now: 21, world: world)
-        model.tick(now: 21.81, world: world)
+        model.tick(now: 21.41, world: world)
         expect(!model.isSettling && model.lift.spriteFrame == 23,
                "the actual model preserves its terminal source drawing after full release")
         let terminalPNG = view.renderPNG(pose: .sitting, lift: model.lift)
@@ -483,7 +483,7 @@ struct DesktopPetInteractionTests {
         model.pointerDragged(to: CGPoint(x: finalRegrip.x - 40, y: finalRegrip.y + 20), now: 21.91, world: world)
         expect(view.renderPNG(pose: .carried, lift: model.lift) == terminalPNG,
                "picking up again starts from the visible terminal drawing without resetting to source 0")
-        model.tick(now: 22.02, world: world)
+        model.tick(now: 21.96, world: world)
         expect(model.lift.spriteFrame == 22, "a later pickup reverses continuously from the actual resting drawing from the actual idle drawing")
         for rate in [30, 60, 120] {
             var cadence = DesktopPetModel(seed: 42)
