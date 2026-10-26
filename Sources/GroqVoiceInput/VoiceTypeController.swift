@@ -48,6 +48,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     private lazy var vocabularyToast = VocabularyLearningToastController(store: vocabularyLearning)
     private let correctionMonitor = PasteCorrectionMonitor()
     private var vocabularyWindow: VocabularyWindowController?
+    private var vpsDesktopWindow: VPSDesktopWindowController?
     private let clipboardHistoryStore = ClipboardHistoryStore()
     private lazy var clipboardHistory = ClipboardHistoryMonitor(store: clipboardHistoryStore)
     private let clipboardHistoryMenu = ClipboardHistoryMenuController()
@@ -173,6 +174,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         clipboardPasteGesture.stop()
         hotKeys.unregisterAll()
         remoteBridge.stop()
+        vpsDesktopWindow?.shutdown()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -205,9 +207,14 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
             "showRelaySettingsDialog": #selector(showRelaySettingsDialog),
             "showPairingCode": #selector(showPairingCode),
             "forgetPairedPhone": #selector(forgetPairedPhone),
+            "showVPSDesktop": #selector(showVPSDesktop),
             "quitApp": #selector(quitApp),
         ])
         if let menu = statusItem.menu { appUpdater.addMenuItems(to: menu) }
+        statusMenu.onMenuWillOpen = { [weak self] in
+            self?.statusMenu.updateVPSDesktop(available: VPSDesktopAvailability.isAvailable())
+        }
+        statusMenu.updateVPSDesktop(available: VPSDesktopAvailability.isAvailable())
         statusMenu.updateClipboardShortcut(clipboardShortcutTitle)
         updateTextOutputModeMenu()
         statusMenu.updateNekoPosition(nekoHUD.position)
@@ -665,6 +672,12 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
             vocabularyWindow = VocabularyWindowController(store: vocabularyStore, learning: vocabularyLearning)
         }
         vocabularyWindow?.present()
+    }
+
+    @MainActor @objc private func showVPSDesktop() {
+        guard VPSDesktopAvailability.isAvailable() else { return }
+        if vpsDesktopWindow == nil { vpsDesktopWindow = VPSDesktopWindowController() }
+        vpsDesktopWindow?.present()
     }
 
     @objc private func showNekoPreview() {

@@ -1,7 +1,9 @@
 import AppKit
 
-final class StatusMenuController {
+final class StatusMenuController: NSObject, NSMenuDelegate {
+    var onMenuWillOpen: (() -> Void)?
     private(set) var statusItem: NSStatusItem!
+    private var vpsDesktopMenuItem: NSMenuItem?
     private(set) var toggleMenuItem: NSMenuItem!
     private(set) var remoteConnectionMenuItem: NSMenuItem!
     private(set) var remoteTargetMenuItem: NSMenuItem!
@@ -159,6 +161,14 @@ final class StatusMenuController {
         forgetPhoneItem.target = target
         menu.addItem(forgetPhoneItem)
 
+        if let action = actions["showVPSDesktop"] {
+            menu.addItem(NSMenuItem.separator())
+            let vpsItem = NSMenuItem(title: "VPS 遠端桌面…", action: action, keyEquivalent: "")
+            vpsItem.target = target
+            menu.addItem(vpsItem)
+            vpsDesktopMenuItem = vpsItem
+        }
+
         menu.addItem(NSMenuItem.separator())
         let catSettings = NSMenuItem(title: "開啟貓咪設定資料夾…", action: actions["openCatSettings"], keyEquivalent: "")
         catSettings.target = target
@@ -166,7 +176,19 @@ final class StatusMenuController {
         let quit = NSMenuItem(title: "結束 What's up my neighbor", action: actions["quitApp"], keyEquivalent: "q")
         quit.target = target
         menu.addItem(quit)
+        menu.delegate = self
         statusItem.menu = menu
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        guard menu === statusItem.menu else { return }
+        onMenuWillOpen?()
+    }
+
+    /// One look for everyone: clickable when this Mac has the VPS set up, gray otherwise.
+    func updateVPSDesktop(available: Bool) {
+        vpsDesktopMenuItem?.isEnabled = available
+        vpsDesktopMenuItem?.toolTip = available ? nil : "需要先設定 VPS 連線"
     }
 
     func updateClipboardShortcut(_ title: String) {
