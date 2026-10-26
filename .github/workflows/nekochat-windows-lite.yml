@@ -90,9 +90,11 @@ jobs:
         run: |
           $env:PATH = "$env:SystemRoot/System32;$env:SystemRoot"
           $env:DOTNET_ROOT = "$env:RUNNER_TEMP/no-external-dotnet"
-          $target = Join-Path $env:RUNNER_TEMP "nekochat-installer-smoke-$env:GITHUB_RUN_ID"
+          $target = Join-Path ([System.IO.Path]::GetTempPath()) "nekochat-installer-smoke-$env:GITHUB_RUN_ID"
           $setup = "$env:GITHUB_WORKSPACE/build/windows-lite-setup/NekoChat-Setup-win-x64.exe"
           $check = Start-Process -FilePath $setup -ArgumentList @('--smoke-install', "`"$target`"") -Wait -PassThru
+          Write-Output "Setup verification exit code: $($check.ExitCode)"
+          if (!(Test-Path "$target/result.txt")) { throw 'Setup did not produce its verification report.' }
           Get-Content "$target/result.txt"
           if ($check.ExitCode -ne 0) { exit 1 }
           Copy-Item "$target/result.txt" build/windows-lite-smoke/installer-result.txt
