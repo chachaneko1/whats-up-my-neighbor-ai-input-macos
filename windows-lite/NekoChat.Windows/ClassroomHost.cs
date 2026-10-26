@@ -64,7 +64,7 @@ internal sealed class ClassroomHost : IAsyncDisposable
                 throw new InvalidDataException("房間服務回應不正確。");
             var invite=new LanInvitation(1,room,addresses,port,guestUser,hostUser,guestToken);invite.Validate();
             var result=new ClassroomHost(process,hostUser,hostToken,invite);
-            using var http=new HttpClient(new HttpClientHandler{AllowAutoRedirect=false});
+            using var http=new HttpClient(new HttpClientHandler{AllowAutoRedirect=false,UseProxy=false});
             var local=invite with{Hosts=["127.0.0.1"]};
             await local.FindEndpointAsync(http,cancellation);
             return result;

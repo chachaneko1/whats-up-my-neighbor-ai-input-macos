@@ -1,5 +1,7 @@
 using System.IO;
 using System.Net.Http;
+using System.Net;
+using System.Net.Sockets;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -42,7 +44,7 @@ internal static class ClassroomSmokeTest
         var host=await ClassroomHost.StartAsync(["127.0.0.1"],lifetime.Token);
         var invite=LanInvitation.Parse(host.Invitation.Encode());
         try {
-            using var http=new HttpClient(new HttpClientHandler{AllowAutoRedirect=false});
+            using var http=new HttpClient(new HttpClientHandler{AllowAutoRedirect=false,UseProxy=false});
             var endpoint=await invite.FindEndpointAsync(http,lifetime.Token);
             await using var a=new RelayConnection();await using var b=new RelayConnection();
             await a.ConnectAsync(host.LocalEndpoint,host.User,host.Token,lifetime.Token);
@@ -63,10 +65,12 @@ internal static class ClassroomSmokeTest
             lifetime.Cancel();
             try{await Task.WhenAll(receivingA,receivingB);}catch(OperationCanceledException){ }
         }finally{await host.DisposeAsync();}
-        using var probe=new HttpClient{Timeout=TimeSpan.FromSeconds(1)};
+        using var probe=new Socket(AddressFamily.InterNetwork,SocketType.Stream,ProtocolType.Tcp);
+        using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(3));
         bool gone=false;
-        try{await probe.GetAsync($"http://127.0.0.1:{invite.Port}/healthz");}catch(HttpRequestException){gone=true;}
-        if(!gone)throw new InvalidDataException("Room remained open after owner exit");
+        try{await probe.ConnectAsync(IPAddress.Loopback,invite.Port,deadline.Token);}
+        catch(SocketException error)when(error.SocketErrorCode==SocketError.ConnectionRefused){gone=true;}
+        if(!gone)throw new InvalidDataException("Room port remained open after owner exit");
     }
     private static void Capture(ChatWindow chat,string path)
     {

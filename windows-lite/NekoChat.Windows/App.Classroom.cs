@@ -11,7 +11,7 @@ public partial class App
     private string? classroomPeer;
     private CancellationTokenSource? classroomCancel;
     private bool classroomBusy;
-    private readonly HttpClient roomHttp=new(new HttpClientHandler{AllowAutoRedirect=false}){Timeout=TimeSpan.FromSeconds(20)};
+    private readonly HttpClient roomHttp=new(new HttpClientHandler{AllowAutoRedirect=false,UseProxy=false}){Timeout=TimeSpan.FromSeconds(20)};
     private void InitializeClassroom()
     {
         // Credentials from a crashed old room are useless after its owning Relay exits.
