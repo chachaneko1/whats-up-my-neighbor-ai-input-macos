@@ -1,0 +1,31 @@
+<Window x:Class="NekoChat.Windows.ChatWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="NekoChat · Windows Lite" Width="470" Height="720" MinWidth="400" MinHeight="560" Background="#FAF9F7">
+ <DockPanel Margin="20">
+  <TextBlock x:Name="Status" DockPanel.Dock="Bottom" Text="尚未連線" TextWrapping="Wrap" Margin="0,12,0,0" AutomationProperties.LiveSetting="Polite"/>
+  <TabControl x:Name="Tabs">
+   <TabItem Header="聊天"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="12">
+    <TextBlock Text="好友 ID"/><TextBox x:Name="Recipient" MaxLength="32" AutomationProperties.Name="好友 ID"/>
+    <TextBox x:Name="History" IsReadOnly="True" Height="190" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="本次聊天紀錄"/>
+    <TextBlock Text="訊息（語音先成為草稿，按傳送才送出）" TextWrapping="Wrap"/>
+    <TextBox x:Name="Draft" AcceptsReturn="True" Height="100" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="訊息草稿"/>
+    <WrapPanel><Button x:Name="SendButton" Content="傳送" Click="SendClick" IsEnabled="False"/><Button x:Name="VoiceButton" Content="🎙 語音草稿" Click="VoiceClick"/><Button Content="取消錄音" Click="CancelClick"/></WrapPanel>
+    <TextBlock Text="全系統語音輸入：Ctrl + Alt + Space 開始／停止。Esc 取消。錄音最長 60 秒。" TextWrapping="Wrap" Margin="0,12,0,12"/>
+    <TextBlock Text="最近轉錄（不儲存至磁碟）"/><TextBox x:Name="Transcript" IsReadOnly="True" Height="65" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="最近轉錄"/>
+    <Button Content="複製最近轉錄" Click="CopyClick" HorizontalAlignment="Left"/>
+   </StackPanel></ScrollViewer></TabItem>
+   <TabItem Header="連線與語音"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="12">
+    <TextBlock Text="連線模式"/><ComboBox x:Name="Mode" SelectedIndex="0" SelectionChanged="ModeChanged" Margin="0,5,0,12"><ComboBoxItem Content="LAN（可信任教室網路）"/><ComboBoxItem Content="VPS（必須 WSS）"/></ComboBox>
+    <TextBlock Text="Relay 位址"/><TextBox x:Name="Endpoint" AutomationProperties.Name="Relay 位址"/>
+    <TextBlock Text="我的帳號 ID"/><TextBox x:Name="UserId" MaxLength="32" AutomationProperties.Name="我的帳號 ID"/>
+    <TextBlock Text="個人 Relay 憑證（空白保留已存憑證）" TextWrapping="Wrap"/><PasswordBox x:Name="RelayToken" MaxLength="256" AutomationProperties.Name="個人 Relay 憑證"/>
+    <WrapPanel><Button x:Name="ConnectButton" Content="儲存並連線" Click="ConnectClick"/><Button Content="中斷連線" Click="DisconnectClick"/></WrapPanel>
+    <Button Content="刪除此連線的已存憑證" Click="DeleteRelayClick" HorizontalAlignment="Left"/>
+    <Separator Margin="0,15"/>
+    <TextBlock Text="自己的 Groq API Key（Windows 認證管理員）" TextWrapping="Wrap"/><PasswordBox x:Name="GroqKey" MaxLength="256" AutomationProperties.Name="Groq API Key"/>
+    <WrapPanel><Button Content="儲存 Groq Key" Click="SaveGroqClick"/><Button Content="刪除 Groq Key" Click="DeleteGroqClick"/></WrapPanel>
+    <TextBlock Text="錄音會送至 Groq 轉成文字。Relay 只接收您按下傳送的聊天文字。API Key 和 Relay 憑證只存於此 Windows 帳號的認證管理員。" TextWrapping="Wrap" Margin="0,12"/>
+    <TextBlock Text="朋友需要由 Relay 管理者設定雙向授權。若學校隔離電腦互連，改用已設定的 VPS WSS Relay。" TextWrapping="Wrap"/>
+   </StackPanel></ScrollViewer></TabItem>
+  </TabControl>
+ </DockPanel>
+</Window>
