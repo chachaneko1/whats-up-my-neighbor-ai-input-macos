@@ -118,3 +118,44 @@ def test_policy_invalid_references_and_reused_tokens(tmp_path):
     p=policy().model_dump();p['users']['bob']['token_sha256']=p['users']['alice']['token_sha256']
     path.write_text(json.dumps(p))
     with pytest.raises(ValueError): Policy.load(str(path))
+
+
+def test_concurrent_identity_is_reserved_before_accept():
+    import asyncio
+    from types import SimpleNamespace
+
+    async def scenario():
+        app = create_app(policy())
+        endpoint = next(r.endpoint for r in app.routes if r.path == '/nekochat/v1/ws')
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        class Socket:
+            query_params = {}
+            headers = {'authorization': f"Bearer alice:{TOKENS['alice']}"}
+            url = SimpleNamespace(scheme='ws')
+            def __init__(self, delayed=False):
+                self.delayed = delayed
+                self.accepted = False
+                self.close_code = None
+            async def accept(self):
+                self.accepted = True
+                if self.delayed:
+                    entered.set()
+                    await release.wait()
+            async def send_json(self, value):
+                pass
+            async def receive(self):
+                return {'type': 'websocket.disconnect'}
+            async def close(self, code=1000):
+                self.close_code = code
+
+        first, second = Socket(True), Socket()
+        task = asyncio.create_task(endpoint(first))
+        await asyncio.wait_for(entered.wait(), 2)
+        try:
+            await asyncio.wait_for(endpoint(second), 2)
+            assert not second.accepted and second.close_code == 4409
+        finally:
+            release.set()
+            await asyncio.wait_for(task, 2)
+    asyncio.run(scenario())

@@ -77,12 +77,14 @@ def create_app(policy: Policy) -> FastAPI:
         if user in peers:
             await ws.close(code=4409)
             return
-        await ws.accept()
+        # Reserve synchronously before the handshake yields; concurrent upgrades
+        # for the same identity must not both pass the duplicate-session check.
         peer = Peer(ws)
         peers[user] = peer
         seen: OrderedDict[str, None] = OrderedDict()
         rate = deque()
         try:
+            await ws.accept()
             await peer.send(event("ready", "ready", user=user))
             while True:
                 packet = await asyncio.wait_for(ws.receive(), timeout=90)
