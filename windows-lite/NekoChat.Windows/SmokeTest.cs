@@ -25,7 +25,7 @@ internal static class SmokeTest
             }
             var chat=new ChatWindow(new Settings());var pet=new PetWindow();
             foreach(var id in Appearance.Presets) {
-                pet.SetArt(CatArtwork.Preset(id));pet.Notify("alice：下課見 🐈","alice");
+                pet.SetArt(CatArtwork.Preset(id));pet.Notify("下課見 🐈","alice");
                 var visual=(FrameworkElement)pet.Content;
                 visual.Measure(new Size(280,310));visual.Arrange(new Rect(0,0,280,310));visual.UpdateLayout();
                 var bitmap=new RenderTargetBitmap(280,310,96,96,PixelFormats.Pbgra32);bitmap.Render(visual);
@@ -43,7 +43,11 @@ internal static class SmokeTest
                 for(int i=0;i<size;i+=4)if(a[i+3]>240 && b[i+3]>240)for(int c=0;c<3;c++){error+=Math.Abs(a[i+c]-b[i+c]);count++;}
                 if(count==0 || error/count>14)throw new Exception($"Custom renderer parity failed: {id} ({error/Math.Max(1,count):F2})");
             }
-            chat.AddHistory("alice：中文與 emoji 🐈");
+            chat.AddHistory("alice：中文與 emoji 🐈");chat.Recipient.Text="alice";chat.Draft.Text="好呀，下課見！";
+            chat.SetStatus("Windows CI 視窗繪製驗證 · 未進行實際錄音");
+            var chatVisual=(FrameworkElement)chat.Content;chatVisual.Measure(new Size(430,650));chatVisual.Arrange(new Rect(0,0,430,650));chatVisual.UpdateLayout();
+            var chatBitmap=new RenderTargetBitmap(430,650,96,96,PixelFormats.Pbgra32);chatBitmap.Render(chatVisual);
+            Save(chatBitmap,Path.Combine(directory,"chat-window.png"));
             File.WriteAllText(Path.Combine(directory,"result.txt"),"PASS: WPF windows/XAML, 9 native coats, custom-render parity, bubble rendering, Credential Manager write/read/delete. Microphone and foreground insertion require interactive QA.");
             return 0;
         }catch(Exception ex){File.WriteAllText(Path.Combine(directory,"result.txt"),"FAIL: "+ex.GetType().Name+" "+ex.Message);return 1;}

@@ -1,4 +1,4 @@
-# Per-user installation of an extracted CI trial ZIP. No administrator rights.
+﻿# Per-user installation of an extracted CI trial ZIP. No administrator rights.
 $ErrorActionPreference = 'Stop'
 if (Get-Process -Name 'NekoChat.Windows' -ErrorAction SilentlyContinue) {
     throw '請先從貓咪右鍵選單離開 NekoChat，再重新執行安裝。'

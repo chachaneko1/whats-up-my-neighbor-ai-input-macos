@@ -54,7 +54,7 @@ internal static class NativeInput
     internal static async Task<FocusTarget?> CaptureAsync()
     {
         try { return await Task.Run(Capture).WaitAsync(TimeSpan.FromSeconds(2)); }
-        catch (Exception ex) when (ex is TimeoutException or ElementNotAvailableException or InvalidOperationException or COMException) { return null; }
+        catch (Exception ex) when (ex is TimeoutException or ElementNotAvailableException or InvalidOperationException or COMException or UnauthorizedAccessException) { return null; }
     }
     private static FocusTarget? Capture()
     {
@@ -80,7 +80,7 @@ internal static class NativeInput
         bool valid=false;
         if (target is not null) {
             try { valid=await Task.Run(()=>Same(target)).WaitAsync(TimeSpan.FromSeconds(2)); }
-            catch (Exception ex) when (ex is TimeoutException or ElementNotAvailableException or InvalidOperationException or COMException) { }
+            catch (Exception ex) when (ex is TimeoutException or ElementNotAvailableException or InvalidOperationException or COMException or UnauthorizedAccessException) { }
         }
         cancellation.ThrowIfCancellationRequested();
         bool modifiersDown=new[]{0x10,0x11,0x12,0x5B,0x5C}.Any(k=>(GetAsyncKeyState(k)&0x8000)!=0);
