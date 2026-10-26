@@ -20,3 +20,10 @@ The first complete [Windows/Linux CI run](https://github.com/yuipan0611/whats-up
 Interactive Windows microphone/focus/DPI/LAN tests are pending. macOS NekoChat App integration is not implemented; the existing macOS app is unchanged. No VPS Relay deployment has been performed.
 
 One local dependency warning: Starlette TestClient deprecates httpx in favor of httpx2; the tested compatibility path still passes. Live WebSocket tests use Uvicorn websockets-sansio.
+
+
+## One-click classroom follow-up
+
+The one-click addition bundles the existing Python Relay into a standalone executable and embeds the self-contained WPF App plus Relay into a per-user Setup.exe. The App generates two distinct room identities, mutual friend authorization and a private guest invitation; students never type an endpoint/account/friend or edit policy files. The existing manual/VPS mode and v1 WebSocket schema remain available.
+
+Local follow-up baseline: 30 original Relay tests and 48 original C# checks passed. After the addition: 40 Python tests including real bootstrap/parent-EOF shutdown and C# interoperability passed; 92 C# behavior checks passed (94 in live mode), including strict invitations, private-network restrictions, matching-room discovery and installer path/size/required-component guards. WPF and Installer cross-builds pass with zero warnings/errors. The workflow now adds frozen-Relay tests, published-room bidirectional messages and parent shutdown, WPF create/join/leave controls, and single-file setup checksum/extraction after removing external runtimes from PATH. Windows runner results are reported in PR #35; interactive classroom/microphone QA remains pending.

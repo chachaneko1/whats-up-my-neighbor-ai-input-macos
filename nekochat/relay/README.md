@@ -2,7 +2,13 @@
 
 獨立的 FastAPI WebSocket 服務。與 `office/office.py` 完全分離，不連接 AI Agent、SSH 或遠端桌面。單一程序、最多 100 個帳號、每個帳號一條連線，即時文字轉發，不儲存訊息。不使用廣播式共用房間；每則訊息要求雙向好友授權。
 
-## 教室 Windows 主機
+## 同學的一鍵房間
+
+Windows Lite 已新增內建房間模式：安裝包內含獨立的 `Relay/NekoChatRelay.exe`，由 App 的「建立房間」啟動，透過匿名管線傳入僅含憑證 hash 的雙方政策。綁定 loopback 與指定私有 IPv4，以 stdin EOF 偵測擁有者關閉並結束。政策不寫檔；邀請碼僅包含客人憑證，房主明確分享即授權該同學，雙方好友在記憶體內自動配置。對外仍為原本 NekoChat v1 WebSocket 協議。
+
+同學不需要以下 Python／手動設定流程。下列內容保留給自行管理 LAN／VPS 的管理者。
+
+## 教室 Windows 主機（管理者手動模式）
 
 在 clone 的儲存庫根目錄開 PowerShell，使用 Python 3.12+：
 
