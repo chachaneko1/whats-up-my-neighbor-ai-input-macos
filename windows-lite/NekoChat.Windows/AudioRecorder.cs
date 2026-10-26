@@ -6,17 +6,18 @@ namespace NekoChat.Windows;
 internal sealed class AudioRecorder : IDisposable
 {
     private readonly MemoryStream stream=new();
-    private readonly WaveInEvent input=new() { WaveFormat=new WaveFormat(16000,16,1), BufferMilliseconds=100 };
+    private readonly IWaveIn input;
     private readonly WaveFileWriter writer;
     private readonly TaskCompletionSource<byte[]> stopped=new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly object gate=new();
     private int stopping;
     private int disposed;
-    internal AudioRecorder()
+    internal AudioRecorder(IWaveIn? source=null)
     {
+        input=source ?? new WaveInEvent { WaveFormat=new WaveFormat(16000,16,1), BufferMilliseconds=100 };
         writer=new WaveFileWriter(stream,input.WaveFormat);
         input.DataAvailable+=(_,e)=> {
-            lock(gate) { if (Volatile.Read(ref disposed)==0 && Volatile.Read(ref stopping)==0 && stream.Length < 2_100_000) writer.Write(e.Buffer,0,e.BytesRecorded); }
+            lock(gate) { if (Volatile.Read(ref disposed)==0 && stream.Length < 2_100_000) writer.Write(e.Buffer,0,e.BytesRecorded); }
         };
         input.RecordingStopped+=(_,e)=> {
             lock(gate) {

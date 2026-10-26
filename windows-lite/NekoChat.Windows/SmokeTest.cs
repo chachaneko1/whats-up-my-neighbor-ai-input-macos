@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using NekoChat.Core;
+using NAudio.Wave;
 
 namespace NekoChat.Windows;
 
@@ -22,6 +23,10 @@ internal static class SmokeTest
                 try{NativeInput.InsertAsync("must not type or copy",null,canceled.Token).GetAwaiter().GetResult();}
                 catch(OperationCanceledException){rejected=true;}
                 if(!rejected)throw new Exception("Canceled input was not blocked");
+            }
+            using(var audio=new AudioRecorder(new TestWaveInput())) {
+                audio.Start();var wav=audio.StopAsync().GetAwaiter().GetResult();
+                if(wav.Length!=50 || wav[^1]!=6)throw new Exception("Final microphone buffer was dropped on stop");
             }
             var chat=new ChatWindow(new Settings());var pet=new PetWindow();
             foreach(var id in Appearance.Presets) {
@@ -48,7 +53,7 @@ internal static class SmokeTest
             var chatVisual=(FrameworkElement)chat.Content;chatVisual.Measure(new Size(430,650));chatVisual.Arrange(new Rect(0,0,430,650));chatVisual.UpdateLayout();
             var chatBitmap=new RenderTargetBitmap(430,650,96,96,PixelFormats.Pbgra32);chatBitmap.Render(chatVisual);
             Save(chatBitmap,Path.Combine(directory,"chat-window.png"));
-            File.WriteAllText(Path.Combine(directory,"result.txt"),"PASS: WPF windows/XAML, 9 native coats, custom-render parity, bubble rendering, Credential Manager write/read/delete. Microphone and foreground insertion require interactive QA.");
+            File.WriteAllText(Path.Combine(directory,"result.txt"),"PASS: final audio-buffer flush, canceled input blocked, WPF windows/XAML, 9 native coats, custom-render parity, bubble rendering, Credential Manager write/read/delete. Microphone and foreground insertion require interactive QA.");
             return 0;
         }catch(Exception ex){File.WriteAllText(Path.Combine(directory,"result.txt"),"FAIL: "+ex.GetType().Name+" "+ex.Message);return 1;}
         finally{try{CredentialStore.Delete(credential);}catch(Exception){}}
@@ -57,4 +62,18 @@ internal static class SmokeTest
     {
         var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(source));using var file=File.Create(path);encoder.Save(file);
     }
+}
+
+
+internal sealed class TestWaveInput : IWaveIn
+{
+    public WaveFormat WaveFormat {get;set;}=new(16000,16,1);
+    public event EventHandler<WaveInEventArgs>? DataAvailable;
+    public event EventHandler<StoppedEventArgs>? RecordingStopped;
+    public void StartRecording()=>DataAvailable?.Invoke(this,new WaveInEventArgs([1,2,3,4],4));
+    public void StopRecording() {
+        DataAvailable?.Invoke(this,new WaveInEventArgs([5,6],2));
+        RecordingStopped?.Invoke(this,new StoppedEventArgs());
+    }
+    public void Dispose() { }
 }
