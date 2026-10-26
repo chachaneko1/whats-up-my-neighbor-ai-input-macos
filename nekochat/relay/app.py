@@ -43,6 +43,15 @@ class Peer:
             await asyncio.wait_for(self.socket.send_json(message), timeout=5)
 
 
+def unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("Duplicate JSON field")
+        result[key] = value
+    return result
+
+
 def create_app(policy: Policy) -> FastAPI:
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     peers: dict[str, Peer] = {}
@@ -93,12 +102,14 @@ def create_app(policy: Policy) -> FastAPI:
                 rate.append(now)
                 try:
                     # Explicitly reject bool/float versions (JSON Schema integer semantics vary).
-                    obj = json.loads(raw)
+                    obj = json.loads(raw, object_pairs_hook=unique_object)
                     if type(obj.get("version")) is not int:
                         raise ValueError("version")
                     message = ClientEvent.validate_python(obj)
-                    if isinstance(message, Send) and not message.text.strip():
-                        raise ValueError("empty")
+                    if isinstance(message, Send):
+                        message.text.encode("utf-8")
+                        if not message.text.strip():
+                            raise ValueError("empty")
                 except (ValidationError, ValueError, TypeError, AttributeError):
                     await peer.send(event("error", "invalid", code="invalid_event"))
                     continue

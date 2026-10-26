@@ -17,6 +17,12 @@ internal static class SmokeTest
             if(CredentialStore.Load(credential)!="test-only-ephemeral-credential")throw new Exception("Credential roundtrip failed");
             CredentialStore.Delete(credential);
             if(CredentialStore.Load(credential) is not null)throw new Exception("Credential removal failed");
+            using(var canceled=new CancellationTokenSource()) {
+                canceled.Cancel();bool rejected=false;
+                try{NativeInput.InsertAsync("must not type or copy",null,canceled.Token).GetAwaiter().GetResult();}
+                catch(OperationCanceledException){rejected=true;}
+                if(!rejected)throw new Exception("Canceled input was not blocked");
+            }
             var chat=new ChatWindow(new Settings());var pet=new PetWindow();
             foreach(var id in Appearance.Presets) {
                 pet.SetArt(CatArtwork.Preset(id));pet.Notify("alice：下課見 🐈","alice");

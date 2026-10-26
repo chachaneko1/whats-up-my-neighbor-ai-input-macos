@@ -16,6 +16,7 @@ public partial class App
     private bool recordingChat;
     private bool startingRecording;
     private bool transcribing;
+    private bool canceling;
     private readonly DispatcherTimer recordingLimit=new(){Interval=TimeSpan.FromSeconds(60)};
 
     private void InitializeVoice()
@@ -32,7 +33,7 @@ public partial class App
     }
     private async Task ToggleVoiceAsync(bool chatMode)
     {
-        if(startingRecording || transcribing){chat.SetStatus("正在準備錄音或轉錄；Esc 可取消。");return;}
+        if(startingRecording || transcribing || canceling){chat.SetStatus("正在準備錄音或轉錄；Esc 可取消。");return;}
         if(recorder is not null) {
             if(recordingChat!=chatMode){chat.SetStatus("另一種錄音正在進行，請先完成或取消。");return;}
             await FinishVoiceAsync();return;
@@ -71,7 +72,7 @@ public partial class App
                 chat.Draft.AppendText((chat.Draft.Text.Length==0?"":Environment.NewLine)+text);
                 chat.SetStatus("語音已加入聊天草稿；確認好友與內容後再按傳送。");pet.Notify("語音草稿已就緒，確認後再傳送。");
             }else {
-                var status=await NativeInput.InsertAsync(text,focusTarget);
+                var status=await NativeInput.InsertAsync(text,focusTarget,cancellation);
                 chat.SetStatus(status);pet.Notify(status);
             }
         }catch(Exception ex){chat.SetStatus(SafeError(ex));pet.Notify(SafeError(ex));}
@@ -82,6 +83,8 @@ public partial class App
     }
     private async Task CancelVoiceAsync()
     {
+        if(canceling)return;canceling=true;
+        try {
         voiceCancel?.Cancel();recordingLimit.Stop();
         var current=recorder;recorder=null;
         if(current is not null) {
@@ -90,6 +93,7 @@ public partial class App
         }
         hotkeys?.EnableCancel(false);focusTarget=null;chat.VoiceButton.Content="🎙 語音草稿";
         chat.SetStatus("已取消錄音／轉錄。");pet.Notify("已取消。");
+        }finally{canceling=false;}
     }
     private void DisposeVoice()
     {

@@ -1,7 +1,7 @@
 name: NekoChat Windows Lite
 on:
   push:
-    branches: [main, codex/nekochat-windows-lite]
+    branches: [main]
   pull_request:
 permissions:
   contents: read

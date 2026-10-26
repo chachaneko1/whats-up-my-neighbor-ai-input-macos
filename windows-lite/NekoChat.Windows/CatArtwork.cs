@@ -1,4 +1,5 @@
 using System.IO;
+using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Text.Json;
 using System.Windows.Media;
@@ -16,6 +17,11 @@ internal static class CatArtwork
     {
         var bytes=File.ReadAllBytes(path);
         if(bytes.Length>5_000_000) throw new InvalidDataException("圖片過大。");
+        byte[] signature=[137,80,78,71,13,10,26,10];
+        if(bytes.Length<24 || !bytes.AsSpan(0,8).SequenceEqual(signature) ||
+            BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(16,4)) is 0 or >2048 ||
+            BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(20,4)) is 0 or >2048)
+            throw new InvalidDataException("請使用 2048×2048 以內的 PNG。");
         using var stream=new MemoryStream(bytes);
         var decoder=new PngBitmapDecoder(stream,BitmapCreateOptions.PreservePixelFormat,BitmapCacheOption.OnLoad);
         var bitmap=decoder.Frames[0];

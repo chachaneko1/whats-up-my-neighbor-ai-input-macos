@@ -37,16 +37,16 @@ def test_delivery_authoritative_sender_and_duplicate():
 @pytest.mark.parametrize("changes", [
     {"version": 2}, {"version": True}, {"version": 1.0}, {"kind": "executeRequest"},
     {"kind": "agent.run"}, {"action": "paste"}, {"sender": "eve"}, {"text": " "},
-    {"text": "x" * 2001}, {"to": "../bob"}, {"protocol": "office"}, {"id": ""},
+    {"text": "x" * 2001}, {"text": "\ud800"}, {"to": "../bob"}, {"to": "bob\n"}, {"id": "m1\n"}, {"protocol": "office"}, {"id": ""},
 ])
 def test_invalid_and_remote_events(changes):
     with TestClient(create_app(policy())) as c, connect(c) as a:
         a.receive_json()
-        p = packet(); p.update(changes); a.send_json(p)
+        p = packet(); p.update(changes); a.send_text(json.dumps(p, ensure_ascii=True))
         assert a.receive_json()["code"] == "invalid_event"
 
 def test_malformed_binary_and_oversize():
-    for payload in ["{", "[]", "null", "1"]:
+    for payload in ["{", "[]", "null", "1", '{"protocol":"office","protocol":"nekochat","version":1,"id":"p","kind":"ping"}']:
         with TestClient(create_app(policy())) as c, connect(c) as a:
             a.receive_json(); a.send_text(payload)
             assert a.receive_json()["code"] == "invalid_event"

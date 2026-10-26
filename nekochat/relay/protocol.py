@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 from typing import Annotated, Literal
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StringConstraints, TypeAdapter
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, TypeAdapter
 
 UserID = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9_-]{0,31}$")]
 MessageID = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{1,64}$")]

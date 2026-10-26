@@ -74,7 +74,7 @@ internal static class NativeInput
         var current=Capture();
         return current is not null && current.Window==target.Window && current.ProcessId==target.ProcessId && current.RuntimeId.SequenceEqual(target.RuntimeId);
     }
-    internal static async Task<string> InsertAsync(string text, FocusTarget? target)
+    internal static async Task<string> InsertAsync(string text, FocusTarget? target, CancellationToken cancellation)
     {
         // Never activate/restore another app or press Enter. Changed focus means copy only.
         bool valid=false;
@@ -82,9 +82,11 @@ internal static class NativeInput
             try { valid=await Task.Run(()=>Same(target)).WaitAsync(TimeSpan.FromSeconds(2)); }
             catch (Exception ex) when (ex is TimeoutException or ElementNotAvailableException or InvalidOperationException or COMException) { }
         }
+        cancellation.ThrowIfCancellationRequested();
         bool modifiersDown=new[]{0x10,0x11,0x12,0x5B,0x5C}.Any(k=>(GetAsyncKeyState(k)&0x8000)!=0);
         if (!valid || modifiersDown || text.Any(char.IsControl)) return Copy(text,"焦點改變或欄位不支援");
         // Recheck top-level foreground immediately before posting events.
+        cancellation.ThrowIfCancellationRequested();
         if (GetForegroundWindow()!=target!.Window) return Copy(text,"焦點已改變");
         var inputs=text.SelectMany(c=>new[]{
             new Input {Type=1,Data=new InputUnion{Keyboard=new KeyboardInput{Scan=c,Flags=0x0004}}},
