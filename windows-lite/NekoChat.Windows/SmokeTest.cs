@@ -28,7 +28,7 @@ internal static class SmokeTest
                 audio.Start();var wav=audio.StopAsync().GetAwaiter().GetResult();
                 if(!wav.TakeLast(6).SequenceEqual(new byte[]{1,2,3,4,5,6}))throw new Exception("Final microphone buffer was dropped on stop");
             }
-            var chat=new ChatWindow(new Settings());var pet=new PetWindow();
+            var chat=new ChatWindow(new Settings());chat.Tabs.SelectedIndex=1;var pet=new PetWindow();
             foreach(var id in Appearance.Presets) {
                 pet.SetArt(CatArtwork.Preset(id));pet.Notify("下課見 🐈","alice");
                 var visual=(FrameworkElement)pet.Content;

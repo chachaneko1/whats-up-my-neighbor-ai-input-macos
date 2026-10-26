@@ -7,6 +7,7 @@ namespace NekoChat.Windows;
 
 internal static class CredentialStore
 {
+    internal const string Classroom = "NekoChat.WindowsLite/Classroom";
     internal const string Groq = "NekoChat.WindowsLite/Groq";
     internal static string Relay(string endpoint, string user) => "NekoChat.WindowsLite/Relay/" +
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(endpoint + "\n" + user)));

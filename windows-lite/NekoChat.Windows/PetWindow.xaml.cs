@@ -42,9 +42,9 @@ public partial class PetWindow : Window
         Cat.ContextMenu=menu;
     }
     internal void SetArt(ImageSource image)=>Cat.Source=image;
-    internal void Notify(string text,string? from=null,bool persistent=false)
+    internal void Notify(string text,string? from=null,bool persistent=false,string? displayName=null)
     {
-        sender=from;BubbleText.Text=from is null?text:$"{from}：{text}\n點擊回覆";
+        sender=from;BubbleText.Text=from is null?text:$"{displayName??from}：{text}\n點擊回覆";
         Bubble.Visibility=Visibility.Visible;bubbleTimer.Stop();if(!persistent)bubbleTimer.Start();
     }
     private void BubbleClick(object sender,RoutedEventArgs e)=>OpenChat?.Invoke(this.sender);
