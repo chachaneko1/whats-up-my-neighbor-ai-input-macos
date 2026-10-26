@@ -62,7 +62,7 @@ public partial class ChatWindow : Window
     }
     private void DeleteRelayClick(object sender,RoutedEventArgs e)
     {
-        try{CredentialStore.Delete(CredentialStore.Relay(Endpoint.Text.Trim(),UserId.Text.Trim()));RelayToken.Clear();SetStatus("已刪除此連線的憑證；現有連線請另按中斷。");}catch(Exception ex){SetStatus(App.SafeError(ex));}
+        try{CredentialStore.Delete(CredentialStore.Relay(NekoChat.Core.RelayConnection.ValidateEndpoint(Endpoint.Text.Trim(),Mode.SelectedIndex==0).AbsoluteUri,UserId.Text.Trim()));RelayToken.Clear();SetStatus("已刪除此連線的憑證；現有連線請另按中斷。");}catch(Exception ex){SetStatus(App.SafeError(ex));}
     }
     private void CopyClick(object sender,RoutedEventArgs e)
     {

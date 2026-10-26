@@ -47,7 +47,7 @@ internal static class CatArtwork
         using var stream=File.OpenRead(Asset(name));using var gzip=new GZipStream(stream,CompressionMode.Decompress);
         using var result=new MemoryStream();gzip.CopyTo(result);return result.ToArray();
     }
-    private static BitmapSource Render(Appearance appearance)
+    internal static BitmapSource Render(Appearance appearance)
     {
         var original=new FormatConvertedBitmap(Preset("original"),PixelFormats.Bgra32,null,0);
         int w=original.PixelWidth,h=original.PixelHeight;

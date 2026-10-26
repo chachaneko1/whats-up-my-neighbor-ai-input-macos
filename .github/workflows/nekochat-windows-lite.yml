@@ -1,0 +1,71 @@
+name: NekoChat Windows Lite
+on:
+  push:
+    branches: [main, codex/nekochat-windows-lite]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: nekochat-lite-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: '10.0.x'
+      - run: python -m pip install -r nekochat/relay/requirements-dev.txt
+      - run: dotnet run --project windows-lite/NekoChat.Tests -c Release
+      - name: Protocol, auth, real WebSocket and C# integration tests
+        run: NEKOCHAT_DOTNET="$(command -v dotnet)" python -m pytest nekochat/relay/tests -q
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet run --project windows-lite/NekoChat.Tests -c Release
+      - run: dotnet build windows-lite/NekoChat.Windows -c Release -p:RestoreLockedMode=true
+      - name: Windows WPF and Credential Manager smoke test
+        shell: pwsh
+        run: |
+          $env:DOTNET_NOLOGO = '1'
+          & dotnet windows-lite/NekoChat.Windows/bin/Release/net10.0-windows/NekoChat.Windows.dll --smoke-test "$env:GITHUB_WORKSPACE/build/windows-lite-smoke"
+          if ($LASTEXITCODE -ne 0) { Get-Content build/windows-lite-smoke/result.txt; exit 1 }
+          Get-Content build/windows-lite-smoke/result.txt
+      - name: Publish self-contained x64 trial build
+        run: dotnet publish windows-lite/NekoChat.Windows -c Release -r win-x64 --self-contained true -o build/windows-lite-package
+      - name: Package trial ZIP
+        shell: pwsh
+        run: |
+          Copy-Item windows-lite/Install.ps1 build/windows-lite-package/
+          Copy-Item windows-lite/README.md build/windows-lite-package/README.md
+          Copy-Item LICENSE build/windows-lite-package/LICENSE
+          Compress-Archive -Path build/windows-lite-package/* -DestinationPath build/NekoChat-Windows-Lite-win-x64.zip
+          (Get-FileHash build/NekoChat-Windows-Lite-win-x64.zip -Algorithm SHA256).Hash | Out-File build/NekoChat-Windows-Lite-win-x64.zip.sha256 -Encoding ascii
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nekochat-windows-lite-trial
+          path: |
+            build/NekoChat-Windows-Lite-win-x64.zip
+            build/NekoChat-Windows-Lite-win-x64.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: nekochat-windows-smoke-captures
+          path: build/windows-lite-smoke/
+          if-no-files-found: warn

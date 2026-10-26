@@ -12,7 +12,7 @@ def test_real_websocket_roundtrip():
     listener = socket.socket()
     listener.bind(('127.0.0.1', 0))
     port = listener.getsockname()[1]
-    server = uvicorn.Server(uvicorn.Config(create_app(policy()), log_level='critical', ws='websockets', lifespan='off'))
+    server = uvicorn.Server(uvicorn.Config(create_app(policy()), log_level='critical', ws='websockets-sansio', lifespan='off'))
     thread = threading.Thread(target=server.run, kwargs={'sockets': [listener]}, daemon=True)
     thread.start()
     try:

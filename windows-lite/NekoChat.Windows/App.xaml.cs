@@ -19,6 +19,7 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        if(e.Args.Length==2 && e.Args[0]=="--smoke-test") {Shutdown(SmokeTest.Run(e.Args[1]));return;}
         try {
             settings=Settings.Load();pet=new PetWindow();chat=new ChatWindow(settings);
             pet.OpenChat+=sender=>chat.ShowChat(sender);
@@ -36,7 +37,7 @@ public partial class App : Application
             chat.DisconnectRequested+=async()=>await DisconnectAsync();
             chat.SendRequested+=async()=>await SendAsync();
             if(Appearance.Presets.Contains(settings.Coat))pet.SetArt(CatArtwork.Preset(settings.Coat));
-            pet.Show();chat.Show();
+            pet.Show();InitializeVoice();chat.Show();
         }catch(Exception){MessageBox.Show("NekoChat 無法啟動，請確認所有解壓縮檔案都在同一資料夾。","NekoChat");Shutdown(1);}
     }
     private async Task ConnectAsync(Settings next,string suppliedToken)
@@ -120,7 +121,7 @@ public partial class App : Application
     };
     protected override void OnExit(ExitEventArgs e)
     {
-        connectionCancel?.Cancel();if(relay is not null)relay.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        DisposeVoice();connectionCancel?.Cancel();if(relay is not null)relay.DisposeAsync().AsTask().GetAwaiter().GetResult();
         base.OnExit(e);
     }
 }

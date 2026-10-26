@@ -66,7 +66,8 @@ internal static class NativeInput
             !element.Current.IsEnabled || !element.Current.HasKeyboardFocus) return null;
         bool editable=element.TryGetCurrentPattern(ValuePattern.Pattern,out var pattern) && !((ValuePattern)pattern).Current.IsReadOnly;
         if (!editable) return null; // Unknown/contenteditable controls safely fall back to clipboard.
-        return new(window,(int)process,element.GetRuntimeId());
+        var runtime=element.GetRuntimeId();
+        return GetForegroundWindow()==window?new(window,(int)process,runtime):null;
     }
     private static bool Same(FocusTarget target)
     {
