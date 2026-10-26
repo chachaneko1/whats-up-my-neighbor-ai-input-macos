@@ -43,10 +43,11 @@ import WebKit
         output.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             if data.isEmpty { handle.readabilityHandler = nil; return }
-            Task { @MainActor in self?.receive(data, id: id) }
+            // Re-capture weakly: Swift 5.10 rejects reading the outer `weak var self` inside a Task.
+            Task { @MainActor [weak self] in self?.receive(data, id: id) }
         }
         child.terminationHandler = { [weak self] _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 guard let self, self.generation == id else { return }
                 self.connected = false; self.loading = false; self.controlling = false; self.awaitingCredentials = false
                 self.status = "連線已中斷，請重新連線"
