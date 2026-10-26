@@ -59,6 +59,7 @@ if(args.Length==2&&args[0]=="--live") {
     Check((await ack.Task.WaitAsync(cancel.Token)).Status=="delivered","C# live ack");
     cancel.Cancel();try{await Task.WhenAll(at,bt);}catch(OperationCanceledException){}
 }
+checks += await ClassroomChecks.Run();
 Console.WriteLine($"NekoChat core: {checks} behavior checks passed.");
 
 sealed class FakeHandler:HttpMessageHandler {

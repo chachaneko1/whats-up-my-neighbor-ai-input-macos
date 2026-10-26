@@ -52,13 +52,13 @@ def unique_object(pairs):
     return result
 
 
-def create_app(policy: Policy) -> FastAPI:
+def create_app(policy: Policy, room_id: str | None = None) -> FastAPI:
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     peers: dict[str, Peer] = {}
 
     @app.get("/healthz")
     async def health():
-        return {"protocol": "nekochat", "version": 1}
+        return {"protocol": "nekochat", "version": 1, **({"room_id": room_id} if room_id else {})}
 
     @app.websocket("/nekochat/v1/ws")
     async def websocket(ws: WebSocket):

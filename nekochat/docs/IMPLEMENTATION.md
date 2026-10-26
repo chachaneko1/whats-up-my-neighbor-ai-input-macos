@@ -19,3 +19,13 @@ Use the approved sitting black-cat silhouette at about 180px. Show a bounded pla
 ## Verification
 
 Run existing appearance, remote protocol and transcription suites before changes. Verify Relay schema and authorization with TestClient plus real localhost WebSockets. Compile Windows application with .NET and run platform-independent protocol/provider tests locally; run Windows build and smoke tests on GitHub Actions. Hardware microphone, foreground insertion and visual behavior require interactive Windows QA even if CI passes.
+
+## One-click classroom setup (2026-10-27)
+
+Success: one per-user Setup.exe installs and launches the self-contained WPF app and bundled Relay. No student Python/SDK, shell commands, manual accounts, or JSON edits. First host creates a room; the second computer pastes a private invitation. Groq key remains in Credential Manager. Existing manual LAN/VPS configuration stays available.
+
+Impact: additive Windows installer, in-memory desktop Relay entry point, versioned LAN invitations, WPF room onboarding, packaging/CI/docs. Risk is high at credential provisioning, network binding and installer writes; invitations grant only the paired guest identity, with existing mutual friend authorization. Relay uses only loopback/private IPv4 bindings and shuts down with its owning app. No Agent/remote commands, Swift, Office, VPS or production edits.
+
+Plan: (1) inspectable onboarding preview and existing test baseline; (2) packaged Relay bootstrap + validated invitation/payload extraction with behavioral tests; (3) WPF create/join/leave flow and credential cleanup; (4) self-contained Setup.exe, frozen-Relay and installer integration checks in Windows CI; (5) updated student instructions and PR evidence.
+
+The host explicitly authorizes the guest by privately sharing a high-entropy invitation containing only the guest's room credential. Guest joins with that invitation; neither computer types an account, endpoint or friend ID. The host's token is never included. Room credentials expire when the host process stops; no classroom policy/secret files are written. Public VPS enrollment is outside this addition.

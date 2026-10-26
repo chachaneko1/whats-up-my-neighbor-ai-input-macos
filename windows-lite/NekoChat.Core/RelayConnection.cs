@@ -81,6 +81,10 @@ public sealed class RelayConnection : IAsyncDisposable
             onEvent(Protocol.ParseServer(new UTF8Encoding(false, true).GetString(message.ToArray())));
         }
     }
+    public void Abort()
+    {
+        lifetime.Cancel();socket.Abort();socket.Dispose();
+    }
     public async ValueTask DisposeAsync()
     {
         await lifetime.CancelAsync();
