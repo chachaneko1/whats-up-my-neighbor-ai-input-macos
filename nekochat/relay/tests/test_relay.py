@@ -105,7 +105,11 @@ def test_schema_is_generated_and_matches_events():
         expected = adapter.json_schema(); expected['$schema'] = "https://json-schema.org/draft/2020-12/schema"
         assert actual == expected
         Draft202012Validator.check_schema(actual)
-    Draft202012Validator(json.loads((root / 'client-v1.schema.json').read_text())).validate(packet())
+    validator = Draft202012Validator(json.loads((root / 'client-v1.schema.json').read_text()))
+    validator.validate(packet())
+    for field, value in [('to', 'bob\n'), ('id', 'm1\n'), ('text', ' \n')]:
+        invalid = packet(); invalid[field] = value
+        assert not validator.is_valid(invalid)
 
 def test_policy_invalid_references_and_reused_tokens(tmp_path):
     p=policy().model_dump();p['users']['alice']['friends']=['missing']

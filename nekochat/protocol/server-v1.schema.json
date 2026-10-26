@@ -14,6 +14,9 @@
           "type": "integer"
         },
         "id": {
+          "not": {
+            "pattern": "[^A-Za-z0-9_-]"
+          },
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "title": "Id",
           "type": "string"
@@ -56,6 +59,9 @@
           "type": "integer"
         },
         "id": {
+          "not": {
+            "pattern": "[^A-Za-z0-9_-]"
+          },
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "title": "Id",
           "type": "string"
@@ -100,6 +106,9 @@
           "type": "integer"
         },
         "id": {
+          "not": {
+            "pattern": "[^A-Za-z0-9_-]"
+          },
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "title": "Id",
           "type": "string"
@@ -110,6 +119,9 @@
           "type": "string"
         },
         "sender": {
+          "not": {
+            "pattern": "[^a-z0-9_-]"
+          },
           "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$",
           "title": "Sender",
           "type": "string"
@@ -117,6 +129,7 @@
         "text": {
           "maxLength": 2000,
           "minLength": 1,
+          "pattern": "\\S",
           "title": "Text",
           "type": "string"
         }
@@ -146,6 +159,9 @@
           "type": "integer"
         },
         "id": {
+          "not": {
+            "pattern": "[^A-Za-z0-9_-]"
+          },
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "title": "Id",
           "type": "string"
@@ -179,6 +195,9 @@
           "type": "integer"
         },
         "id": {
+          "not": {
+            "pattern": "[^A-Za-z0-9_-]"
+          },
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "title": "Id",
           "type": "string"
@@ -189,6 +208,9 @@
           "type": "string"
         },
         "user": {
+          "not": {
+            "pattern": "[^a-z0-9_-]"
+          },
           "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$",
           "title": "User",
           "type": "string"
