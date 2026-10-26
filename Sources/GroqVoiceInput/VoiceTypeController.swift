@@ -181,6 +181,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         clipboardHistoryStore.flush()
         nekoHUD.hide()
         catOverlay.dispose()
+        vpsDesktopWindow?.shutdown()
         desktopPet.dispose()
         correctionMonitor.stop()
         dictation.shutdown()
@@ -190,7 +191,6 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         clipboardPasteGesture.stop()
         hotKeys.unregisterAll()
         remoteBridge.stop()
-        vpsDesktopWindow?.shutdown()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -692,7 +692,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
 
     @MainActor @objc private func showVPSDesktop() {
         guard VPSDesktopAvailability.isAvailable() else { return }
-        if vpsDesktopWindow == nil { vpsDesktopWindow = VPSDesktopWindowController() }
+        if vpsDesktopWindow == nil { vpsDesktopWindow = VPSDesktopWindowController(pet: desktopPet) }
         vpsDesktopWindow?.present()
     }
 
