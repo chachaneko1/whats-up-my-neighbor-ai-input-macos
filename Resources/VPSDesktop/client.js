@@ -15,7 +15,7 @@ function start(credentials){
   waitingForPassword=false;submit.disabled=true;password.value='';
   message.textContent=failure==='blocked'?'VPS 暫時限制登入，請稍後再試':'密碼驗證失敗，請重新連線後再試';notify(failure);
  });
- rfb.addEventListener('disconnect',()=>{waitingForPassword=false;submit.disabled=true;login.hidden=true;password.value='';username.value='';if(!failure)message.textContent='遠端桌面已中斷，請按「重新連線並登入」';notify('disconnected');});
+ rfb.addEventListener('disconnect',()=>{waitingForPassword=false;submit.disabled=true;login.hidden=true;password.value='';username.value='';if(!failure)message.textContent='遠端桌面已中斷，請按「重新連線」';notify('disconnected');});
 }
 login.addEventListener('submit',e=>{
  e.preventDefault();

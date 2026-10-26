@@ -21,7 +21,7 @@ test('nonempty submission opens exactly one connection and blocks double submit'
 });
 test('unexpected disconnect presents recovery without automatic retry',()=>{
  const f=fixture();f.fill();f.submit();f.fire('disconnect');
- assert.equal(f.events.at(-1),'disconnected');assert.match(f.nodes.get('#message').textContent,/重新連線並登入/);assert.equal(f.connections,1);assert.equal(f.nodes.get('#submit').disabled,true);
+ assert.equal(f.events.at(-1),'disconnected');assert.match(f.nodes.get('#message').textContent,/請按「重新連線」/);assert.equal(f.connections,1);assert.equal(f.nodes.get('#submit').disabled,true);
 });
 test('temporary server restriction stays distinct from incorrect password',()=>{
  const f=fixture();f.fill();f.submit();f.fire('securityfailure',{reason:'Too many security failures'});f.fire('disconnect');

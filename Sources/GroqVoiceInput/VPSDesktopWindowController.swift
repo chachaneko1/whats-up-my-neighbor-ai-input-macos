@@ -8,7 +8,8 @@ import SwiftUI
     private let panel = VPSDesktopPanel()
     private let window: NSWindow
     private let minimumSize = NSSize(width: 400, height: 330)
-    private var expandedSize = NSSize(width: 450, height: 360)
+    // 48pt title bar plus a 450-wide view of the VPS's 1440×900 desktop.
+    private var expandedSize = NSSize(width: 450, height: 330)
     private var hasConnected = false
 
     init() {
