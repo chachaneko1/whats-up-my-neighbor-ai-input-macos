@@ -189,6 +189,10 @@ final class MacVocabularyStore {
         completeLocalMutation()
     }
 
+    // 動態 Prompt 打包演算法（Greedy Knapsack Packing）：
+    // 依使用次數、固定置頂與最後更新時間對啟用詞彙進行排序（hasHigherPromptPriority）；
+    // 依序貪婪納入詞彙，直到 UTF-8 位元組總長逼近 maximumPromptUTF8ByteCount（200 bytes）上限為止。
+    // 條件約束：嚴格受限於 200 bytes，避免 Prompt 體積過大拖慢 Whisper API 響應或沖淡系統指示。
     func buildPrompt(baseInstruction: String = MacVocabularyStore.baseInstruction) -> MacVocabularyPrompt {
         let prioritized = entries
             .filter(\.isEnabled)

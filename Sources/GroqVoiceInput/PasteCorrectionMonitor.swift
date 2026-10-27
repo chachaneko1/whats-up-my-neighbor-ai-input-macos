@@ -48,6 +48,10 @@ final class PasteCorrectionMonitor {
     }
 
     private struct Session {
+        // 隱私隔離與最小讀取範圍：
+        // 僅追蹤使用者剛剛語音貼入的目標 element 與區間（trackedRange），
+        // 搭配前後緊鄰字元（leadingBoundary / trailingBoundary）檢測邊界是否完整，
+        // 絕不讀取全文件或周圍無關文字，並受 maximumMonitoredUTF16Count 上限保護。
         let element: AXUIElement
         let pid: pid_t
         var referenceText: String
@@ -209,6 +213,10 @@ final class PasteCorrectionMonitor {
 
     /// Recheck at the opt-out deadline; a cached notification is not sufficient.
     func isCurrentCorrectionValid() -> Bool {
+        // 打字連發（Burst Typing）動態同步：
+        // 氣泡審查倒數（reviewDelay）可能在使用者連續打字中途到達。
+        // 在判定有效性前先強制觸發 recordValueChange() 同步最新文字；
+        // 若使用者仍在修改，能即刻撤回舊氣泡並重新排程，避免在輸入尚未定稿時過早彈出候選。
         // The deadline can beat the next polling tick. Synchronizing first lets
         // continued typing cancel the old toast and schedule a fresh review.
         if session != nil { recordValueChange() }
@@ -233,6 +241,10 @@ final class PasteCorrectionMonitor {
 
     /// Once accepted or declined, later edits are measured from this correction.
     func finishCurrentCorrection() {
+        // 基準文字重設（Baseline Resetting）：
+        // 當使用者採納或忽略當前修正後，若繼續在同一個輸入框修改文字，
+        // 後續的編輯比對必須以本次修正後的內容（currentText）作為新的 referenceText，
+        // 避免產生重疊的重複詞彙學習候選。
         guard isCurrentCorrectionValid(), var session else {
             stop(reason: "修正目標已改變；未完成的自動加入已取消。", diagnosticReason: .contextChanged)
             return

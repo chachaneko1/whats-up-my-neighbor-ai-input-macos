@@ -34,6 +34,10 @@ final class ClipboardHistoryMonitor {
 
     static let enabledPreferenceKey = "neighbor.clipboardHistory.enabled"
     static let maximumItemByteCount = 8 * 1024 * 1024
+    // 密碼與敏感資料保護（Password Manager Exclusion）：
+    // 1Password、KeeWeb 等密碼管理器在複製密碼時，會在 NSPasteboard 宣告特定標記型別（如 ConcealedType）。
+    // 監控器在讀取資料 Payload 之前，優先檢驗 metadata 型別黑名單；
+    // 只要含有任何隱私或暫存標記，直接整筆略過，徹底防止敏感密碼落入歷史資料庫。
     private static let ignoredTypes: Set<String> = [
         "org.nspasteboard.TransientType",
         "org.nspasteboard.ConcealedType",
@@ -104,6 +108,9 @@ final class ClipboardHistoryMonitor {
         }
         guard generation != previous else { return }
         observedChangeCount = generation
+        // 自身寫入循環防止（Self-Write Suppression）：
+        // 若當前 changeCount 與自身剛剛呼叫 write() 產生的 generation 相同，
+        // 代表這筆變更是由本 App 的語音貼上或歷史還原操作所寫入，不應重複加入歷史，直接退出。
         guard generation != ownWriteChangeCount else { return }
         ownWriteChangeCount = nil
         guard isEnabled else { return }

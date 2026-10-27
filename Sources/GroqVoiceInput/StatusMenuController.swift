@@ -1,5 +1,14 @@
 import AppKit
 
+// MARK: - macOS 狀態列選單控制器（Status Menu Controller）
+// 負責在系統選單列（Menu Bar Extra）建立與維護常駐圖示及完整功能選單。
+// 功能涵蓋：
+// 1. 錄音狀態切換、重新辨識與取消控制。
+// 2. 剪貼簿歷史與子選單綁定。
+// 3. 輸出文字模式選擇、詞彙學習字典預覽、桌寵黑貓放出/收回開關。
+// 4. iPhone 遠端接力狀態顯示與配對控制。
+// 5. 即時更新選單項目文字（如快捷鍵按鍵名稱、接力連線狀態、貓咪選單位置等）。
+
 final class StatusMenuController {
     private(set) var statusItem: NSStatusItem!
     private(set) var toggleMenuItem: NSMenuItem!

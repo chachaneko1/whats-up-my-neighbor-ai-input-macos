@@ -98,6 +98,9 @@ struct DesktopPetModel {
             setPose(.carried, now: now, duration: .infinity)
         }
         if !startingDrag, let previous = lastDragTime, now > previous, now - previous <= 0.3, !world.reduceMotion {
+            // 抓取拖曳物理慣性（Carry Lean Physics）：
+            // 根據游標水平移動速度動態計算傾斜角（lean），並以指數衰減（blend）進行平滑過渡；
+            // 讓使用者拖曳貓咪時產生自然生動的擺動與懸空重力感。
             let speed = (point.x - lastDragPoint.x) / CGFloat(now - previous)
             let target = max(-5, min(5, speed / 160))
             let blend = CGFloat(1 - exp(-(now - previous) * 12))
@@ -265,6 +268,9 @@ struct DesktopPetModel {
                 return
             }
             let progress = max(0, min(1, (now - move.started) / move.duration))
+            // 桌面漫步軌跡計算（Ease-In-Out 與拋物線跳躍）：
+            // 水平移動採 Hermite 平滑曲線（eased）；若起迄點存在垂直高度差（如跳上或跳下資料夾棲息點），
+            // 疊加半正弦波 sin(progress * .pi) 形成生動的拋物線跳躍弧度。
             let eased = progress * progress * (3 - 2 * progress)
             origin = CGPoint(x: move.from.x + (move.to.x - move.from.x) * eased,
                              y: move.from.y + (move.to.y - move.from.y) * eased)

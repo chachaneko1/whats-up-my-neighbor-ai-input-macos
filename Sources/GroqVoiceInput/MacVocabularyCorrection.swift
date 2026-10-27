@@ -7,6 +7,12 @@ struct MacVocabularyCandidate: Equatable {
 }
 
 enum MacVocabularyCorrectionExtractor {
+    // 演算法設計（高精準度詞彙候選擷取）：
+    // 透過最長共同前綴（commonPrefix）與後綴（commonSuffix）收斂出最小異動範圍。
+    // 關鍵過濾條件：
+    // 1. 若整句完全重寫或刪除完整詞彙，判定為結構改寫而非單詞修正，直接捨棄。
+    // 2. 將修改區間映射回分詞（wordRanges），確保擷取出的 candidate 是獨立字詞而非破碎語句。
+    // 3. 候選結果必須唯一（candidates.count == 1），消除兩詞交界處的修改歧義。
     static func candidate(
         original: String,
         edited: String,
@@ -157,6 +163,9 @@ enum TrackedPasteEditDecision: Equatable {
 }
 
 enum TrackedPasteEditPolicy {
+    // 邊界判定準則（Boundary Isolation）：
+    // 若使用者的選取區間（Selection）橫跨貼入文字與原文字的交界，該修改無法確定僅屬於聽寫內容，
+    // 必須排除以防誤學前後非相關詞彙。
     static func boundariesMatch(expectedLeading: String, expectedTrailing: String,
                                 currentLeading: String, currentTrailing: String) -> Bool {
         expectedLeading == currentLeading && expectedTrailing == currentTrailing

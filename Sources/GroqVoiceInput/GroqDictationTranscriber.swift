@@ -1,6 +1,10 @@
 import Foundation
 
 /// Cancellation also covers the interval before the background file read finishes.
+// 執行緒安全與取消語意（Race-Free Cancellation Bridge）：
+// 檔案讀取是在背景序列佇列進行（避免卡住主執行緒）。
+// 若使用者在音訊載入期間呼叫 cancel()，PendingDictationRequest 會利用 NSLock 鎖定狀態；
+// 一旦 URLSessionDataTask 在背景被建立並附著（attach），會立刻被取消，防止無效請求流向 Groq 雲端。
 private final class PendingDictationRequest: DictationCancellable {
     private let lock = NSLock()
     private var cancelled = false

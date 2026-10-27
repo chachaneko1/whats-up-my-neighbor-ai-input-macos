@@ -100,6 +100,12 @@ private let managedHotKeyHandler: EventHandlerUPP = { _, event, userData in
 
 /// Owns Carbon registrations. The controller retains shortcut conflict/recovery policy.
 /// Install, register and tear down on the main thread, alongside the AppKit lifecycle.
+// 系統架構設計理由：
+// 採用 macOS Carbon 的 RegisterEventHotKey API，而非 NSEvent 全域事件監聽（Global Event Monitor）。
+// 為什麼這樣設計：
+// 1. Carbon RegisterEventHotKey 為系統級熱鍵註冊，不需要「輔助使用（Accessibility）」監聽權限即可觸發；
+//    這使初次安裝的使用者按下快捷鍵時，能立刻被 App 捕捉並順暢彈出權限導引視窗。
+// 2. 只有在需要向目標視窗合成 ⌘V 貼上時才真正需要 Accessibility 權限。
 final class HotKeyManager {
     static let primaryID: UInt32 = 1
     static let alternateID: UInt32 = 2
@@ -131,6 +137,9 @@ final class HotKeyManager {
     }
 
     /// nil explicitly clears this registration; a failed replacement stays unregistered.
+    // 註冊安全約定：
+    // 每次註冊新快捷鍵時，若該 id 已有舊註冊，必須先透過 UnregisterEventHotKey 卸載，避免 Carbon 資源洩漏。
+    // 若傳入 nil 則代表明確清除該快捷鍵；若新註冊失敗（如已被其他 App 占用），該 id 保持未註冊狀態並傳回錯誤碼。
     @discardableResult
     func register(shortcut: HotKeyShortcut?, id: UInt32) -> OSStatus {
         if let previous = registrations.removeValue(forKey: id) {

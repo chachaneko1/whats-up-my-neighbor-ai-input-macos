@@ -4,6 +4,13 @@ import ApplicationServices
 import Carbon
 import Security
 
+// MARK: - macOS 語音輸入主應用程式委派與生命週期總協調者
+// 作為 NSApplicationDelegate，本類別負責統籌整套應用的所有子系統：
+// 1. 系統常駐設定：以 .accessory 附屬應用模式執行（不顯示 Dock 圖示，僅駐留於右上角選單列）。
+// 2. 生命週期管理：初始化 Keychain、快捷鍵監聽、錄音器、狀態選單、黑貓 HUD 與桌面漫步寵物。
+// 3. 焦點鎖定與注入管道：在聽寫開始瞬間快照焦點目標，完成轉錄後將文字注入並支援詞彙自適應學習。
+// 4. 接力通訊：協同 MacRemoteBridge 提供 iPhone 遠端語音輸入與焦點控制。
+
 final class VoiceTypeController: NSObject, NSApplicationDelegate {
     private let statusMenu = StatusMenuController()
     private var statusItem: NSStatusItem { statusMenu.statusItem }
@@ -96,6 +103,13 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         focusTargets: focusTargets, textInsertion: textInsertion
     )
 
+    // 應用程式完成啟動：
+    // 1. 設定為 .accessory 模式（不佔用 Dock）。
+    // 2. 記錄啟動與權限診斷（麥克風、輔助使用、CGEvent 模擬按鍵權限）。
+    // 3. 清理過期或孤兒錄音暫存檔。
+    // 4. 載入各項偏好設定（熱鍵、輸出模式、語言設定）。
+    // 5. 啟動剪貼簿歷史監聽與更新檢查器。
+    // 6. 若未設定 API 金鑰，延遲 0.6 秒引導使用者輸入。
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         UpdateDiagnostics.shared.record(.launch, version: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String)
@@ -152,6 +166,8 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         }
     }
 
+    // 應用程式即將關閉：
+    // 嚴格有序清理所有計時器、剪貼簿監控、桌面寵物視窗與全域熱鍵監聽，防止記憶體外洩或孤兒事件處理。
     func applicationWillTerminate(_ notification: Notification) {
         meteringTimer?.invalidate()
         clipboardHistory.stop()
@@ -682,6 +698,10 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         desktopPet.refresh()
     }
 
+    // 切換聽寫錄音狀態（使用者按下快捷鍵或點擊選單列圖示時觸發）：
+    // 1. 若當前正在錄音，立即結束錄音並轉入轉錄階段（dictation.stop）。
+    // 2. 若為閒置，依序檢查：狀態機能否啟動、API 金鑰是否存在、麥克風隱私權限、音訊輸入硬體裝置。
+    // 3. 在啟動錄音的「同一瞬間」立即快照目前的焦點文字輸入框（captureTarget），避免使用者在錄音期間切換視窗。
     func toggleRecording(useAlternateMode: Bool = false) {
         clipboardPicker.dismiss()
         if PasteDiagnostics.shared.isEnabled {

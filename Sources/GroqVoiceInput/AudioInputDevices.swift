@@ -68,6 +68,10 @@ enum AudioInputDevices {
     /// CoreAudio 回傳的 CFString 是 +1 retain，必須用 `Unmanaged` 承接再
     /// `takeRetainedValue()`。直接宣告 `var value: CFString` 讓 CoreAudio 覆寫，
     /// 會讓 Swift 把一個物件參考當成純記憶體處理而洩漏或當掉。
+    // 記憶體管理約束（CoreAudio C API Interop）：
+    // AudioObjectGetPropertyData 取得字串屬性時，底層會建立具有 +1 引用計數的 CFString。
+    // 必須透過 Unmanaged<CFString>? 搭配 takeRetainedValue() 將所有權安全移交給 Swift ARC，
+    // 否則會造成不可逆的記憶體洩漏或非法記憶體覆寫導致崩潰。
     private static func stringProperty(
         _ selector: AudioObjectPropertySelector,
         from id: AudioDeviceID

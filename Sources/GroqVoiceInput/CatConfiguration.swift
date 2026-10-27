@@ -13,6 +13,10 @@ import Glibc
 /// Invalid configuration
 /// falls back as a whole; missing/undecodable artwork only falls back to the cat.
 /// Values are immutable snapshots and are loaded once at app startup.
+// 容錯防護與配置隔離原則：
+// 1. 嚴格檔案上限：設定檔不得超過 16KB，自訂圖片不得超過 4MB 且寬高 <= 2048px，防禦惡意或損壞的大檔。
+// 2. 整體退回機制：若 JSON 結構或版本不符，整份配置優雅退回預設黑貓，避免部分欄位生效導致狀態不一致。
+// 3. 唯讀快照：配置在啟動時載入為不可變快照，App 運行期間絕不主動回寫或破壞使用者的設定檔。
 struct CatConfiguration {
     static let maximumFileBytes = 16 * 1024
     static let maximumImageBytes = 4 * 1024 * 1024

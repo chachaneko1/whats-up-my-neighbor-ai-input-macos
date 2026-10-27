@@ -1,6 +1,14 @@
 import Foundation
 import Security
 
+// MARK: - Keychain 鑰匙圈金鑰儲存庫
+// 負責在 macOS 系統鑰匙圈中安全存取 Groq API 金鑰（kSecClassGenericPassword）。
+// 安全設計重點：
+// 1. 本 App 在本機開發或 ad-hoc 簽章下，重新建置後的程式碼身分（CDHash）會變更，
+//    導致 macOS 頻繁跳出鑰匙圈授權提示。因此成功讀取後會於執行期間在記憶體中快取（cachedAPIKey），
+//    降低彈窗干擾；若使用者取消授權或讀取失敗則不快取，以便重試。
+// 2. 金鑰純保存在記憶體與系統鑰匙圈，絕不以明文寫入硬碟或暫存檔案。
+
 /// Credentials retain their existing Keychain identity; only successful reads are cached.
 final class KeychainStore {
     private let keychainService = "tw.panh.FreeVoiceType.groq"

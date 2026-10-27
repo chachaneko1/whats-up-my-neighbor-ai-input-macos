@@ -45,6 +45,12 @@ enum AudioInputPolicy {
     /// 預設輸入切到 iPhone 時才介入。
     ///
     /// 回傳 nil 表示完全沒有可用的輸入裝置，呼叫端應視為無法錄音。
+    // 裝置挑選優先級設計（Priority Fallback Matrix）：
+    // 1. 本地過濾：第一步無條件過濾所有 Continuity Capture 裝置（避免隔空喚醒手機錄到靜音）。
+    // 2. 使用者指定（preferredUID）優先：若使用者固定選取了外接麥克風，優先採用；拔掉時優雅降級不報錯。
+    // 3. 系統預設裝置：若系統預設為非 iPhone 裝置（如 USB、AirPods），直接沿用。
+    // 4. 內建麥克風退路（builtIn）：當系統預設被切到 iPhone 時，自動切回內建麥克風。
+    // 5. 無內建麥克風機型（如 Mac mini）：退回任一可用的非連續互通音訊裝置。
     static func selectDevice(
         from devices: [AudioInputDevice],
         preferredUID: String?

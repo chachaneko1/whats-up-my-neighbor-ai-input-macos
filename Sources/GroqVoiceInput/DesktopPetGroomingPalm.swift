@@ -2,6 +2,9 @@ import Foundation
 
 /// Palm-led abstraction: the foreleg remains hidden by the torso/head.
 /// Only a rounded palm and short wrist are visible below the mouth.
+// 理毛舔掌動作曲線設計：
+// 採用三次貝茲曲線控制前掌自地面（rest）平滑揚起至下顎位置（mouthPaw）；
+// 中段（0.75s ~ 2.45s）以正弦平方波（sin^2）模擬四次輕柔舔舐的起伏；尾段平滑收回，形成完整的自然舔掌循環。
 struct DesktopPetGroomingPalm {
     let center: CGPoint
     let angle: CGFloat

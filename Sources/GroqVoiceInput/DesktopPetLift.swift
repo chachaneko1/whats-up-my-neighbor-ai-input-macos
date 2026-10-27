@@ -18,6 +18,10 @@ struct DesktopPetLift: Equatable {
     // Logical positions identify complete Gemini PNGs, never interpolated poses.
     // Only source 08→10 expands to 200ms, with dwell intervals in 1/60s units for
     // the five unevenly spaced drawings. All other drawing intervals stay 50ms.
+    // 畫格時序映射與離散圖形對齊：
+    // framePositions 與 frameTimes 對應 Gemini 產生的離散關鍵畫格。
+    // travel 演算法確保動畫停留於真實繪製的圖形（如 08→10 的 200ms 延伸格），
+    // 絕不憑空插值產生模糊破綻，著地時固定收斂至乾淨坐姿。
     static let framePositions: [CGFloat] = [
         0, 1, 2, 3, 4, 5, 6, 7,
         7.333333333333333, 7.666666666666667, 8,

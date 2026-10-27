@@ -52,6 +52,9 @@ final class ClipboardHistoryMenuController: NSObject, NSMenuDelegate {
 
     /// Stop after the displayed prefix rather than copying an entire long entry
     /// just to make a menu title. Never expose the full text through a tooltip.
+    // 選單標題防護與隱私限制：
+    // 最多僅取前 50 個非控制字元作為預覽，且絕對不在 Tooltip 中曝露完整文字內容，
+    // 避免長文本或機密口述在選單中展開洩漏。
     private static func singleLinePrefix(_ text: String) -> String {
         let limit = 50
         var characters: [Character] = []

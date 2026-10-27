@@ -2,6 +2,11 @@ import AppKit
 import ApplicationServices
 
 /// Geometry only. Never captures pixels, reads file contents, or moves icons.
+// 幾何感知與隱私原則（Geometry Only & Non-Invasive）：
+// 僅向系統查詢桌面視窗邊界與 Finder 桌面資料夾圖示座標，絕不截取螢幕像素、絕不讀取檔案內容或移動圖示。
+// 作用：
+// 1. 偵測桌面未被視窗遮蔽的資料夾位置，作為貓咪散步的棲息點（Perch）。
+// 2. 當前台 App 處於全螢幕狀態時，將 fullScreen 設為 true，讓桌面夥伴主動隱藏讓路。
 final class DesktopPetDesktopReader {
     struct Snapshot {
         var perches: [DesktopPetPerch] = []

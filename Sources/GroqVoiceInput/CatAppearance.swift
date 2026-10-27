@@ -20,6 +20,9 @@ struct CatPartStyle: Equatable {
 
 /// Immutable, fully resolved preset + overrides. No accounts, draws or writes.
 struct CatAppearance: Equatable {
+    // 花色預設與部位風格規格：
+    // 預設 9 種官方認證花色（原版黑貓、黑貓、白貓、灰貓、橘虎斑、賓士貓、三花貓、玳瑁貓、重點色貓）；
+    // 劃分 16 個獨立解剖部位（CatBodyPart），支援純色、虎斑、斑塊、三花、白斑與重點色紋理。
     static let presetIDs = ["original", "black", "white", "blue", "orange-tabby", "tuxedo", "calico", "tortoiseshell", "colorpoint"]
     static let presetNames = ["原版黑貓", "黑貓", "白貓", "灰貓", "橘虎斑", "賓士貓", "三花貓", "玳瑁貓", "重點色貓"]
     let preset: String
@@ -73,6 +76,10 @@ struct CatAppearance: Equatable {
     enum Invalid: Error { case appearance }
 
     static func parse(_ value: Any) throws -> CatAppearance {
+        // 嚴格型別校驗防護（Strict Type Parsing）：
+        // 1. 嚴格檢查 JSON 鍵值白名單（preset、seed、parts），拒絕未知屬性。
+        // 2. 種子值 seed 必須為非負整數（排除 CFBoolean 與浮點數 f/d 標記），防止解析歧義。
+        // 3. 各部位覆寫僅接受 color、pattern、patternColor 三個欄位，格式錯誤時整批拋出例外安全退回預設。
         guard let object = value as? [String: Any],
               Set(object.keys).isSubset(of: ["preset", "seed", "parts"]),
               let id = object["preset"] as? String else { throw Invalid.appearance }

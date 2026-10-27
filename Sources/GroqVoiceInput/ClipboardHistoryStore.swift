@@ -62,6 +62,10 @@ final class ClipboardHistoryStore {
                 enqueuePersistence()
             }
         } catch {
+            // 安全防護（防止資料被空白覆寫）：
+            // 若歷史檔案損壞或無法讀取，絕對不能以空的 snapshot 覆寫硬碟檔案。
+            // 設定 persistenceBlocked = true 鎖定寫入，將新資料暫存於記憶體，保留損壞磁區供排查，
+            // 直到使用者執行明確的 clear() 重設。
             // Do not replace an unreadable history with an empty/new snapshot.
             // New captures can still be kept in memory until an explicit clear.
             persistenceBlocked = true
@@ -72,6 +76,9 @@ final class ClipboardHistoryStore {
     @discardableResult
     func add(kind: ClipboardHistoryKind, data: Data) -> Bool {
         guard kind == .text, Self.isValidStoredPayload(kind: kind, data: data) else { return false }
+        // 去重與 LRU 排序：
+        // 若內容已存在，不新增重複資料，而是將既有項目移至最前（index 0）。
+        // 若為新項目則插入開頭，並強制截斷超過 limit（預設 10 筆）的舊資料。
         if let index = items.firstIndex(where: { $0.kind == kind && $0.data == data }) {
             guard index != 0 else { return true }
             let existing = items.remove(at: index)
@@ -190,6 +197,9 @@ final class ClipboardHistoryStore {
                   isValidStoredPayload(kind: record.kind, data: bytes) else { throw StorageError.invalid }
             result.append(.init(id: record.id, kind: record.kind, data: bytes, createdAt: record.createdAt))
         }
+        // 隱私權限加固：
+        // 驗證完完整歷史紀錄後，主動將儲存目錄權限收緊為 0o700、資料檔案收緊為 0o600，
+        // 確保本機其他使用者無權讀取使用者的剪貼簿快照。
         // Tighten permissions only after validating the whole history.
         try manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
         for url in [manifestURL] + result.map({ dataURL(for: $0.id, in: directory) }) {

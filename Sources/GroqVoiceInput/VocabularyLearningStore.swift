@@ -36,6 +36,10 @@ final class VocabularyLearningStore {
     @discardableResult
     func capture(_ candidate: MacVocabularyCandidate) -> VocabularyLearningCandidate? {
         guard storageError == nil else { report(storageError!); return nil }
+        // 候選過濾多層防護：
+        // 1. 長度限制（<= 40 字元）且不可包含標點與換行，確保為單詞而非整句。
+        // 2. 避免重複：已在詞典者不建立；先前被使用者明確拒絕（rejected）者絕不再次打擾。
+        // 3. 上限控制：最多保留 500 筆候選紀錄，防止 UserDefaults 膨脹。
         let term = candidate.suggestedTerm.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !candidate.originalSegment.isEmpty, candidate.originalSegment.count <= 40,
               !term.isEmpty, term.count <= 40,

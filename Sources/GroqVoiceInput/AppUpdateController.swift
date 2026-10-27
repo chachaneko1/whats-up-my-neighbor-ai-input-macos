@@ -2,6 +2,14 @@ import AppKit
 import Sparkle
 import UserNotifications
 
+// MARK: - Sparkle 自動更新控制器
+// 負責與 Sparkle 2 更新框架進行整合協調。
+// 核心設計原則：
+// 1. Sparkle 擁有驗證（EdDSA 簽名）、下載與替換二進位檔案的權責。
+// 2. 本控制器只管理「提醒」時機，堅決不搶奪使用者當前的語音聽寫輸入焦點。
+// 3. 延後重啟：若使用者或 Sparkle 準備重啟以套用更新，但當前正在錄音或重試（isBusy），
+//    將 relaunchHandler 扣留並暫緩重啟，待語音工作徹底完成後才釋放執行。
+
 /// Sparkle owns validation, download and replacement. This adapter only manages
 /// reminders and defers UI/relaunch until dictation and retry work is finished.
 final class AppUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDelegate, UNUserNotificationCenterDelegate {
@@ -67,6 +75,8 @@ final class AppUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardUserDr
 
     var supportsGentleScheduledUpdateReminders: Bool { true }
 
+    // 拒絕 Sparkle 在排程檢查到更新時直接彈窗：
+    // 回傳 false 讓更新資訊交由本控制器的 reminder 機制處理，避免使用者開機或日常打字時突然被更新彈窗搶走焦點。
     func standardUserDriverShouldHandleShowingScheduledUpdate(_ update: SUAppcastItem, andInImmediateFocus immediateFocus: Bool) -> Bool {
         false // Reminder first; never steal dictation focus near app launch.
     }
@@ -88,6 +98,8 @@ final class AppUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardUserDr
         clearReminder()
     }
 
+    // 若當前正處於語音錄音或重試中（isBusy），暫緩 Sparkle 的即時重啟，
+    // 將 installHandler 暫存至 relaunchHandler，待工作完畢後再觸發重啟。
     func updater(_ updater: SPUUpdater, shouldPostponeRelaunchForUpdate item: SUAppcastItem, untilInvokingBlock installHandler: @escaping () -> Void) -> Bool {
         guard isBusy() else { return false }
         relaunchHandler = installHandler

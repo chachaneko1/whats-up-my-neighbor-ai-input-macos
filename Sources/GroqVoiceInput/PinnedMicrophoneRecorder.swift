@@ -63,6 +63,9 @@ final class PinnedMicrophoneRecorder: NSObject, DictationRecording {
 
     /// Presentation must distinguish missing measurements from maximum volume.
     /// Keep the conservative silence-auto-stop fallback above unchanged.
+    // 雙軌計量設計：
+    // averagePowerLevel 採保守容錯策略（量不到回傳 0 代表大聲，絕不因量測失效誤切靜音）；
+    // visualPowerLevel 則回傳 Float?，讓 UI 能明確區分「未錄音/訊號中斷（nil）」與「最大音量」，避免波形錯誤顯示全滿。
     var visualPowerLevel: Float? {
         guard isRecording else { return nil }
         return output.connection(with: .audio)?.audioChannels.first?.averagePowerLevel
@@ -119,6 +122,9 @@ final class PinnedMicrophoneRecorder: NSObject, DictationRecording {
     /// 只在選中的裝置改變時重新設定。設定本身是最貴的一步，留著重複使用，
     /// 第二次之後的 `startRunning()` 會明顯比第一次快。
     private func configureIfNeeded(deviceUID: String) throws {
+        // 硬體重新插拔防護：
+        // 麥克風拔除後再插回時 UID 不變，但底層 captureSession 的 input 會被 macOS 系統自動移除。
+        // 若只比對 UID 就會誤判為已設定而跳過加入 input，導致錄出無聲空檔；因此必須同時檢查 session.inputs.isEmpty。
         // 也檢查 inputs 是否還在：裝置被拔掉再插回來時 UID 沒變，但 session 的
         // input 已經被系統移掉了，只比對 UID 會跳過重建而錄到一段空的音訊。
         guard configuredDeviceUID != deviceUID || session.inputs.isEmpty else { return }
@@ -185,6 +191,8 @@ extension PinnedMicrophoneRecorder: AVCaptureFileOutputRecordingDelegate {
         // 錄音正常結束時 error 仍可能非 nil（例如達到長度上限）。
         // AVFoundation 用 AVErrorRecordingSuccessfullyFinishedKey 告訴我們
         // 檔案到底能不能用，不看這個旗標會把可用的錄音誤丟掉。
+        // 容錯判斷：達到錄音長度上限或外部正常停止時，AVFoundation 仍會傳入非 nil 的 NSError；
+        // 必須以 AVErrorRecordingSuccessfullyFinishedKey 為準，避免將已成功寫入的音檔誤判為失敗而丟棄。
         let recordingIsUsable: Bool
         if let error = error as NSError? {
             recordingIsUsable = (error.userInfo[AVErrorRecordingSuccessfullyFinishedKey] as? Bool) ?? false

@@ -1,5 +1,10 @@
 import Foundation
 
+// MARK: - 應用程式偏好設定儲存與版本相容遷移
+// 集中管理 UserDefaults 鍵值、預設值以及與舊版本的欄位相容處理。
+// 特別設計：接力模式（iPhone Relay）的啟用狀態刻意不予持久化保存，每次啟動 App 一律預設停用，
+// 必須由使用者手動開啟，避免在使用者不知情的情況下在背景開放連線。
+
 struct TextSettings: Equatable {
     var convertChineseNumerals: Bool
     var silenceAutoStopSeconds: Int
@@ -55,6 +60,9 @@ final class SettingsStore {
         defaults.set(Int(shortcut.modifiers), forKey: Keys.hotKeyModifiers)
     }
 
+    // 載入剪貼簿搜尋全域快捷鍵：
+    // 若儲存的修飾鍵為 0，表示使用者曾明確停用此快捷鍵，回傳 nil；
+    // 若鍵值不存在，表示初次安裝使用，回傳預設的 ⌘⌥V。
     func loadClipboardHotKey() -> HotKeyShortcut? {
         guard let stored = storedHotKey(
             codeKey: Keys.clipboardHotKeyCode,
@@ -126,6 +134,9 @@ final class SettingsStore {
         }
     }
 
+    // 載入接力設定：
+    // 刻意完全忽略舊版的 allowContinuityMicrophone 偏好，
+    // Mac 端本機錄音絕不擅自借用 iPhone 麥克風，維持裝置選擇確定性。
     func loadRelaySettings() -> RelaySettings {
         // Legacy allowContinuityMicrophone is deliberately ignored. Desktop
         // recording never uses phone hardware, regardless of old preferences.

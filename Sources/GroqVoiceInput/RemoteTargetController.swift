@@ -1,6 +1,10 @@
 import AppKit
 import ApplicationServices
 
+// MARK: - 遠端輸入目標控制器
+// 負責處理來自 iPhone 的遠端目標鎖定、文字貼上與送出請求。
+// 嚴格落實防重放攻擊、TTL 逾時清理、焦點二次驗證與鍵盤事件合成。
+
 final class RemoteTargetController {
     struct Environment {
         var schedule: (TimeInterval, @escaping () -> Void) -> Void
@@ -33,6 +37,7 @@ final class RemoteTargetController {
         self.environment = environment
     }
 
+    // 已處理的請求 ID 集合：防止網路重試或惡意重放同一個請求。上限 200 筆時批次清理舊記錄。
     private var processedRequestIDs = Set<String>()
 
     func handle(_ message: RemoteMessage, send: @escaping (RemoteMessage) -> Bool) {
@@ -45,6 +50,7 @@ final class RemoteTargetController {
             return
         }
 
+        // 冪等性防護：若該請求 ID 已被處理過則直接忽略。
         guard processedRequestIDs.insert(message.id).inserted else { return }
         if processedRequestIDs.count > 200 { processedRequestIDs.removeAll(keepingCapacity: true) }
 
@@ -74,6 +80,8 @@ final class RemoteTargetController {
         onTargetChange?("尚未鎖定輸入框")
     }
 
+    // 處理 iPhone 的鎖定目標請求：擷取當前輸入目標，預設 TTL 300 秒（5 分鐘）。
+    // 若 5 分鐘內未完成輸入，自動釋放鎖定，避免長時間鎖定過期的視窗元件。
     private func handleTargetRequest(_ request: RemoteMessage, send: @escaping (RemoteMessage) -> Bool) {
         do {
             let target = try focusTargets.captureTarget(ttl: 300)
@@ -102,6 +110,8 @@ final class RemoteTargetController {
         }
     }
 
+    // 處理 iPhone 的文字執行請求（貼上或貼上並送出）。
+    // 防禦性檢查：字數限制 100,000 字元、Session ID 必須與已鎖定的一致。
     private func handleExecuteRequest(_ request: RemoteMessage, send: @escaping (RemoteMessage) -> Bool) {
         let trimmed = request.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard let action = request.action,
@@ -134,6 +144,9 @@ final class RemoteTargetController {
             return
         }
 
+        // 貼上事件合成後延遲 0.28 秒才執行送出：
+        // 理由：讓目標應用程式的事件迴圈有足夠時間處理 ⌘V 貼上事件並更新文字緩衝區。
+        // 送出前必須再次 validateTarget，確保使用者在貼上後瞬間沒有切換視窗。
         environment.schedule(0.28) { [weak self] in
             guard let self else { return }
             if action.submits {
@@ -195,6 +208,8 @@ final class RemoteTargetController {
         }
     }
 
+    // 合成 Return 鍵事件（虛擬鍵碼 36）以模擬使用者手動按下送出。
+    // 發送至 cghidEventTap 確保能穿透各種現代應用程式的事件監聽。
     private static func postSubmitEvent() -> Bool {
         let source = CGEventSource(stateID: .combinedSessionState)
         guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 36, keyDown: true),

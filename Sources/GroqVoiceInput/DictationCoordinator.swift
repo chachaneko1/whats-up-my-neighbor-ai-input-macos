@@ -67,6 +67,9 @@ final class DictationCoordinator {
 
     private(set) var state: DictationState = .idle
     var sessionID: UUID? { session?.id }
+    // 設計意圖：允許在等待重試（.awaitingRetry）期間直接發起新錄音。
+    // 使用者若不想重試舊錄音，可直接重新講話；一旦發起新錄音，
+    // 舊 session 的暫存音訊檔會在 start() 中被立即移除，確保舊任務徹底結束。
     var canStart: Bool { (state == .idle || state == .awaitingRetry) && !recorder.isBusy }
     var onStateChange: ((DictationState) -> Void)?
     var onError: ((String) -> Void)?
@@ -103,6 +106,9 @@ final class DictationCoordinator {
         let current = Session(id: UUID(), url: storage.makeURL(), settings: settings)
         session = current
         setState(.starting)
+        // 世代守衛（Generation Guard）：setState 會同步觸發外部 onStateChange 回呼。
+        // 外部監聽者可能在回呼中呼叫 cancel() 或觸發狀態變更。
+        // 必須維持條件：在命令底層 recorder 啟動前，確認 session 與狀態未被外部改變，避免競態。
         guard session?.id == current.id, state == .starting else { return false }
         recorder.start(deviceUID: deviceUID, url: current.url)
         return true
@@ -212,6 +218,7 @@ final class DictationCoordinator {
         let requestID = UUID()
         session?.requestID = requestID
         setState(.transcribing)
+        // 驗證當前任務世代仍有效；若已在 setState 回呼期間被取消，則不發出網路請求。
         guard session?.id == current.id, session?.requestID == requestID, state == .transcribing else { return }
         let token = transcriber.transcribe(
             url: current.url, language: current.settings.language, reinforce: reinforce
@@ -254,6 +261,10 @@ final class DictationCoordinator {
                 return
             }
             if LanguagePolicy.shouldIntercept(transcript, settings: current.settings.language) {
+                // 設計意圖：Groq Whisper 在極短音訊或雜音下偶爾會漂移為非目標語言。
+                // 當語言不符時，若啟用自動重試，會以 reinforce: true 重新轉錄（在 Prompt 加入語言強制提示）。
+                // 容易誤用之處：必須嚴格限制僅自動重試一次（!current.automaticRetryUsed），
+                // 避免模型持續漂移造成無窮重試而耗盡 API 額度；再次失敗則保留錄音並交給使用者決定。
                 if !manualRetry && !current.automaticRetryUsed && current.settings.language.automaticRetryEnabled {
                     current.automaticRetryUsed = true
                     current.requestID = nil
@@ -290,6 +301,9 @@ final class DictationCoordinator {
         session?.retryDeadline = deadline
         setState(.awaitingRetry)
         guard session?.id == current.id, state == .awaitingRetry else { return }
+        // 設計意圖：使用 deadline 作為取消權杖（Token）。
+        // 若使用者在寬限期內手動點擊重試並再次失敗，retryDeadline 會被展延；
+        // 當排程閉包觸發時，若 deadline 已被更新，則不執行 finish()，避免提前清理仍處於寬限期的錄音檔。
         schedule(retentionInterval) { [weak self] in
             guard let self, self.state == .awaitingRetry,
                   self.session?.id == current.id, self.session?.retryDeadline == deadline else { return }

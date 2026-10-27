@@ -1,6 +1,10 @@
 import Foundation
 @preconcurrency import MultipeerConnectivity
 
+// MARK: - Mac 遠端接力橋接器（Multipeer Connectivity Bridge）
+// 負責 Mac 與 iPhone（GroqVoice / YUI companion）之間的點對點近場加密通訊。
+// 具備動態 6 位數配對碼認證、TLS 傳輸層強制加密、連線狀態廣播與安全斷開機制。
+
 final class MacRemoteBridge: NSObject, @unchecked Sendable {
     static let serviceType = "groq-voice"
 
@@ -33,6 +37,10 @@ final class MacRemoteBridge: NSObject, @unchecked Sendable {
         super.init()
     }
 
+    // 啟動接力模式：
+    // 1. 建立 MCSession，強制 encryptionPreference = .required。
+    // 2. 廣播本機 peer，並在 discoveryInfo 附帶當前協議版本（protocolVersion）。
+    // 3. 所有狀態在 relayLock 保護下切換為 enabled。
     func start() {
         let newSession = MCSession(
             peer: localPeerID,
@@ -96,6 +104,8 @@ final class MacRemoteBridge: NSObject, @unchecked Sendable {
         return relayEnabled && relayAdvertiser === advertiser ? relaySession : nil
     }
 
+    // 開始配對流程：記錄使用者畫面上產生的臨時 6 位數配對碼，預設有效期限 300 秒。
+    // 逾期或配對成功後配對碼會立即被設為 nil。
     func beginPairing(code: String, validFor seconds: TimeInterval = 300) {
         pairingLock.lock()
         pairingCode = code
@@ -110,6 +120,7 @@ final class MacRemoteBridge: NSObject, @unchecked Sendable {
         pairingLock.unlock()
     }
 
+    // 清除已配對的 iPhone 記錄並立即中斷連線。
     func forgetPairedPhone() {
         activeSession()?.disconnect()
         UserDefaults.standard.removeObject(forKey: pairedPeerDefaultsKey)
@@ -124,6 +135,7 @@ final class MacRemoteBridge: NSObject, @unchecked Sendable {
         loadPeer(forKey: pairedPeerDefaultsKey) != nil
     }
 
+    // 發送遠端訊息：使用 .reliable 保證封包依序抵達且不漏失。
     @discardableResult
     func send(_ message: RemoteMessage) -> Bool {
         guard let session = activeSession() else { return false }

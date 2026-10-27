@@ -1,5 +1,12 @@
 import AppKit
 
+// MARK: - 黑貓覆蓋層浮動控制器（Cat Overlay Controller）
+// 負責在螢幕上呈現無邊框、透明且不搶奪文字輸入焦點的黑貓伴侶視窗。
+// 特性：
+// 1. 純視覺與輔助互動：本模組絕對不自行開啟麥克風，所有按鍵點擊皆僅回傳事件（取消或完成）。
+// 2. 視窗層級：設為 .floating 與 .nonactivatingPanel，能在全螢幕 App 下正常浮現且不奪取鍵盤輸入焦點。
+// 3. 尊重系統無障礙：即時監聽 accessibilityDisplayOptionsDidChangeNotification，若使用者開啟減弱動態效果則自動停用嘴巴張合動畫。
+
 /// A silent, nonactivating companion. The application owns recording; these two
 /// actions only ask it to cancel or finish, and never open a microphone here.
 final class CatOverlay {
@@ -157,6 +164,7 @@ final class CatOverlay {
     }
 }
 
+// 覆蓋層專用面板：明確拒絕成為 Key Window 或 Main Window，保障正在編輯中的文字輸入框不失焦。
 private final class CatOverlayPanel: NSPanel {
     var didOrderOut: (() -> Void)?
     override var canBecomeKey: Bool { false }
@@ -169,6 +177,8 @@ private final class CatOverlayPanel: NSPanel {
 
 private enum CatOverlayMode { case recording, greeting }
 
+// 貓咪圖像與眼球按鈕繪製檢視：
+// 整合透明邊界、嘴部動態張合畫格更新以及眼睛按鈕的命中測試。
 private final class CatArtworkView: NSView {
     let cancel = CatEyeButton()
     let finish = CatEyeButton()

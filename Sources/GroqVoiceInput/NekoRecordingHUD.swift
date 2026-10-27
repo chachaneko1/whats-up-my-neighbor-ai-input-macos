@@ -1,5 +1,10 @@
 import AppKit
 
+// MARK: - 錄音 HUD 視覺元件與浮動面板
+// 實現緊湊、非侵入性的黑貓錄音抬頭顯示器（HUD）。
+// 包含音量視覺波形棒（11 根具正弦包絡線之音波）、眼球點擊互動（左眼取消、右眼完成）
+// 以及全螢幕 App 支援。
+
 enum NekoAppearance {
     static let background = NSColor(calibratedRed: 0.973, green: 0.969, blue: 0.953, alpha: 1)
     static let ink = NSColor(calibratedWhite: 0.086, alpha: 1)
@@ -10,12 +15,14 @@ enum NekoAppearance {
     }
 }
 
+// 錄音浮動面板：禁止成為 Key 或 Main 視窗，避免在錄音開始時偷走使用者的打字焦點。
 /// The floating controls must not replace the user's typing target.
 final class NekoFloatingPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 }
 
+// 眼睛點擊按鈕：以黑貓的左右眼作為取消與完成動作的熱區，具備滑鼠懸停（Hover）發光效果。
 final class NekoEyeButton: NSButton {
     let accent: NSColor
     var hovered = false
@@ -78,6 +85,8 @@ final class NekoEyeButton: NSButton {
     }
 }
 
+// 錄音 HUD 專屬主檢視：
+// 繪製黑貓圖像、狀態說明文字標籤，以及錄音中的動態波形棒（水平排列，具備正弦包絡線振幅加權）。
 final class NekoRecordingView: NSView {
     let cancelButton = NekoEyeButton(accent: NekoAppearance.coral)
     let finishButton = NekoEyeButton(accent: NekoAppearance.mint)
@@ -231,6 +240,8 @@ final class NekoRecordingView: NSView {
     }
 }
 
+// 錄音 HUD 視窗控制器：
+// 管理浮動面板的顯示、隱藏、螢幕定位（頂部中央或底部中央）、逾時自動收合與初次操作指引引導。
 final class NekoRecordingHUD {
     var isVisible: Bool { panel.isVisible }
     private let panel: NekoFloatingPanel

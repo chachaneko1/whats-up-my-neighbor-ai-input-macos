@@ -103,6 +103,9 @@ enum GroqTranscriptionRequest {
         prompt: String,
         format: TranscriptionFormat
     ) -> [(name: String, value: String)] {
+        // 參數約束與確定性：
+        // 1. temperature 固定為 "0"，降低隨機取樣機率，確保轉錄輸出具有最高確定性並極小化幻覺。
+        // 2. response_format 區分 plain（json）與 verbose（verbose_json），前者極小化網路延遲與 Payload。
         var result: [(name: String, value: String)] = [
             ("model", model),
             ("language", language),
@@ -203,6 +206,8 @@ enum GroqTranscriptionResponse {
     }
 
     /// 非 2xx 時，優先取 Groq 回傳的 `error.message`，取不到才用泛用訊息。
+    // 設計意圖：Groq 雲端在 API Key 無效、Rate Limit 或音訊不合法時會回傳包含具體原因的 JSON error payload。
+    // 優先解析並向使用者顯示精準的雲端錯誤說明，避免只顯示模糊的 HTTP 狀態碼。
     static func error(from data: Data?, statusCode: Int) -> VoiceTypeError {
         let fallback = "Groq 回傳錯誤（HTTP \(statusCode)）。"
         guard let data,

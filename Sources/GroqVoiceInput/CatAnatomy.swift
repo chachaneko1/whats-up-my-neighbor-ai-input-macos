@@ -2,6 +2,11 @@ import Foundation
 
 /// Coordinates are top-left, in the original artwork. These are masks clipped
 /// to the source alpha, never replacement silhouettes or animation keyframes.
+// 解剖遮罩取樣架構（Anatomical Coordinate Mapping）：
+// 將原畫素材像素座標歸一化為部位局部幾何座標（u, v 介於 0~1）；
+// 關鍵區分：
+// 1. HeadProfile.desktop：對應桌面貓咪圓臉姿態。
+// 2. HeadProfile.recording：對應全螢幕 HUD 的修長下顎與耳部輪廓，使虎斑與三花紋路在不同資產上精確對齊特徵點。
 enum CatAnatomy {
     enum HeadProfile { case desktop, recording }
     struct Sample {

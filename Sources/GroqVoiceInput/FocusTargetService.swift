@@ -25,6 +25,9 @@ enum FocusTargetPolicy {
 }
 
 /// A snapshot identifies the focused element without reading its text contents.
+// 隱私與安全設計原則：
+// 快照僅保存焦點元素的識別屬性（PID、BundleID、Window ID、Role、可編輯狀態），
+// 絕對不讀取編輯框內的現有文字或未送出的內容，嚴格落實 PRIVACY.md 的零個人資料外流承諾。
 struct FocusTargetSnapshot {
     let pid: pid_t
     let bundleIdentifier: String
@@ -102,6 +105,10 @@ final class FocusTargetService {
             PasteDiagnostics.shared.record(.init(tag: .captureResult, accepted: false, failure: .accessibilityDenied))
             throw FocusTargetError.accessibilityDenied
         }
+        // 策略檢驗差異：
+        // 1. localDictation（本機語音）：使用 isLocalPasteTarget。現代編輯器（如 VS Code、瀏覽器 Web 編輯區）
+        //    的 AXValue 往往不可直接設值（canSetValue == false），但完全支援 ⌘V 鍵盤貼上。
+        // 2. remoteStrict（iPhone 接力）：要求嚴格的 isEditable，避免向不可控的遠端目標盲目注入按鍵。
         guard let snapshot = environment.currentSnapshot(),
               policy == .localDictation ? snapshot.isLocalPasteTarget : snapshot.isEditable else {
             PasteDiagnostics.shared.record(.init(tag: .captureResult, accepted: false, failure: .noEditableTarget))
@@ -185,6 +192,9 @@ final class FocusTargetService {
     private func localWindowsMatch(_ expected: FocusTargetSnapshot, _ current: FocusTargetSnapshot) -> Bool {
         switch (expected.windowElement, current.windowElement) {
         case let (expectedWindow?, currentWindow?):
+            // 視窗物件層級容錯：
+            // 瀏覽器分頁標題或線上文檔名稱常因未讀訊息數或自動存檔而變動。
+            // 此處比對 Window AXUIElement 的實體參照（CFEqual）而非字串標題，避免標題變更導致貼上失效。
             // Browser chat titles and document names can change without moving the caret.
             return environment.elementsMatch(expectedWindow, currentWindow)
         case (nil, nil):
@@ -199,6 +209,9 @@ final class FocusTargetService {
         isEnabled: Bool? = nil, isReadOnly: Bool? = nil,
         isExplicitlyEditable: Bool? = nil, hasProtectedContent: Bool? = nil
     ) -> Bool {
+        // 安全不可逾越條件：
+        // 絕對不將語音辨識明文注入 AXSecureTextField（密碼框）或具有 protectedContent 的敏感區域，
+        // 避免使用者的口述內容意外暴露於敏感欄位。
         guard subrole != "AXSecureTextField", role != "AXSecureTextField",
               isEnabled != false, isReadOnly != true,
               isExplicitlyEditable != false, hasProtectedContent != true else { return false }

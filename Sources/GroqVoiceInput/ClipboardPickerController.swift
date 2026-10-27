@@ -287,6 +287,10 @@ final class ClipboardPickerController: NSObject {
         let token = generation
         // Keep the panel key until Return and shortcut modifiers are released,
         // so a held confirmation key cannot repeat into the destination app.
+        // 按鍵釋放延遲與外洩防護（Physical Key Release Barrier）：
+        // 使用者按下 Return（Enter）選擇歷史時，手指可能尚未完全鬆開；
+        // 若立即關閉視窗並切換焦點至目標 App，殘留的 Return 鍵會被目標視窗接收，造成聊天軟體「誤發訊息」或多換一行。
+        // 此處以 50ms 循環輪詢 selectionKeysHeld()，直到實體 Return 與修飾鍵徹底釋放後，才關閉面板並送出 ⌘V。
         func attempt() {
             guard self.generation == token else { return }
             if !self.heldConfirmationKeys.isEmpty || self.environment.selectionKeysHeld() {

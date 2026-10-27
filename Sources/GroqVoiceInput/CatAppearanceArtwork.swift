@@ -2,6 +2,9 @@ import AppKit
 
 /// Repaint only RGB, retaining every source alpha pixel and the original pose.
 /// Trusted bundled sources only. User PNGs never enter this renderer.
+// 原生著色引擎架構（Alpha-Preserving Color Re-mapping）：
+// 1. 像素重繪僅修改 RGB 顏色，百分之百保留原稿黑貓 PNG 的 Alpha 通道（包含細微鬍鬚、陰影與輪廓反鋸齒）。
+// 2. 安全邊界：此著色器僅處理官方打包的受信任素材，使用者自訂圖片絕不經過此管線，杜絕像素運算溢出與格式錯誤。
 final class CatAppearanceArtwork {
     private static let markerParts = CatBodyPart.allCases
     struct RGB {

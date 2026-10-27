@@ -20,6 +20,10 @@ private final class DesktopPetDisplayPulse: NSObject {
 }
 
 private final class DesktopPetPanel: NSPanel {
+    // 核心設計規範（焦點不侵入原則）：
+    // 桌面貓咪純粹為陪伴與視覺元件，絕對不能剝奪使用者的工作輸入焦點。
+    // 即使使用者點擊、撫摸或拖拽貓咪，當前正在輸入的編輯器或視窗永遠不會失去焦點。
+    // 容易誤用之處：切勿為了接收鍵盤事件而將其改為 true，否則每次碰觸貓咪都會打斷使用者的工作。
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 }
@@ -146,6 +150,10 @@ final class DesktopPetController {
         guard !disposed else { return }
         let now = suppliedNow ?? clock()
         let environment = world(now: now)
+        // 遺失 mouseUp 事件的自我修復：
+        // 在浮動視窗中，若使用者在螢幕外或快速拖拽時釋放滑鼠，AppKit 的 mouseUp 有微小機率被系統遺失。
+        // 若系統實體滑鼠左鍵已釋放（bit 0 為 0），但模型仍處於 isPressed，
+        // 立即主動合成 pointerUp，使貓咪平穩著地，避免永久卡在抓起懸空狀態。
         if !deliveringPointer, model.isPressed, pressedButtons() & 1 == 0 {
             model.pointerUp(now: now, world: environment)
         }
@@ -192,6 +200,12 @@ final class DesktopPetController {
     /// Observe pointer position only to let transparent padding pass through.
     /// Hover never moves the cat, changes its pose, or consumes a desktop event.
     func updateHitRegion(at point: CGPoint) {
+        // 動態滑鼠穿透與命中測試：
+        // 1. 面板為固定矩形且周圍有大量透明留白；預設 ignoresMouseEvents = true，點擊完全穿透至底層桌面。
+        // 2. 只有當游標移動到非透明實體像素上方時（artwork.containsCat），才將 ignoresMouseEvents 設為 false。
+        // 3. 特殊邊界條件：
+        //    - model.isPressed（拖拽中）：必須保持 false，避免游標快速甩動暫時脫離圖案時遺失 drag 與 mouseUp。
+        //    - isBusy()（錄音中、選單開啟或 Modal 存在）：必須強制設為 true，全面讓出滑鼠事件，避免干擾核心操作。
         guard model.visible, !disposed, suspended.isEmpty, !isBusy() else {
             panel.ignoresMouseEvents = true; return
         }

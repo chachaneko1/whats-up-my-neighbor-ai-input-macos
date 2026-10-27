@@ -68,6 +68,9 @@ enum LanguageOption: String, CaseIterable {
 ///
 /// 上限三種是刻意的。就算是三語使用者，同一段口述混到第四種語言的機會很低，
 /// 而允許的語言愈多，語言閘門能擋下的誤判就愈少。
+// 設計意圖與邊界：
+// 1. 混用上限設為 2（加主要語言共 3 種）：允許的語言愈多，Unicode 腳本聯集愈大，攔截模型幻覺雜音的防禦力就會被大幅稀釋。
+// 2. minimumLetterCount = 6：極短詞（如「OK」、「好」）容易受少數字母腳本比例擾動，故設定長度門檻全面豁免，避免誤攔短句。
 struct LanguageSettings: Equatable {
     static let maximumAdditionalLanguages = 2
 
