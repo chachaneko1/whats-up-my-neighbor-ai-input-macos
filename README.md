@@ -126,6 +126,7 @@ What's up my neighbor 是輕量的原生 macOS 選單列語音輸入 App。在�
 | 看版本更新內容 | [CHANGELOG.md](CHANGELOG.md)、[官網更新紀錄](https://nekonode.cloud/changelog) |
 | 了解架構與資料流 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | 從原始碼建置、跑測試 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)、[docs/TESTING.md](docs/TESTING.md) |
+| 雲端協作與 PR 準備 | [docs/CLOUD_DEVELOPMENT.md](docs/CLOUD_DEVELOPMENT.md) |
 | 發佈與更新流程 | [docs/UPDATES.md](docs/UPDATES.md) |
 | 參與開發、回報問題 | [CONTRIBUTING.md](CONTRIBUTING.md)、[SECURITY.md](SECURITY.md) |
 
