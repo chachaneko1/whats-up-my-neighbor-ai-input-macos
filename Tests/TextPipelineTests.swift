@@ -17,6 +17,7 @@ enum TextPipelineTests {
         testChineseNumerals()
         testNonChinesePrimaryLanguage()
         testLanguageSettings()
+        testHallucinatedBoilerplateFiltration()
         print("Text pipeline tests passed")
     }
 
@@ -394,6 +395,74 @@ enum TextPipelineTests {
         )
         precondition(duplicated.allowedLanguages.count == 2)
         precondition(duplicated.allowedScripts == ["Latin"])
+    }
+
+    // MARK: - 宣傳語與幻覺防護
+
+    static func testHallucinatedBoilerplateFiltration() {
+        // 1. 純宣傳語幻覺（整段命中時應判定為無效語音）
+        let standaloneHallucinations = [
+            "請訂閱我的頻道",
+            "請不吝嗇打賞訂閱",
+            "請按讚、分享、開啟小鈴鐺",
+            "感謝收看！",
+            "謝謝大家收看",
+            "歡迎訂閱",
+            "訂閱、訂閱、訂閱",
+            "訂閱",
+            "請按讚",
+            "請訂閱",
+            "按讚、分享",
+            "感謝您的支持！"
+        ]
+        for s in standaloneHallucinations {
+            precondition(
+                TextPostProcessor.isPureHallucinatedBoilerplate(s),
+                "應判定為純宣傳語幻覺：\(s)"
+            )
+        }
+
+        // 正常語意中提到「訂閱」或「按讚」絕不能被誤判為純宣傳語
+        let legitimateCases = [
+            "使用者確實說出訂閱請按讚等內容時必須保留",
+            "請訂閱我們的電子報",
+            "這本書很多人按讚",
+            "我想訂閱經濟學人雜誌",
+            "這部影片的按讚數很高",
+            "請不要訂閱那個不良頻道"
+        ]
+        for s in legitimateCases {
+            precondition(
+                !TextPostProcessor.isPureHallucinatedBoilerplate(s),
+                "正常內容不得誤判為純宣傳語：\(s)"
+            )
+        }
+
+        // 2. 尾端附掛宣傳語（句尾標點後附掛的 YouTube 口號應被安全剝除）
+        expect(
+            TextPostProcessor.process("今天下午開會記得帶筆電。請訂閱我的頻道", mode: .verbatim),
+            "今天下午開會記得帶筆電。"
+        )
+        expect(
+            TextPostProcessor.process("好的收到。請按讚、分享、開啟小鈴鐺！", mode: .verbatim),
+            "好的收到。"
+        )
+        expect(
+            TextPostProcessor.process("明天見。謝謝大家收看", mode: .verbatim),
+            "明天見。"
+        )
+        expect(
+            TextPostProcessor.process("沒問題。感謝收看！", mode: .verbatim),
+            "沒問題。"
+        )
+
+        // 正常文句即使包含訂閱與按讚，process 後必須完整保留
+        for s in legitimateCases {
+            expect(
+                TextPostProcessor.process(s, mode: .verbatim),
+                s
+            )
+        }
     }
 
     // MARK: - 工具

@@ -255,6 +255,15 @@ final class DictationCoordinator {
                 }
                 return
             }
+            if TextPostProcessor.isPureHallucinatedBoilerplate(transcript) {
+                if manualRetry {
+                    retain(message: "未清楚辨識到有效語音。錄音會再保留兩分鐘，你也可以直接重新錄音。", prompt: false)
+                } else {
+                    finish()
+                    onError?("未清楚辨識到有效語音，請再試一次。")
+                }
+                return
+            }
             if consumeTranscript?(transcript) == true {
                 guard session?.id == sessionID else { return }
                 finish()
