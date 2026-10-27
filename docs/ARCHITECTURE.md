@@ -2,7 +2,7 @@
 
 這份文件說明 What's up my neighbor（macOS）從按下快捷鍵到文字回到輸入框，中間經過哪些模組、資料在哪裡停留。想修改程式前，先從這裡找到要動的檔案。
 
-對照版本：1.4.5（build 1012）；`main` 另含尚未隨正式版發布的毛色外觀。所有原始碼在 `Sources/GroqVoiceInput/`，共 53 個 Swift 檔（1.4.5 正式版是 50 個，另外 3 個是尚未發布的毛色外觀），沒有第三方相依套件，只有更新功能使用 Sparkle 2.10.0。
+對照版本：1.4.6（build 1013）。所有原始碼在 `Sources/GroqVoiceInput/`；除了更新功能使用 Sparkle 2.10.0，沒有其他第三方相依套件。
 
 ## 一句話版本
 
@@ -19,7 +19,7 @@ App 是選單列常駐程式（`LSUIElement`），沒有主視窗、沒有自己
 
 | 步驟 | 負責的檔案 | 說明 |
 |---|---|---|
-| 註冊全域快捷鍵 | `HotKeyManager.swift` | Carbon hot key；主快捷鍵預設 `⌥↑`，iPhone 接力 `⌃⌥↑`，剪貼簿歷史 `⌃⌥V` |
+| 註冊全域快捷鍵 | `HotKeyManager.swift`、`ClipboardPasteGesture.swift` | Carbon hot key：錄音 `⌥↑`、iPhone 接力 `⌃⌥↑`、剪貼簿備用 `⌃⌥V`；1.4.6 起另以事件 tap 支援按住 `⌘V` 再按方向鍵的歷史手勢 |
 | 串起所有元件 | `main.swift`、`VoiceTypeController.swift` | `main.swift` 只建立 `NSApplication` 並交給 `VoiceTypeController`（`NSApplicationDelegate`）；啟動時建立各服務、請求權限、顯示首次引導 |
 | 錄音狀態機 | `DictationCoordinator.swift` | 一次只管一段錄音；狀態 `idle → starting → recording → finalizing → transcribing → delivering`，失敗時進 `awaitingRetry` |
 | 鎖定輸入目標 | `FocusTargetService.swift` | 記下當下前景 App、視窗與焦點元素的身分（不讀文字內容、不截圖） |
@@ -73,7 +73,7 @@ App 是選單列常駐程式（`LSUIElement`），沒有主視窗、沒有自己
 | 選單列 | `StatusMenuController.swift`、`NekoMenuBarIcon.swift` | 黑貓圖示與所有設定入口 |
 | 設定 | `SettingsStore.swift`、`SettingsViews.swift` | `UserDefaults`（App 的 Bundle ID 網域），沿用既有 key 與遷移 |
 | 桌面小黑貓 | `DesktopPetController.swift`、`DesktopPetModel.swift`、`DesktopPetView.swift`、`DesktopPetGroomingPalm.swift`、`DesktopPetLift.swift`、`DesktopPetDesktopReader.swift` | 只在記憶體讀桌面資料夾位置；不連網、不開麥克風。1.4.5 起只有貓咪輪廓接收滑鼠（點擊回應、抓起、放下），透明處穿透、不取得鍵盤焦點 |
-| 貓咪外觀（毛色，`main` 上尚未發布） | `CatAppearance.swift`、`CatAppearanceArtwork.swift`、`CatAnatomy.swift` | `cat.config.json` version 2 的 `appearance`；只重新上色隨 App 打包的原圖，保留原本輪廓與透明度，使用者 PNG 不進這個繪製器 |
+| 貓咪外觀與毛色選單 | `CatAppearance.swift`、`CatAppearanceArtwork.swift`、`CatAnatomy.swift`、`CatCoatMenu.swift`、`CatCoatSelection.swift` | `cat.config.json` version 2 的 `appearance`；九種預設毛色可即時套用，只重新上色隨 App 打包的原圖，保留原本輪廓與透明度，使用者 PNG 不進這個繪製器 |
 | 更新 | `AppUpdateController.swift`、`UpdateReminderPolicy.swift`、`UpdateDiagnostics.swift` | Sparkle 每日讀 GitHub 上的 appcast；由使用者決定安裝 |
 | iPhone 接力（選用） | `MacRemoteBridge.swift`、`RemoteTargetController.swift`、`RemoteTargetValidationPolicy.swift`、`RemoteMessages.swift`、`VocabularySyncModels.swift` | 加密 Multipeer Connectivity；每次啟動預設關閉，協定版本 1 只支援文字接力 |
 | 診斷 | `PasteDiagnostics.swift` | 只有明確開啟時才在本機寫入有大小上限的 JSON；欄位型別固定，不能記錄文字、剪貼內容、App 與視窗名稱、API Key 或路徑 |

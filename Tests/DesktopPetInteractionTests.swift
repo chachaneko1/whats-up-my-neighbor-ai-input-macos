@@ -112,7 +112,15 @@ struct DesktopPetInteractionTests {
                                              clock: { testTime }, pressedButtons: { buttons })
         let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
         let key = NSApp.keyWindow, main = NSApp.mainWindow
-        controller.setReleased(true)
+        var releaseChanges: [Bool] = []
+        controller.onReleasedChange = { releaseChanges.append($0) }
+        let petPanel = controller.testPanel, petArtwork = controller.testArtwork
+        controller.show(appearance: CatAppearance.makePreset("white")!)
+        expect(controller.isReleased && controller.testPanel.isVisible && releaseChanges == [true],
+               "an explicit coat choice releases a recalled pet and publishes the persisted release state")
+        controller.show(appearance: .original)
+        expect(controller.testPanel === petPanel && controller.testArtwork === petArtwork && releaseChanges == [true],
+               "switching visible coats retains the controller, window, view and release state")
         expect(!controller.testPanel.canBecomeKey && !controller.testPanel.canBecomeMain, "pet panel cannot take keyboard focus")
         expect(controller.testPanel.styleMask.contains(.nonactivatingPanel), "pet panel is nonactivating")
         let frame = controller.model.frame
@@ -129,8 +137,13 @@ struct DesktopPetInteractionTests {
         testTime = 0.1
         controller.pointerUp()
         expect(controller.model.pose == .petted, "controller forwards completed click")
+        let petOrigin = controller.model.origin, petPhase = controller.model.phase
+        controller.show(appearance: CatAppearance.makePreset("calico")!)
+        expect(controller.model.pose == .petted && controller.model.origin == petOrigin && controller.model.phase == petPhase,
+               "changing coat preserves a live interaction's pose, position and animation progress")
+        controller.show(appearance: .original)
         expect(NSApp.keyWindow === key && NSApp.mainWindow === main &&
-               NSWorkspace.shared.frontmostApplication?.processIdentifier == front, "click callback preserves foreground and typing target")
+               NSWorkspace.shared.frontmostApplication?.processIdentifier == front, "click and coat changes preserve foreground and typing target")
         controller.pointerDown(at: CGPoint(x: frame.midX, y: frame.midY))
         controller.pointerDragged(to: CGPoint(x: frame.midX - 100, y: frame.midY + 100))
         expect(controller.model.isDragging, "native controller forwards dragging")
@@ -154,6 +167,9 @@ struct DesktopPetInteractionTests {
         controller.refresh()
         controller.testSuspend(true)
         expect(!controller.testPanel.isVisible && controller.testPanel.ignoresMouseEvents, "suspended panel is invisible and cannot block clicks")
+        controller.show(appearance: CatAppearance.makePreset("blue")!)
+        expect(!controller.testPanel.isVisible && controller.isReleased, "coat selection respects screen-lock suspension")
+        controller.show(appearance: .original)
         controller.testSuspend(false)
         controller.setReleased(false)
         expect(!controller.testPanel.isVisible, "recalled preview panel stays hidden")
@@ -216,9 +232,16 @@ struct DesktopPetInteractionTests {
         expect(view.loadedPickupFrames == 36, "all direct Gemini source assets load into the native renderer")
         let timingData = try Data(contentsOf: resources.appendingPathComponent("Pickup/timing.json"))
         let timing = try JSONSerialization.jsonObject(with: timingData) as! [String: Any]
-        let positions = timing["positions"] as! [Double]
-        let times = timing["times"] as! [Double]
-        expect(positions.count == 36 && times.count == 36, "bundle declares every actual drawing")
+        let playback = timing["playback"] as! [String: Any]
+        let positions = playback["positions"] as! [Double]
+        let times = playback["times"] as! [Double]
+        let sources = playback["source_indices"] as! [Int]
+        expect((timing["records"] as! [[String: Any]]).count == 36, "all source PNG provenance remains available")
+        expect(positions.count == 28 && times.count == 28 && sources.count == 28,
+               "active playback declares 28 selected complete drawings")
+        expect(sources == DesktopPetLift.sourceImageIndices, "packaged source map agrees with the renderer")
+        expect(Array(sources.prefix(27)) == Array(0...26) && sources.last == 35,
+               "pickup remains unchanged and landing ends on native source35 at its original size")
         expect(zip(positions, DesktopPetLift.framePositions).allSatisfy { abs($0 - Double($1)) < 0.0000001 },
                "native pose selection matches the packaged image order")
         expect(zip(times, DesktopPetLift.frameTimes).allSatisfy { abs($0 - $1) < 0.0000001 },
@@ -301,15 +324,15 @@ struct DesktopPetInteractionTests {
         model.tick(now: 10.9, world: world)
         expect(model.lift.spriteFrame == DesktopPetLift.carryFrame, "full pickup reaches the generated hanging pose")
         model.pointerUp(now: 10.9, world: world)
-        model.tick(now: 10.97, world: world)
+        model.tick(now: 11.01, world: world)
         expect(model.lift.spriteFrame > DesktopPetLift.carryFrame && model.lift.spriteFrame < DesktopPetLift.lastFrame,
                "fully lifted drop traverses the generated support and crouch frames")
         let dropImage = model.lift
-        model.pointerDown(at: spriteGrip, now: 10.97, world: world)
-        model.pointerDragged(to: CGPoint(x: spriteGrip.x + 40, y: spriteGrip.y + 100), now: 10.98, world: world)
+        model.pointerDown(at: spriteGrip, now: 11.01, world: world)
+        model.pointerDragged(to: CGPoint(x: spriteGrip.x + 40, y: spriteGrip.y + 100), now: 11.02, world: world)
         expect(model.lift == dropImage, "re-grab preserves the exact Gemini frame and captured lean")
         for i in 1...24 {
-            model.tick(now: 10.98 + Double(i) / 60, world: world)
+            model.tick(now: 11.02 + Double(i) / 60, world: world)
             expect(model.lift.spriteFrame >= 0 && model.lift.spriteFrame <= DesktopPetLift.lastFrame, "interrupted frame path stays within the atlas")
         }
         model.cancelPointer(now: 11.5)
@@ -379,20 +402,54 @@ struct DesktopPetInteractionTests {
             expect(DesktopPetLift.lifting(from: caught, elapsed: 0, lean: 0).spriteFrame == selected,
                    "re-grab retains every inserted drawing exactly")
         }
-        expect(DesktopPetLift.pickupDuration == 0.85 && DesktopPetLift.landingDuration == 0.8,
-               "only repaired segment adds 100ms; complete landing remains 800ms")
+        expect(DesktopPetLift.pickupDuration == 0.85 && DesktopPetLift.landingDuration == 0.4,
+               "pickup remains 850ms and restored landing preserves the approved 400ms duration")
         let fullPose = DesktopPetLift(shoulder: 1, hip: 1, paws: 1, spriteFrame: DesktopPetLift.carryFrame)
         for step in 0...90 {
             let state = fullPose.landing(elapsed: Double(step) / 100)
-            expect(state.spriteFrame == min(31, CGFloat(15 + step / 5)),
-                   "landing advances one original drawing per 50ms and retains its last frame")
+            expect(state.spriteFrame == min(23, CGFloat(15 + step / 5)),
+                   "landing advances one selected drawing per 50ms and retains its last frame")
+        }
+        expect(abs(fullPose.returnDuration - 0.4) < 0.0000001,
+               "the actual restored landing timeline lasts 400ms")
+        for rate in [30, 60, 120] {
+            var landingModel = DesktopPetModel(seed: 42)
+            landingModel.setReleased(true, now: 40, world: world)
+            let grip = CGPoint(x: landingModel.frame.midX, y: landingModel.frame.midY)
+            landingModel.pointerDown(at: grip, now: 40, world: world)
+            landingModel.pointerDragged(to: CGPoint(x: grip.x - 40, y: grip.y + 20), now: 40.01, world: world)
+            landingModel.tick(now: 41, world: world)
+            landingModel.pointerUp(now: 41, world: world)
+            var visitedSources: Set<Int> = []
+            for step in 0...(rate * 3 / 2) {
+                let elapsed = Double(step) / Double(rate)
+                landingModel.tick(now: 41 + elapsed, world: world)
+                let source = DesktopPetLift.sourceImageIndex(for: landingModel.lift.spriteFrame)
+                visitedSources.insert(source)
+                expect(!(27...34).contains(source), "actual landing never replays the rebound tail")
+                if elapsed < 0.4 {
+                    expect(landingModel.isSettling, "restored landing keeps its approved 400ms duration")
+                } else if elapsed > 0.4 {
+                    expect(!landingModel.isSettling && source == 35,
+                           "after 400ms the original sitting image stays still")
+                }
+            }
+            expect(visitedSources == Set(Array(19...26) + [35]),
+                   "30/60/120Hz playback visits only support, crouch and terminal sitting drawings")
         }
         let almostLifted = DesktopPetLift(shoulder: 1, hip: 1, paws: 1, spriteFrame: 14)
         expect(almostLifted.landing(elapsed: 0.32).spriteFrame > 0, "partial return is not cut off")
         expect(almostLifted.landing(elapsed: almostLifted.returnDuration) == DesktopPetLift(),
                "partial pickup returns to its actual first drawing")
         let landed = fullPose.landing(elapsed: fullPose.returnDuration)
-        expect(landed.spriteFrame == 31 && landed.shoulder == 0, "full landing keeps the actual terminal Gemini drawing")
+        expect(landed.spriteFrame == 23 && landed.shoulder == 0, "full landing ends at the stable sitting timeline position")
+        expect(view.renderPNG(pose: .sitting, lift: landed) == view.renderPickupSourcePNG(35),
+               "completed landing preserves the exact native terminal source35 pixels and point size")
+        for id in CatAppearance.presetIDs {
+            let coatView = DesktopPetView(resources: resources, appearance: CatAppearance.makePreset(id)!)
+            expect(coatView.renderPNG(pose: .sitting, lift: landed) == coatView.renderPickupSourcePNG(35),
+                   "all coat painters preserve the original native resting size after landing: \(id)")
+        }
         expect(view.renderPNG(pose: .sitting, lift: landed) == view.renderPNG(pose: .sitting, isSettling: true, lift: landed),
                "finishing landing does not replace the last source drawing")
         expect(view.renderPNG(pose: .carried, lift: fullPose) == view.renderPNG(pose: .carried,
@@ -417,8 +474,8 @@ struct DesktopPetInteractionTests {
         model.pointerDragged(to: CGPoint(x: finalGrip.x - 40, y: finalGrip.y + 20), now: 20.01, world: world)
         model.tick(now: 21, world: world)
         model.pointerUp(now: 21, world: world)
-        model.tick(now: 21.81, world: world)
-        expect(!model.isSettling && model.lift.spriteFrame == 31,
+        model.tick(now: 21.41, world: world)
+        expect(!model.isSettling && model.lift.spriteFrame == 23,
                "the actual model preserves its terminal source drawing after full release")
         let terminalPNG = view.renderPNG(pose: .sitting, lift: model.lift)
         let finalRegrip = CGPoint(x: model.frame.midX, y: model.frame.midY)
@@ -427,7 +484,7 @@ struct DesktopPetInteractionTests {
         expect(view.renderPNG(pose: .carried, lift: model.lift) == terminalPNG,
                "picking up again starts from the visible terminal drawing without resetting to source 0")
         model.tick(now: 21.96, world: world)
-        expect(model.lift.spriteFrame == 30, "a later pickup reverses one source frame per 50ms from the actual idle drawing")
+        expect(model.lift.spriteFrame == 22, "a later pickup reverses continuously from the actual resting drawing from the actual idle drawing")
         for rate in [30, 60, 120] {
             var cadence = DesktopPetModel(seed: 42)
             cadence.setReleased(true, now: 30, world: world)

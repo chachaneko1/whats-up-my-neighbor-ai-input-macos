@@ -45,8 +45,9 @@ private final class PickerFixture {
         }
     }
 
-    func prepare() throws -> NSPanel {
-        picker.testPrepare(items: store.items, target: try focus.captureTarget(policy: .localDictation))
+    func prepare(initialIndex: Int = 0) throws -> NSPanel {
+        picker.testPrepare(items: store.items, target: try focus.captureTarget(policy: .localDictation),
+                           initialIndex: initialIndex)
     }
 
     func key(_ code: Int, panel: NSPanel, release: Bool = true) {
@@ -83,6 +84,7 @@ enum ClipboardPickerTests {
     static func main() throws {
         NSApplication.shared.setActivationPolicy(.prohibited)
         try testKeyboardAndMouse()
+        try testHeldPasteNavigation()
         try testHeldConfirmationAndCancellation()
         try testStaleAndChangedTargets()
         try renderStates()
@@ -108,6 +110,37 @@ enum ClipboardPickerTests {
         rows.first { $0.tag == 1 }!.performClick(nil)
         mouse.next()
         check(mouse.copied == ["測試複製 B"] && mouse.pasteCount == 1)
+    }
+
+    private static func testHeldPasteNavigation() throws {
+        let f = PickerFixture()
+        let panel = try f.prepare(initialIndex: 1)
+        check(f.copied.isEmpty && f.scheduled.isEmpty, "Opening history must not first paste the current clipboard")
+        f.picker.moveSelection(by: 1)
+        f.picker.moveSelection(by: -1)
+        f.held = true
+        f.key(kVK_Return, panel: panel)
+        f.picker.moveSelection(by: 1)
+        f.next()
+        check(f.copied.isEmpty, "Confirmation waits until Command, V and arrows are all released")
+        f.held = false
+        f.drain()
+        check(f.copied == ["測試複製 B"] && f.pasteCount == 1,
+              "Gesture starts on the previous item and locks selection while confirming")
+
+        for (index, expected) in [(-1, "測試語音 C"), (999, "測試語音 A")] {
+            let bound = PickerFixture()
+            let boundPanel = try bound.prepare(initialIndex: index)
+            bound.key(kVK_Return, panel: boundPanel)
+            bound.drain()
+            check(bound.copied == [expected], "Initial selection stays within available history")
+        }
+
+        let cancelled = PickerFixture()
+        let cancelledPanel = try cancelled.prepare(initialIndex: 1)
+        cancelled.key(kVK_Escape, panel: cancelledPanel)
+        check(cancelled.copied.isEmpty && cancelled.scheduled.isEmpty,
+              "Escape closes a gesture picker without replaying normal paste")
     }
 
     private static func testHeldConfirmationAndCancellation() throws {

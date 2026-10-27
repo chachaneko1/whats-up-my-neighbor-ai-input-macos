@@ -20,6 +20,16 @@ import AppKit
     static func png(_ image: NSImage, to url: URL) throws {
         try NSBitmapImageRep(data: image.tiffRepresentation!)!.representation(using: .png, properties: [:])!.write(to: url)
     }
+    static func render(_ view: NSView) -> NSImage {
+        let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(view.bounds.width * 2),
+            pixelsHigh: Int(view.bounds.height * 2), bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+            isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        bitmap.size = view.bounds.size
+        bitmap.bitmapData!.initialize(repeating: 0, count: bitmap.bytesPerRow * bitmap.pixelsHigh)
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        let image = NSImage(size: view.bounds.size); image.addRepresentation(bitmap)
+        return image
+    }
     static func sheet(_ images: [NSImage], labels: [String], columns: Int, cell: NSSize) -> NSImage {
         let size = NSSize(width: cell.width * CGFloat(columns), height: cell.height * CGFloat((images.count + columns - 1) / columns))
         return NSImage(size: size, flipped: true) { _ in
@@ -137,6 +147,17 @@ import AppKit
         let examples = output.appendingPathComponent("examples")
         try FileManager.default.createDirectory(at: examples, withIntermediateDirectories: true)
         let poses: [DesktopPetPose] = [.sitting, .standing, .walking, .curious, .petted, .carried, .grooming, .yawning, .loafing, .sleeping]
+        let liveView = DesktopPetView(resources: resources)
+        let liveOverlay = CatOverlay(configuration: .defaults, bundledImageURL: hudURL)
+        defer { liveOverlay.dispose() }
+        let liveOverlayPanel = liveOverlay.testPanel
+        let liveRecording = NekoRecordingView(image: NSImage(contentsOf: hudURL))
+        liveRecording.update(state: .recording)
+        var liveCancelCount = 0, liveFinishCount = 0
+        liveRecording.onCancel = { liveCancelCount += 1 }
+        liveRecording.onFinish = { liveFinishCount += 1 }
+        liveOverlay.onCancel = { liveCancelCount += 1 }
+        liveOverlay.onFinish = { liveFinishCount += 1 }
         for id in CatAppearance.presetIDs {
             try autoreleasepool {
                 let appearance = CatAppearance.makePreset(id)!, painter = CatAppearanceArtwork(appearance)
@@ -170,6 +191,13 @@ import AppKit
                 try png(sheet(frames, labels: (0..<36).map { String(format: "%02d", $0) }, columns: 6, cell: NSSize(width: 208, height: 220)), to: output.appendingPathComponent(id + "-pickup.png"))
                 let view = DesktopPetView(resources: resources, appearance: appearance)
                 let renders = poses.map { NSImage(data: view.renderPNG(pose: $0, phase: 0.8, walkDistance: 15))! }
+                // Switch one live view through every coat after priming its
+                // pickup and vector caches with the preceding coat.
+                liveView.setAppearance(appearance)
+                for (pose, expected) in zip(poses, renders) {
+                    let actual = NSImage(data: liveView.renderPNG(pose: pose, phase: 0.8, walkDistance: 15))!
+                    check(rgba(actual).2 == rgba(expected).2, "live coat has no stale pixels: \(id)/\(pose)")
+                }
                 try png(sheet(renders, labels: poses.map(\.description), columns: 5, cell: NSSize(width: 240, height: 235)), to: output.appendingPathComponent(id + "-poses.png"))
                 lineup.append(NSImage(data: view.renderPNG(pose: .sitting))!)
                 check(!view.containsCat(CGPoint(x: 1, y: 1)), "transparent desktop pixels pass through")
@@ -180,16 +208,17 @@ import AppKit
                 recording.onCancel = { recordingCancel = true }; recording.onFinish = { recordingFinish = true }
                 recording.cancelButton.performClick(nil); recording.finishButton.performClick(nil)
                 check(recordingCancel && recordingFinish, "recording HUD colored eye actions preserved")
-                let recordingBitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 368, pixelsHigh: 224,
-                    bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-                    colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
-                recordingBitmap.size = recording.bounds.size
-                recordingBitmap.bitmapData!.initialize(repeating: 0, count: recordingBitmap.bytesPerRow * recordingBitmap.pixelsHigh)
-                recording.cacheDisplay(in: recording.bounds, to: recordingBitmap)
-                let recordingImage = NSImage(size: recording.bounds.size); recordingImage.addRepresentation(recordingBitmap)
+                let recordingImage = render(recording)
                 recordingLineup.append(recordingImage)
+                liveRecording.setImage(painter.image(NSImage(contentsOf: hudURL)!, layout: .hud))
+                check(rgba(render(liveRecording)).2 == rgba(recordingImage).2, "live recording HUD refreshes coat")
+                liveRecording.cancelButton.performClick(nil); liveRecording.finishButton.performClick(nil)
                 let overlay = CatOverlay(configuration: configuration, bundledImageURL: hudURL)
                 let greeting = try overlay.testPNG(greeting: true, frame: 2)
+                liveOverlay.setAppearance(appearance)
+                check(liveOverlay.testPanel === liveOverlayPanel, "greeting keeps its nonactivating window")
+                check(try! liveOverlay.testPNG(greeting: true, frame: 2) == greeting, "live greeting refreshes coat and mouth")
+                liveOverlay.showRecording(); liveOverlay.testClickCancel(); liveOverlay.testClickFinish(); liveOverlay.hide()
                 try greeting.write(to: output.appendingPathComponent(id + "-greeting.png"))
                 hudLineup.append(NSImage(data: greeting)!)
                 check(overlay.testCanReplaceMouth, "bundled colored cat retains mouth animation")
@@ -205,6 +234,12 @@ import AppKit
                 overridden.dispose()
             }
         }
+        check(liveCancelCount == 18 && liveFinishCount == 18, "live updates preserve recording and overlay callbacks")
+        liveView.setAppearance(.original)
+        let originalView = DesktopPetView(resources: resources)
+        for pose in [DesktopPetPose.sitting, .carried, .walking] {
+            check(liveView.renderPNG(pose: pose) == originalView.renderPNG(pose: pose), "return to original clears colored caches")
+        }
         check(visibleParts == Set(CatBodyPart.allCases), "all 16 anatomical slots reach visible source pixels across the 36 frames")
         let customSourceURL = output.appendingPathComponent("custom.png")
         try Data(contentsOf: hudURL).write(to: customSourceURL)
@@ -214,6 +249,8 @@ import AppKit
         let customOverlay = CatOverlay(configuration: customConfig, bundledImageURL: hudURL)
         let legacyOverlay = CatOverlay(configuration: legacyCustom, bundledImageURL: hudURL)
         check(try! customOverlay.testPNG(greeting: false) == legacyOverlay.testPNG(greeting: false), "explicit valid custom PNG is byte-identical with or without a coat")
+        customOverlay.setAppearance(CatAppearance.makePreset("white")!)
+        check(try! customOverlay.testPNG(greeting: false) == legacyOverlay.testPNG(greeting: false), "live coat selection preserves explicit custom PNG")
         customOverlay.dispose(); legacyOverlay.dispose()
         try FileManager.default.removeItem(at: customSourceURL)
         try png(sheet(lineup, labels: CatAppearance.presetNames, columns: 3, cell: NSSize(width: 320, height: 280)), to: output.appendingPathComponent("natural-coats.png"))

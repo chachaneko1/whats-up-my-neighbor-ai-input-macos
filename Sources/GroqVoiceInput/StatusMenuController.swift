@@ -9,8 +9,10 @@ import AppKit
 // 4. iPhone 遠端接力狀態顯示與配對控制。
 // 5. 即時更新選單項目文字（如快捷鍵按鍵名稱、接力連線狀態、貓咪選單位置等）。
 
-final class StatusMenuController {
+final class StatusMenuController: NSObject, NSMenuDelegate {
+    var onMenuWillOpen: (() -> Void)?
     private(set) var statusItem: NSStatusItem!
+    private var vpsDesktopMenuItem: NSMenuItem?
     private(set) var toggleMenuItem: NSMenuItem!
     private(set) var remoteConnectionMenuItem: NSMenuItem!
     private(set) var remoteTargetMenuItem: NSMenuItem!
@@ -21,6 +23,7 @@ final class StatusMenuController {
     private(set) var cancelMenuItem: NSMenuItem!
     private(set) var modeMenuItems: [TextOutputMode: NSMenuItem] = [:]
     private var nekoPositionItems: [NekoHUDPosition: NSMenuItem] = [:]
+    private var catCoatItems: [String: NSMenuItem] = [:]
 
     func configure(target: AnyObject, toggleTitle: String, relayTitle: String, clipboardMenu: NSMenu? = nil, actions: [String: Selector]) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -36,6 +39,11 @@ final class StatusMenuController {
         let installedVersion = NSMenuItem(title: "版本 \(version)（\(build)）", action: nil, keyEquivalent: "")
         installedVersion.isEnabled = false
         menu.addItem(installedVersion)
+        if let revision = Bundle.main.object(forInfoDictionaryKey: "NekoDevelopmentRevision") as? String {
+            let qaBuild = NSMenuItem(title: "QA 測試版 · \(revision.prefix(7))", action: nil, keyEquivalent: "")
+            qaBuild.isEnabled = false
+            menu.addItem(qaBuild)
+        }
         menu.addItem(NSMenuItem.separator())
 
         toggleMenuItem = NSMenuItem(title: toggleTitle, action: actions["toggleFromMenu"], keyEquivalent: "")
@@ -80,6 +88,12 @@ final class StatusMenuController {
         desktopPetMenuItem = NSMenuItem(title: "放出小黑貓", action: actions["toggleDesktopPet"], keyEquivalent: "")
         desktopPetMenuItem.target = target
         menu.addItem(desktopPetMenuItem)
+
+        if let action = actions["selectCatCoat"] {
+            let (catCoatItem, items) = CatCoatMenu.make(target: target, action: action)
+            catCoatItems = items
+            menu.addItem(catCoatItem)
+        }
 
         let nekoPreview = NSMenuItem(title: "小黑貓介面預覽…", action: actions["showNekoPreview"], keyEquivalent: "")
         nekoPreview.target = target
@@ -156,6 +170,14 @@ final class StatusMenuController {
         forgetPhoneItem.target = target
         menu.addItem(forgetPhoneItem)
 
+        if let action = actions["showVPSDesktop"] {
+            menu.addItem(NSMenuItem.separator())
+            let vpsItem = NSMenuItem(title: "VPS 遠端桌面…", action: action, keyEquivalent: "")
+            vpsItem.target = target
+            menu.addItem(vpsItem)
+            vpsDesktopMenuItem = vpsItem
+        }
+
         menu.addItem(NSMenuItem.separator())
         let catSettings = NSMenuItem(title: "開啟貓咪設定資料夾…", action: actions["openCatSettings"], keyEquivalent: "")
         catSettings.target = target
@@ -163,7 +185,19 @@ final class StatusMenuController {
         let quit = NSMenuItem(title: "結束 What's up my neighbor", action: actions["quitApp"], keyEquivalent: "q")
         quit.target = target
         menu.addItem(quit)
+        menu.delegate = self
         statusItem.menu = menu
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        guard menu === statusItem.menu else { return }
+        onMenuWillOpen?()
+    }
+
+    /// One look for everyone: clickable when this Mac has the VPS set up, gray otherwise.
+    func updateVPSDesktop(available: Bool) {
+        vpsDesktopMenuItem?.isEnabled = available
+        vpsDesktopMenuItem?.toolTip = available ? nil : "需要先設定 VPS 連線"
     }
 
     func updateClipboardShortcut(_ title: String) {
@@ -172,6 +206,10 @@ final class StatusMenuController {
 
     func updateDesktopPet(_ released: Bool) {
         desktopPetMenuItem.title = released ? "收回小黑貓" : "放出小黑貓"
+    }
+
+    func updateCatCoat(_ selected: String) {
+        for (id, item) in catCoatItems { item.state = id == selected ? .on : .off }
     }
 
     func updateIcon(_ state: NekoMenuBarIcon.State, description: String) {

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mac 選單列選貓示意</title>
+  <style>
+    :root { font-family: -apple-system, BlinkMacSystemFont, "Noto Sans TC", sans-serif; color: #20211f; }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 70% 24%, #fff 0, #ecf0f2 42%, #d5dce0 100%); }
+    .bar { height: 34px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; background: linear-gradient(90deg, #2879af, #2688c4); color: #fff; font-size: 13px; }
+    .bar-left { font-weight: 600; }
+    .bar-right { display: flex; align-items: center; gap: 13px; }
+    button { font: inherit; cursor: pointer; }
+    .cat-button { border: 0; background: #ffffff32; color: white; border-radius: 7px; height: 27px; padding: 0 10px; font-size: 12px; }
+    main { max-width: 720px; margin: 96px auto 0; padding: 0 20px; }
+    h1 { font-size: clamp(26px,5vw,36px); margin: 0 0 14px; letter-spacing: -.04em; }
+    p { line-height: 1.7; color: #4c4d49; }
+    .path { margin-top: 28px; padding: 16px 18px; border: 1px solid #cbccc8; background: #f7f7f4; border-radius: 12px; font-weight: 600; }
+    .mock { position: absolute; top: 39px; right: 15px; display: flex; align-items: flex-start; gap: 5px; z-index: 10; }
+    .menu { width: 267px; background: linear-gradient(165deg, #e4f7ffba 0%, #f9fbfbd9 32%, #f9f9f7c7 100%); -webkit-backdrop-filter: blur(30px) saturate(150%); backdrop-filter: blur(30px) saturate(150%); border: 1px solid #ffffffc9; border-radius: 14px; box-shadow: 0 14px 42px #1826333d, inset 0 1px #fff9; padding: 7px; font-size: 13px; }
+    .menu[hidden], .dialog[hidden] { display: none; }
+    .menu-title { padding: 7px 10px 4px; font-weight: 600; }
+    .version { padding: 0 10px 7px; color: #7c7d79; font-size: 11px; }
+    .divider { height: 1px; background: #dadad7; margin: 5px 4px; }
+    .row { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; border-radius: 5px; min-height: 31px; }
+    .row.active, .row.selector:hover, .row.selector:focus-visible { background: #bfdbed87; outline: 0; }
+    .row.muted { color: #575854; }
+    .row.selector { width: 100%; border: 0; color: inherit; text-align: left; background: transparent; }
+    .row.selector[aria-expanded="true"] { background: #bfdbed87; }
+    .coat-menu { width: 198px; }
+    .coat-option { border: 0; display: flex; width: 100%; text-align: left; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 5px; background: transparent; color: inherit; }
+    .coat-option:hover, .coat-option:focus-visible { background: #bfdbed87; outline: 0; }
+    .check { width: 13px; flex: 0 0 13px; font-weight: 700; }
+    .veil { position: fixed; inset: 0; background: #20211f55; display: grid; place-items: center; z-index: 20; padding: 20px; }
+    .dialog { width: min(100%, 370px); background: #f9fbfbe8; -webkit-backdrop-filter: blur(30px); backdrop-filter: blur(30px); border: 1px solid #fff; border-radius: 14px; box-shadow: 0 15px 50px #0003; padding: 23px; }
+    .dialog h2 { margin: 0; font-size: 20px; }
+    .dialog p { margin: 12px 0 22px; font-size: 13px; }
+    .buttons { display: flex; justify-content: flex-end; gap: 8px; }
+    .buttons button { border: 1px solid #c4c5c1; border-radius: 7px; background: #fff; padding: 7px 12px; }
+    .buttons .primary { background: #20211f; color: #fff; border-color: #20211f; }
+    @media (max-width: 580px) { main { margin-top: 390px; } .mock { right: 8px; left: 8px; gap: 3px; } .menu { width: 55%; } .coat-menu { width: 43%; } }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <div class="bar-left">What's up my neighbor</div>
+    <div class="bar-right"><span>⌘</span><button class="cat-button" id="catButton" aria-expanded="true" aria-controls="mockMenu">● 小黑貓</button></div>
+  </div>
+  <div class="mock" id="mockMenu">
+    <div class="menu">
+      <div class="menu-title">What's up my neighbor</div><div class="version">本機選單示意</div><div class="divider"></div>
+      <div class="row muted">開始錄音</div><div class="row muted">剪貼簿歷史</div><div class="row muted">文字輸出模式 <span>›</span></div>
+      <div class="row muted">詞典與學習狀態…</div><div class="row muted">放出小黑貓</div>
+      <button type="button" class="row selector" id="coatSelector" aria-expanded="false" aria-controls="coatMenu">選擇貓咪花色 <span>›</span></button>
+      <div class="row muted">小黑貓介面預覽…</div><div class="divider"></div><div class="row muted">開啟貓咪設定資料夾…</div>
+    </div>
+    <div class="menu coat-menu" id="coatMenu" aria-label="九種花色" hidden></div>
+  </div>
+  <main>
+    <h1>直接從 Mac 選單列選貓</h1>
+    <p>這是可點選的操作示意。按「選擇貓咪花色」可展開九種選項；此頁不會修改你正在使用的 App，也不會送出資料。</p>
+    <div class="path">選單列小黑貓 → 選擇貓咪花色 → 三花貓</div>
+    <p id="current" aria-live="polite">示意中的目前選擇：原版黑貓</p>
+  </main>
+  <div class="veil" id="veil" hidden><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
+    <h2 id="dialogTitle"></h2><p>這只是網頁操作示意，沒有變更 Mac App 的設定。安裝包含這個選單的 App 後，選擇才會儲存在這台 Mac，並詢問是否重新啟動。</p>
+    <div class="buttons"><button type="button" id="again">繼續選花色</button><button type="button" class="primary" id="done">完成</button></div>
+  </div></div>
+  <script>
+    const coats = [['original','原版黑貓'],['black','黑貓'],['white','白貓'],['blue','灰貓'],['orange-tabby','橘虎斑'],['tuxedo','賓士貓'],['calico','三花貓'],['tortoiseshell','玳瑁貓'],['colorpoint','重點色貓']];
+    const menu = document.querySelector('#mockMenu'), list = document.querySelector('#coatMenu'), veil = document.querySelector('#veil');
+    const catButton = document.querySelector('#catButton'), coatSelector = document.querySelector('#coatSelector');
+    let selected = 'original';
+    function render() { list.innerHTML = coats.map(([id,name]) => `<button type="button" class="coat-option" data-id="${id}"><span class="check">${id === selected ? '✓' : ''}</span>${name}</button>`).join(''); document.querySelector('#current').textContent = '示意中的目前選擇：' + coats.find(([id]) => id === selected)[1]; }
+    function showCoats(show) { list.hidden = !show; coatSelector.setAttribute('aria-expanded', String(show)); }
+    function showMenu(show) { menu.hidden = !show; catButton.setAttribute('aria-expanded', String(show)); if (!show) showCoats(false); }
+    render();
+    catButton.addEventListener('click', () => showMenu(menu.hidden));
+    coatSelector.addEventListener('click', () => showCoats(list.hidden));
+    list.addEventListener('click', event => { const option = event.target.closest('button[data-id]'); if (!option) return; selected = option.dataset.id; render(); showMenu(false); document.querySelector('#dialogTitle').textContent = '示意：已選擇' + coats.find(([id]) => id === selected)[1]; veil.hidden = false; document.querySelector('#done').focus(); });
+    document.querySelector('#again').addEventListener('click', () => { veil.hidden = true; showMenu(true); showCoats(true); list.querySelector('[data-id="' + selected + '"]').focus(); });
+    document.querySelector('#done').addEventListener('click', () => { veil.hidden = true; catButton.focus(); });
+  </script>
+</body>
+</html>

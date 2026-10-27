@@ -9,6 +9,19 @@ swiftc -swift-version 5 \
   "$ROOT/Tests/CatConfigurationTests.swift" \
   -o "$ROOT/build/CatConfigurationTests"
 "$ROOT/build/CatConfigurationTests"
+swiftc -swift-version 5 \
+  "$ROOT/Sources/GroqVoiceInput/CatConfiguration.swift" \
+  "$ROOT/Sources/GroqVoiceInput/CatAppearance.swift" \
+  "$ROOT/Sources/GroqVoiceInput/CatCoatSelection.swift" \
+  "$ROOT/Tests/CatCoatSelectionTests.swift" \
+  -o "$ROOT/build/CatCoatSelectionTests"
+"$ROOT/build/CatCoatSelectionTests"
+swiftc -swift-version 5 -framework AppKit \
+  "$ROOT/Sources/GroqVoiceInput/CatAppearance.swift" \
+  "$ROOT/Sources/GroqVoiceInput/CatCoatMenu.swift" \
+  "$ROOT/Tests/CatCoatMenuTests.swift" \
+  -o "$ROOT/build/CatCoatMenuTests"
+"$ROOT/build/CatCoatMenuTests"
 swiftc -swift-version 5 -D CAT_OVERLAY_TESTS -framework AppKit \
   "$ROOT/Sources/GroqVoiceInput/CatConfiguration.swift" \
   "$ROOT/Sources/GroqVoiceInput/CatAppearance.swift" \

@@ -11,6 +11,7 @@ cp "$ROOT/Resources/Info.plist" "$OUTPUT/Contents/Info.plist"
 cp "$ROOT/Resources/AppIcon.icns" "$OUTPUT/Contents/Resources/AppIcon.icns"
 cp "$ROOT/Resources/neko-base.png" "$OUTPUT/Contents/Resources/neko-base.png"
 ditto "$ROOT/Resources/DesktopPet" "$OUTPUT/Contents/Resources/DesktopPet"
+ditto "$ROOT/Resources/VPSDesktop" "$OUTPUT/Contents/Resources/VPSDesktop"
 cp "$ROOT/cat.config.json" "$ROOT/CAT-CONFIG.md" "$OUTPUT/Contents/Resources/"
 cp "$SPARKLE_ROOT/LICENSE" "$OUTPUT/Contents/Resources/Sparkle-LICENSE.txt"
 ditto "$SPARKLE_ROOT/Sparkle.framework" "$OUTPUT/Contents/Frameworks/Sparkle.framework"
@@ -21,6 +22,13 @@ if [[ -n "${RELEASE_VERSION:-}" ]]; then
 fi
 if [[ -n "${RELEASE_BUILD:-}" ]]; then
   /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $RELEASE_BUILD" "$OUTPUT/Contents/Info.plist"
+fi
+
+# Identify the exact QA installer without changing the published version or
+# letting development metadata enter the separately signed release build.
+if [[ "${RELEASE_SIGNING:-0}" != 1 && -n "${NEKO_DEVELOPMENT_REVISION:-}" ]]; then
+  [[ "$NEKO_DEVELOPMENT_REVISION" =~ '^[a-fA-F0-9]{40}$' ]] || { print -u2 'Invalid development revision'; exit 1; }
+  /usr/libexec/PlistBuddy -c "Add :NekoDevelopmentRevision string $NEKO_DEVELOPMENT_REVISION" "$OUTPUT/Contents/Info.plist"
 fi
 
 SOURCES=("$ROOT"/Sources/GroqVoiceInput/*.swift)
@@ -39,6 +47,8 @@ swiftc \
   -framework Security \
   -framework MultipeerConnectivity \
   -framework UserNotifications \
+  -framework SwiftUI \
+  -framework WebKit \
   -F "$SPARKLE_ROOT" -framework Sparkle \
   -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
   "${SOURCES[@]}" \

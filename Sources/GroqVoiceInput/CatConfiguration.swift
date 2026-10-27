@@ -12,7 +12,8 @@ import Glibc
 /// Version one remains portable; version two adds macOS anatomical appearance.
 /// Invalid configuration
 /// falls back as a whole; missing/undecodable artwork only falls back to the cat.
-/// Values are immutable snapshots and are loaded once at app startup.
+/// File values are snapshots loaded at startup; explicit menu choices can
+/// replace the in-memory appearance without reloading other settings.
 // 容錯防護與配置隔離原則：
 // 1. 嚴格檔案上限：設定檔不得超過 16KB，自訂圖片不得超過 4MB 且寬高 <= 2048px，防禦惡意或損壞的大檔。
 // 2. 整體退回機制：若 JSON 結構或版本不符，整份配置優雅退回預設黑貓，避免部分欄位生效導致狀態不一致。

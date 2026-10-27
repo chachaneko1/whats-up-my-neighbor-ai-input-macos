@@ -20,15 +20,16 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     private var relayMenuItem: NSMenuItem { statusMenu.relayMenuItem }
     private var modeMenuItems: [TextOutputMode: NSMenuItem] { statusMenu.modeMenuItems }
     private let hotKeys = HotKeyManager()
+    private let clipboardPasteGesture = ClipboardPasteGesture()
     private let settings = SettingsStore()
     private let credentials = KeychainStore()
     private let recordingStore = TemporaryRecordingStore()
     private let micRecorder = PinnedMicrophoneRecorder()
-    private let catConfiguration = CatConfiguration.load()
-    private lazy var recordingCatImage: NSImage? = {
+    private var catConfiguration = CatConfiguration.load()
+    private var recordingCatImage: NSImage? {
         guard catConfiguration.image == nil, let original = NekoAppearance.catImage else { return NekoAppearance.catImage }
         return CatAppearanceArtwork(catConfiguration.appearance).image(original, layout: .hud)
-    }()
+    }
     private lazy var nekoHUD = NekoRecordingHUD(image: catConfiguration.imageData.flatMap(NSImage.init(data:)) ?? recordingCatImage)
     private lazy var catGreeting = CatGreeting(configuration: catConfiguration)
     private lazy var catOverlay = CatOverlay(configuration: catConfiguration)
@@ -54,6 +55,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     private lazy var vocabularyToast = VocabularyLearningToastController(store: vocabularyLearning)
     private let correctionMonitor = PasteCorrectionMonitor()
     private var vocabularyWindow: VocabularyWindowController?
+    private var vpsDesktopWindow: VPSDesktopWindowController?
     private let clipboardHistoryStore = ClipboardHistoryStore()
     private lazy var clipboardHistory = ClipboardHistoryMonitor(store: clipboardHistoryStore)
     private let clipboardHistoryMenu = ClipboardHistoryMenuController()
@@ -83,7 +85,11 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     private var currentHotKey = defaultHotKey
     private var clipboardHotKey: HotKeyShortcut? = defaultClipboardHotKey
     private var clipboardHotKeyRegistrationFailed = false
+    private var clipboardPermissionObserver: NSObjectProtocol?
     private var clipboardShortcutTitle: String {
+        if settings.usesClipboardPasteGesture(), clipboardPasteGesture.isRunning {
+            return ClipboardPasteGesture.title
+        }
         guard let clipboardHotKey else { return "未設定" }
         let title = shortcutDisplayName(clipboardHotKey)
         return clipboardHotKeyRegistrationFailed ? "\(title)，無法使用" : title
@@ -178,8 +184,13 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         desktopPet.dispose()
         correctionMonitor.stop()
         dictation.shutdown()
+        if let clipboardPermissionObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(clipboardPermissionObserver)
+        }
+        clipboardPasteGesture.stop()
         hotKeys.unregisterAll()
         remoteBridge.stop()
+        vpsDesktopWindow?.shutdown()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -191,6 +202,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     private func configureStatusItem() {
         statusMenu.configure(target: self, toggleTitle: toggleMenuTitle(), relayTitle: relayMenuTitle(), clipboardMenu: clipboardHistoryMenu.menu, actions: [
             "openCatSettings": #selector(openCatSettings),
+            "selectCatCoat": #selector(selectCatCoat(_:)),
             "showVocabularyWindow": #selector(showVocabularyWindow),
             "showNekoPreview": #selector(showNekoPreview),
             "toggleDesktopPet": #selector(toggleDesktopPet),
@@ -211,12 +223,18 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
             "showRelaySettingsDialog": #selector(showRelaySettingsDialog),
             "showPairingCode": #selector(showPairingCode),
             "forgetPairedPhone": #selector(forgetPairedPhone),
+            "showVPSDesktop": #selector(showVPSDesktop),
             "quitApp": #selector(quitApp),
         ])
         if let menu = statusItem.menu { appUpdater.addMenuItems(to: menu) }
+        statusMenu.onMenuWillOpen = { [weak self] in
+            self?.statusMenu.updateVPSDesktop(available: VPSDesktopAvailability.isAvailable())
+        }
+        statusMenu.updateVPSDesktop(available: VPSDesktopAvailability.isAvailable())
         statusMenu.updateClipboardShortcut(clipboardShortcutTitle)
         updateTextOutputModeMenu()
         statusMenu.updateNekoPosition(nekoHUD.position)
+        statusMenu.updateCatCoat(catConfiguration.appearance.preset)
         updateRelayMenu()
         renderDictationState(.idle)
     }
@@ -480,6 +498,23 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         }
         let registerStatus = registerCurrentHotKey()
         UpdateDiagnostics.shared.record(.recordingHotKey, succeeded: registerStatus == noErr)
+        clipboardPasteGesture.canBegin = { [weak self] in
+            guard let self else { return false }
+            return self.dictation.state == .idle && !self.clipboardPicker.isVisible && NSApp.modalWindow == nil
+        }
+        clipboardPasteGesture.pickerVisible = { [weak self] in self?.clipboardPicker.isVisible == true }
+        clipboardPasteGesture.onOpen = { [weak self] _ in self?.openClipboardPicker(initialIndex: 1) }
+        clipboardPasteGesture.onMove = { [weak self] in self?.clipboardPicker.moveSelection(by: $0) }
+        refreshClipboardPasteGesture()
+        if clipboardPermissionObserver == nil {
+            // Accessibility can be granted after the app launched. Switching
+            // back from System Settings enables the gesture without a restart.
+            clipboardPermissionObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+            ) { [weak self] _ in self?.refreshClipboardPasteGesture() }
+        }
+        // Keep the existing shortcut available even when the gesture is active.
+        // It also works if Accessibility permission cannot enable the event tap.
         if let clipboardHotKey {
             let clipboardStatus = hotKeys.register(shortcut: clipboardHotKey, id: HotKeyManager.clipboardID)
             UpdateDiagnostics.shared.record(.clipboardHotKey, succeeded: clipboardStatus == noErr)
@@ -494,6 +529,19 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         if installStatus != noErr || registerStatus != noErr {
             showError("無法註冊快捷鍵 \(shortcutDisplayName(currentHotKey))。可能已被其他程式使用。")
         }
+    }
+
+    private func refreshClipboardPasteGesture() {
+        let wasRunning = clipboardPasteGesture.isRunning
+        if settings.usesClipboardPasteGesture(), AXIsProcessTrusted() {
+            if !wasRunning { _ = clipboardPasteGesture.start() }
+        } else {
+            clipboardPasteGesture.stop()
+        }
+        if wasRunning != clipboardPasteGesture.isRunning {
+            UpdateDiagnostics.shared.record(.clipboardPasteGesture, succeeded: clipboardPasteGesture.isRunning)
+        }
+        statusMenu.updateClipboardShortcut(clipboardShortcutTitle)
     }
 
     private func registerCurrentHotKey() -> OSStatus {
@@ -642,6 +690,12 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         vocabularyWindow?.present()
     }
 
+    @MainActor @objc private func showVPSDesktop() {
+        guard VPSDesktopAvailability.isAvailable() else { return }
+        if vpsDesktopWindow == nil { vpsDesktopWindow = VPSDesktopWindowController() }
+        vpsDesktopWindow?.present()
+    }
+
     @objc private func showNekoPreview() {
         guard dictation.state == .idle else { return }
         nekoHUD.showPreview(shortcut: shortcutDisplayName(currentHotKey))
@@ -683,8 +737,14 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     }
 
     @objc private func showClipboardPicker() {
+        clipboardPasteGesture.cancelPending()
         guard dictation.state == .idle else { NSSound.beep(); return }
         if clipboardPicker.isVisible { clipboardPicker.dismiss(); desktopPet.refresh(); return }
+        openClipboardPicker()
+    }
+
+    private func openClipboardPicker(initialIndex: Int = 0) {
+        guard dictation.state == .idle, !clipboardPicker.isVisible else { return }
         clipboardHistory.checkForChanges()
         correctionMonitor.stop(reason: "正在選擇剪貼簿歷史；下一次語音貼上後重新觀察修正。")
         var target: FocusTarget?
@@ -694,7 +754,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
         catch { failure = .noEditableTarget }
         clipboardPicker.show(items: clipboardHistoryStore.items,
                              shortcutTitle: clipboardShortcutTitle,
-                             target: target, captureFailure: failure)
+                             target: target, captureFailure: failure, initialIndex: initialIndex)
         desktopPet.refresh()
     }
 
@@ -703,6 +763,7 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
     // 2. 若為閒置，依序檢查：狀態機能否啟動、API 金鑰是否存在、麥克風隱私權限、音訊輸入硬體裝置。
     // 3. 在啟動錄音的「同一瞬間」立即快照目前的焦點文字輸入框（captureTarget），避免使用者在錄音期間切換視窗。
     func toggleRecording(useAlternateMode: Bool = false) {
+        clipboardPasteGesture.cancelPending()
         clipboardPicker.dismiss()
         if PasteDiagnostics.shared.isEnabled {
             var event = PasteDiagnostics.Event(tag: .toggle)
@@ -809,6 +870,29 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
             }
             NSWorkspace.shared.open(CatConfiguration.directoryURL)
         } catch { showError("無法開啟貓咪設定資料夾：\(error.localizedDescription)") }
+    }
+
+    @objc private func selectCatCoat(_ sender: NSMenuItem) {
+        guard let preset = sender.representedObject as? String,
+              let appearance = CatAppearance.makePreset(preset) else { return }
+        guard dictation.state == .idle else {
+            showError("請先完成目前的錄音或辨識，再切換貓咪花色。")
+            return
+        }
+        do {
+            try CatCoatSelection.save(preset)
+            catConfiguration = catConfiguration.replacingAppearance(appearance)
+            // Keep existing controllers, focus and the pet's position. Hide
+            // transient previews so the selected desktop cat is visible now.
+            nekoHUD.hide()
+            catOverlay.hide()
+            nekoHUD.setImage(catConfiguration.imageData.flatMap(NSImage.init(data:)) ?? recordingCatImage)
+            catOverlay.setAppearance(appearance)
+            desktopPet.show(appearance: appearance)
+            statusMenu.updateCatCoat(preset)
+        } catch {
+            showError(error.localizedDescription)
+        }
     }
 
     private func insertDictationText(_ text: String) -> Bool {

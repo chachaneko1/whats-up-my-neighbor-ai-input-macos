@@ -77,6 +77,14 @@ final class SettingsStore {
         defaults.set(Int(shortcut?.modifiers ?? 0), forKey: Keys.clipboardHotKeyModifiers)
     }
 
+    /// Restore the held-paste gesture for the default without rewriting existing
+    /// preferences. Explicitly disabled and custom shortcuts keep their meaning.
+    func usesClipboardPasteGesture() -> Bool {
+        guard let stored = storedHotKey(codeKey: Keys.clipboardHotKeyCode,
+                                        modifiersKey: Keys.clipboardHotKeyModifiers) else { return true }
+        return stored == defaultClipboardHotKey
+    }
+
     func loadOutputMode() -> TextOutputMode {
         TextOutputMode.fromStoredValue(defaults.string(forKey: Keys.textOutputMode))
             ?? .verbatim

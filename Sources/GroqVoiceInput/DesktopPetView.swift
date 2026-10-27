@@ -3,10 +3,11 @@ import AppKit
 /// The approved Figma C mascot, composed locally into new resting expressions.
 /// The SVG files remain unchanged; no temporary Figma URLs are used at runtime.
 final class DesktopPetView: NSView {
-    private let images: [String: NSImage]
+    private var images: [String: NSImage]
+    private let resources: URL?
     private let pickupFrames: [URL]
     private let pickupMaps: [CatAnatomy.PickupMap]?
-    private let coatArtwork: CatAppearanceArtwork
+    private var coatArtwork: CatAppearanceArtwork
     private let pickupCache = NSCache<NSNumber, NSImage>()
     static let pickupSampleCount = 36
 
@@ -50,16 +51,11 @@ final class DesktopPetView: NSView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     init(resources: URL? = Bundle.main.resourceURL?.appendingPathComponent("DesktopPet"), appearance: CatAppearance = .original) {
+        self.resources = resources
         let painter = CatAppearanceArtwork(appearance)
         coatArtwork = painter
         pickupMaps = CatAnatomy.pickupMaps(at: resources?.appendingPathComponent("Pickup/anatomy.json"))
-        let names = ["sit", "walk", "reply", "body", "tail", "walk-body", "walk-paws", "walk-front-face", "walk-foot-0", "walk-foot-1", "walk-foot-2", "walk-foot-3", "groom-body", "groom-head"]
-        images = Dictionary(uniqueKeysWithValues: names.compactMap { name in
-            guard let url = resources?.appendingPathComponent(name + ".svg"),
-                  let image = painter.desktopImage(at: url, asset: name) else { return nil }
-            image.cacheMode = .never
-            return (name, image)
-        })
+        images = Self.loadImages(resources: resources, painter: painter)
         pickupFrames = (0..<Self.pickupSampleCount).compactMap { index in
             guard let url = resources?.appendingPathComponent("Pickup/" + String(format: "%02d.png", index)) else { return nil }
             return FileManager.default.fileExists(atPath: url.path) ? url : nil
@@ -73,7 +69,31 @@ final class DesktopPetView: NSView {
         setAccessibilityHelp("點一下逗逗牠，或按住拖曳，把牠拎起放下。")
     }
 
+    private static func loadImages(resources: URL?, painter: CatAppearanceArtwork) -> [String: NSImage] {
+        let names = ["sit", "walk", "reply", "body", "tail", "walk-body", "walk-paws", "walk-front-face", "walk-foot-0", "walk-foot-1", "walk-foot-2", "walk-foot-3", "groom-body", "groom-head"]
+        return Dictionary(uniqueKeysWithValues: names.compactMap { name in
+            guard let url = resources?.appendingPathComponent(name + ".svg"),
+                  let image = painter.desktopImage(at: url, asset: name) else { return nil }
+            image.cacheMode = .never
+            return (name, image)
+        })
+    }
+
     required init?(coder: NSCoder) { nil }
+
+    /// Replace only artwork so switching coats keeps the same pose, grip and
+    /// desktop coordinates. A prior coat must never survive in a frame cache.
+    func setAppearance(_ appearance: CatAppearance) {
+        precondition(Thread.isMainThread)
+        guard appearance != coatArtwork.appearance else { return }
+        let painter = CatAppearanceArtwork(appearance)
+        images = Self.loadImages(resources: resources, painter: painter)
+        coatArtwork = painter
+        pickupCache.removeAllObjects()
+        hitBitmap = nil
+        setAccessibilityLabel(appearance.title + "桌面夥伴")
+        needsDisplay = true
+    }
 
     override func mouseDown(with event: NSEvent) {
         onPointerDown?(window?.convertPoint(toScreen: event.locationInWindow) ?? NSEvent.mouseLocation)
@@ -174,7 +194,7 @@ final class DesktopPetView: NSView {
     private func drawPickupFrame() {
         // No sway, morph, blended image, or per-frame scale: show the sliced
         // Gemini drawing at its fixed grip anchor, including both idle ends.
-        let index = max(0, min(Self.pickupSampleCount - 1, DesktopPetLift.imageIndex(for: lift.spriteFrame)))
+        let index = max(0, min(Self.pickupSampleCount - 1, DesktopPetLift.sourceImageIndex(for: lift.spriteFrame)))
         pickupImage(at: index)?.draw(in: CGRect(origin: .zero, size: Self.panelSize), from: .zero,
                                  operation: .sourceOver, fraction: 1, respectFlipped: true,
                                  hints: [.interpolation: NSImageInterpolation.high])
@@ -491,6 +511,17 @@ final class DesktopPetView: NSView {
             ? .lifting(elapsed: reduceMotion ? 1 : phase, lean: reduceMotion ? 0 : carryLean)
             : DesktopPetLift())
         let image = NSImage(size: bounds.size, flipped: true) { _ in self.draw(self.bounds); return true }
+        let bitmap = NSBitmapImageRep(data: image.tiffRepresentation!)!
+        return bitmap.representation(using: .png, properties: [:])!
+    }
+    /// Reference rendering of a complete original source at the native point size.
+    func renderPickupSourcePNG(_ index: Int) -> Data {
+        let image = NSImage(size: bounds.size, flipped: true) { _ in
+            self.pickupImage(at: index)?.draw(in: self.bounds, from: .zero,
+                operation: .sourceOver, fraction: 1, respectFlipped: true,
+                hints: [.interpolation: NSImageInterpolation.high])
+            return true
+        }
         let bitmap = NSBitmapImageRep(data: image.tiffRepresentation!)!
         return bitmap.representation(using: .png, properties: [:])!
     }

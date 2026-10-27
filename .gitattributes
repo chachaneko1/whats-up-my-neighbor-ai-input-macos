@@ -1,0 +1,8 @@
+# GitHub Linguist: exclude automation, packaging, and CI support files.
+/scripts/** linguist-vendored
+/Packaging/** linguist-vendored
+/.github/** linguist-vendored
+
+# Bundled third-party PDF.js libraries.
+/office/static/pdf-main.mjs linguist-vendored
+/office/static/pdf-worker.mjs linguist-vendored
