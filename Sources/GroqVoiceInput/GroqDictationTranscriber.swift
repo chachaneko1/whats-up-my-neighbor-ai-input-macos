@@ -52,6 +52,8 @@ struct GroqDictationTranscriber: DictationTranscribing {
         let prompt = makePrompt?(language, reinforce) ?? (reinforce ? hint + primary.transcriptionPrompt : primary.transcriptionPrompt)
         DispatchQueue.global(qos: .userInitiated).async {
             guard !pending.isCancelled else { return }
+            _ = AudioSilenceTrimmer.trimTrailingSilence(at: url)
+            guard !pending.isCancelled else { return }
             let task = GroqTranscriptionClient.transcribe(
                 audioURL: url, apiKey: apiKey, language: primary.rawValue,
                 prompt: prompt, format: .plain, startImmediately: false
