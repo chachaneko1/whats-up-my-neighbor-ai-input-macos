@@ -142,6 +142,22 @@ import AppKit
         let alternateStripe = try load(["version": 2, "appearance": ["preset": "orange-tabby", "parts": ["head": ["patternColor": "#ABCDEF"]]]])
         check(sameRGB(CatAppearanceArtwork(alternateStripe.appearance).rgb(.init(part: .head, u: 0.5, v: 0.3)), .init("#ABCDEF")), "authored markings still use the part's custom pattern color")
         var lineup: [NSImage] = [], hudLineup: [NSImage] = [], recordingLineup: [NSImage] = []
+        let tuxedoPainter = CatAppearanceArtwork(CatAppearance.makePreset("tuxedo")!)
+        for v in [0.78, 0.82, 0.88] {
+            for u in [0.42, 0.50, 0.58] {
+                check(sameRGB(tuxedoPainter.rgb(.init(part: .head, u: u, v: v)), .init("#F4EFE5")), "tuxedo muzzle surrounds the complete mouth stroke")
+            }
+        }
+        for u in [0.20, 0.25, 0.75, 0.80] {
+            check(sameRGB(tuxedoPainter.rgb(.init(part: .head, u: u, v: 0.68)), .init("#292828")), "tuxedo keeps both original eye glyphs on dark fur")
+        }
+        check(CatAppearanceArtwork.tuxedoFaceCoverage(u: 0.5, v: 0.25) == 0, "tuxedo blaze starts below the forehead contour")
+        check(CatAppearanceArtwork.tuxedoFaceCoverage(u: 0.5, v: 0.78, recording: true) == 1, "recording muzzle surrounds the mouth")
+        check(CatAppearanceArtwork.tuxedoChestCoverage(u: 0.30, v: 0.03) == 1, "tuxedo white neck meets the wider muzzle")
+        let tuxedoOverride = try load(["version": 2, "appearance": ["preset": "tuxedo", "parts": ["muzzle": ["color": "#ABCDEF"], "chest": ["color": "#123456"]]]])
+        let overridePainter = CatAppearanceArtwork(tuxedoOverride.appearance)
+        check(sameRGB(overridePainter.rgb(.init(part: .head, u: 0.5, v: 0.82)), .init("#ABCDEF")), "tuxedo muzzle still honors the actual configured part color")
+        check(sameRGB(overridePainter.rgb(.init(part: .body, u: 0.5, v: 0.10)), .init("#123456")), "tuxedo bib still honors the chest override")
         var visibleParts = Set<CatBodyPart>()
         var paintMilliseconds: [Double] = []
         let examples = output.appendingPathComponent("examples")

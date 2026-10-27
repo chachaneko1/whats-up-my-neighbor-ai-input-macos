@@ -40,6 +40,18 @@ final class CatAppearanceArtwork {
 
     func rgb(_ sample: CatAnatomy.Sample) -> RGB {
         let p = paints[sample.part]!, u = sample.u, v = sample.v
+        if appearance.preset == "tuxedo" {
+            if (sample.part == .head || sample.part == .muzzle),
+               paints[.head]!.pattern == .none, paints[.muzzle]!.pattern == .none {
+                return paints[.head]!.base.mixed(with: paints[.muzzle]!.base,
+                    amount: Self.tuxedoFaceCoverage(u: u, v: v, recording: sample.headProfile == .recording))
+            }
+            if [.body, .chest, .belly].contains(sample.part), v < 0.48,
+               [.body, .chest, .belly].allSatisfy({ paints[$0]!.pattern == .none }) {
+                return paints[.body]!.base.mixed(with: paints[.chest]!.base,
+                    amount: Self.tuxedoChestCoverage(u: u, v: v))
+            }
+        }
         let shift = Double(appearance.seed % 997) / 997 * 0.12
         switch p.pattern {
         case .none: return p.base
@@ -78,6 +90,26 @@ final class CatAppearanceArtwork {
     }
 
     private enum TabbyRegion: Hashable { case head, torso, tail }
+
+    private static func smooth(_ value: Double) -> Double {
+        let t = max(0, min(1, value)); return t * t * (3 - 2 * t)
+    }
+    // One authored mask is sampled for native images and exported to Windows.
+    // The muzzle surrounds the whole mouth, keeping each original stroke one ink color.
+    static func tuxedoFaceCoverage(u: Double, v: Double, recording: Bool = false) -> Double {
+        let y = recording ? 0.30 + (v - 0.44) * 0.70 / 0.47 : v
+        guard y > 0.30 else { return 0 }
+        let width: Double
+        if y < 0.55 { width = 0.04 * smooth((y - 0.30) / 0.25) }
+        else if y < 0.70 { width = 0.04 + 0.065 * smooth((y - 0.55) / 0.15) }
+        else if y < 0.90 { width = 0.105 + 0.115 * smooth((y - 0.70) / 0.20) }
+        else { width = 0.22 - 0.02 * smooth((y - 0.90) / 0.10) }
+        return smooth((width - abs(u - 0.5)) / 0.012 + 0.5) * smooth((y - 0.30) / 0.03)
+    }
+    static func tuxedoChestCoverage(u: Double, v: Double) -> Double {
+        let width = 0.27 - 0.05 * smooth(max(0, v) / 0.48)
+        return smooth((width - abs(u - 0.5)) / 0.012 + 0.5)
+    }
 
     /// Authored, tapered fur marks in anatomical coordinates. The same masks
     /// follow the original parts in SVGs, pickup frames and animated repairs.
