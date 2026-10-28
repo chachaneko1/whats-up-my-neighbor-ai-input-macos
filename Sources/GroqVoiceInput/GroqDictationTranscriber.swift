@@ -37,6 +37,9 @@ struct GroqDictationTranscriber: DictationTranscribing {
     let readAPIKey: () -> String?
     var makePrompt: ((LanguageSettings, Bool) -> String)? = nil
 
+    var workQueue: DispatchQueue = .global(qos: .userInitiated)
+    var trimAudio: (URL) -> Void = { _ = AudioSilenceTrimmer.trimTrailingSilence(at: $0) }
+
     func transcribe(
         url: URL, language: LanguageSettings, reinforce: Bool,
         completion: @escaping (Result<String, Error>) -> Void
@@ -50,10 +53,14 @@ struct GroqDictationTranscriber: DictationTranscribing {
         let allowed = language.allowedLanguages.map(\.displayName).joined(separator: "、")
         let hint = "這段錄音的語言是\(primary.displayName)，可能混合少量\(allowed)。請只輸出這些語言。"
         let prompt = makePrompt?(language, reinforce) ?? (reinforce ? hint + primary.transcriptionPrompt : primary.transcriptionPrompt)
-        DispatchQueue.global(qos: .userInitiated).async {
+        workQueue.async {
             guard !pending.isCancelled else { return }
-            _ = AudioSilenceTrimmer.trimTrailingSilence(at: url)
-            guard !pending.isCancelled else { return }
+            trimAudio(url)
+            guard !pending.isCancelled else {
+                // Cancellation may have deleted the source while trimming recreated it.
+                try? FileManager.default.removeItem(at: url)
+                return
+            }
             let task = GroqTranscriptionClient.transcribe(
                 audioURL: url, apiKey: apiKey, language: primary.rawValue,
                 prompt: prompt, format: .plain, startImmediately: false

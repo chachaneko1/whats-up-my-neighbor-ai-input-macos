@@ -438,23 +438,20 @@ enum TextPipelineTests {
             )
         }
 
-        // 2. 尾端附掛宣傳語（句尾標點後附掛的 YouTube 口號應被安全剝除）
-        expect(
-            TextPostProcessor.process("今天下午開會記得帶筆電。請訂閱我的頻道", mode: .verbatim),
-            "今天下午開會記得帶筆電。"
-        )
-        expect(
-            TextPostProcessor.process("好的收到。請按讚、分享、開啟小鈴鐺！", mode: .verbatim),
-            "好的收到。"
-        )
-        expect(
-            TextPostProcessor.process("明天見。謝謝大家收看", mode: .verbatim),
-            "明天見。"
-        )
-        expect(
-            TextPostProcessor.process("沒問題。感謝收看！", mode: .verbatim),
-            "沒問題。"
-        )
+        // Outro-shaped final sentences can be real speech, including the review example.
+        let legitimateEndings = [
+            "請把簡報傳給團隊。謝謝大家支持",
+            "今天下午開會記得帶筆電。請訂閱我的頻道",
+            "好的收到。請按讚、分享、開啟小鈴鐺！",
+            "明天見。謝謝大家收看",
+            "沒問題。感謝收看！",
+            "這是影片的結尾。歡迎訂閱我的頻道"
+        ]
+        for text in legitimateEndings {
+            for mode in TextOutputMode.allCases {
+                expect(TextPostProcessor.process(text, mode: mode), text)
+            }
+        }
 
         // 正常文句即使包含訂閱與按讚，process 後必須完整保留
         for s in legitimateCases {

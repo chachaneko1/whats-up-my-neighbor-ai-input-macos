@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import Darwin
 
 /// 在送往雲端辨識前，安全裁除音訊尾端多餘的靜音與環境底噪。
 ///
@@ -37,7 +38,8 @@ enum AudioSilenceTrimmer {
         destinationURL: URL? = nil,
         thresholdDB: Float = defaultThresholdDB,
         paddingSeconds: Double = defaultPaddingSeconds,
-        minimumTrimDifference: Double = minimumTrimDifferenceSeconds
+        minimumTrimDifference: Double = minimumTrimDifferenceSeconds,
+        replaceFile: (URL, URL) throws -> Void = AudioSilenceTrimmer.replaceAtomically
     ) -> Result {
         guard FileManager.default.fileExists(atPath: sourceURL.path) else {
             return Result(isTrimmed: false, originalDuration: 0, finalDuration: 0, fileURL: sourceURL)
@@ -103,6 +105,11 @@ enum AudioSilenceTrimmer {
 
             let targetURL = destinationURL ?? sourceURL.deletingLastPathComponent().appendingPathComponent("trimmed-\(UUID().uuidString).m4a")
 
+            // Only the internally owned temporary output is cleaned on failure.
+            defer {
+                if destinationURL == nil { try? FileManager.default.removeItem(at: targetURL) }
+            }
+
             let outputSettings: [String: Any] = [
                 AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
                 AVSampleRateKey: format.sampleRate,
@@ -112,15 +119,17 @@ enum AudioSilenceTrimmer {
             ]
 
             try? FileManager.default.removeItem(at: targetURL)
-            let outFile = try AVAudioFile(forWriting: targetURL, settings: outputSettings)
-            try outFile.write(from: trimmedBuffer)
+            // Finalize the AAC container before publishing it at the source URL.
+            try autoreleasepool {
+                let outFile = try AVAudioFile(forWriting: targetURL, settings: outputSettings)
+                try outFile.write(from: trimmedBuffer)
+            }
 
             let finalDuration = Double(targetFrames) / format.sampleRate
 
             if destinationURL == nil {
-                // 將暫存檔替換回原檔
-                try? FileManager.default.removeItem(at: sourceURL)
-                try FileManager.default.moveItem(at: targetURL, to: sourceURL)
+                // Same-directory rename is atomic and leaves the original intact on failure.
+                try replaceFile(targetURL, sourceURL)
                 return Result(isTrimmed: true, originalDuration: originalDuration, finalDuration: finalDuration, fileURL: sourceURL)
             } else {
                 return Result(isTrimmed: true, originalDuration: originalDuration, finalDuration: finalDuration, fileURL: targetURL)
@@ -129,5 +138,17 @@ enum AudioSilenceTrimmer {
             return Result(isTrimmed: false, originalDuration: 0, finalDuration: 0, fileURL: sourceURL)
         }
     }
+
+    static func replaceAtomically(_ temporaryURL: URL, _ sourceURL: URL) throws {
+        let result = temporaryURL.path.withCString { temporaryPath in
+            sourceURL.path.withCString { sourcePath in
+                Darwin.rename(temporaryPath, sourcePath)
+            }
+        }
+        guard result == 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+    }
+
 }
 
