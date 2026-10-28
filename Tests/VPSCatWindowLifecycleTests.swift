@@ -6,8 +6,12 @@ struct VPSCatWindowLifecycleTests {
         NSApplication.shared.setActivationPolicy(.accessory)
         let resources = URL(fileURLWithPath: CommandLine.arguments[1])
         let area = NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1200, height: 800)
+        var buttons = 1
+        var cursor = CGPoint.zero
+        var busy = false
         let pet = DesktopPetController(resources: resources, appearance: CatAppearance.makePreset("orange-tabby")!, automaticallyTicks: false,
-            world: { DesktopPetWorld(areas: [area], cursor: .zero, idleSeconds: 0) }, pressedButtons: { 1 })
+            world: { DesktopPetWorld(areas: [area], cursor: cursor, idleSeconds: 0) }, pressedButtons: { buttons })
+        pet.isBusy = { busy }
         pet.setReleased(true)
         let connection = VPSDesktopConnection()
         let controller = VPSDesktopWindowController(pet: pet, connection: connection, resources: resources)
@@ -15,7 +19,7 @@ struct VPSCatWindowLifecycleTests {
         connection.handle("connected")
         controller.present()
         let window = NSApp.windows.first { $0.title == "VPS 遠端桌面" }!
-        let home = pet.model.origin
+        var home = pet.model.origin
         var phase = "collapse"
         func park() {
             precondition(pet.parkInVPS())
@@ -23,7 +27,7 @@ struct VPSCatWindowLifecycleTests {
         }
         func homeAgain() {
             precondition(!pet.remoteHosted && pet.testPanel.isVisible, "Failed recovery: \(phase), hosted=\(pet.remoteHosted), visible=\(pet.testPanel.isVisible), model=\(pet.model.visible)")
-            precondition(pet.model.origin == home && !pet.model.isPressed)
+            precondition(pet.model.origin == home && !pet.model.isPressed, "Home mismatch in \(phase): \(pet.model.origin), expected \(home), pressed=\(pet.model.isPressed)")
         }
         // The original side-entry component must be reached through actual pet callbacks.
         pet.pointerDown(at: CGPoint(x: pet.model.frame.midX, y: pet.model.frame.midY))
@@ -72,6 +76,43 @@ struct VPSCatWindowLifecycleTests {
         content.layoutSubtreeIfNeeded()
         pet.returnFromVPS()
         homeAgain()
+        // On a real release a display tick can see the physical button up before
+        // AppKit delivers mouseUp. Recovery must finish the same transfer once.
+        pet.pointerDown(at: CGPoint(x: pet.model.frame.midX, y: pet.model.frame.midY))
+        pet.pointerDragged(to: edge)
+        cursor = edge
+        buttons = 0
+        pet.refresh()
+        precondition(pet.remoteHosted, "A display tick before mouseUp must complete the VPS drop, not silently cancel it")
+        pet.pointerUp(at: edge)
+        precondition(pet.remoteHosted, "A late mouseUp must not undo or repeat the recovered transfer")
+        // The same recovery must finish a drag out through the real remote callbacks.
+        buttons = 1
+        let grip = window.convertPoint(toScreen: host.artwork.convert(CGPoint(x: 104, y: 100), to: nil))
+        host.artwork.onPointerDown?(grip)
+        cursor = CGPoint(x: window.frame.minX - 80, y: window.frame.midY)
+        host.artwork.onPointerDragged?(cursor)
+        precondition(pet.model.isDragging && !pet.remoteHosted)
+        buttons = 0
+        pet.refresh()
+        precondition(!pet.remoteHosted && pet.testPanel.isVisible && !hint.isVisible,
+                     "Recovered release outside VPS must finish the drag out")
+        host.artwork.onPointerUp?()
+        precondition(!pet.remoteHosted, "Late remote mouseUp must not put the cat back inside")
+        buttons = 1
+        home = pet.model.origin
+        // Busy/hidden cancellation must never become a successful drop.
+        pet.pointerDown(at: CGPoint(x: pet.model.frame.midX, y: pet.model.frame.midY))
+        pet.pointerDragged(to: edge)
+        cursor = edge
+        buttons = 0
+        busy = true
+        pet.refresh()
+        precondition(!pet.remoteHosted && !hint.isVisible && !pet.model.isPressed)
+        pet.pointerUp(at: edge)
+        busy = false
+        buttons = 1
+        pet.refresh()
         park()
         controller.toggleCollapsed()
         homeAgain()
@@ -113,6 +154,7 @@ struct VPSCatWindowLifecycleTests {
             pet.testSuspend(false)
             pet.setReleased(false)
             pet.setReleased(true)
+            home = pet.model.origin
         }
         park()
         phase = "shutdown"

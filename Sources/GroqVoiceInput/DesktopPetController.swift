@@ -166,8 +166,12 @@ final class DesktopPetController {
         guard !disposed else { return }
         let now = clock()
         let wasDragging = model.isDragging
-        model.pointerUp(now: now, world: world(now: now))
-        if wasDragging { onDragReleased?(point ?? NSEvent.mouseLocation) }
+        let environment = world(now: now)
+        model.pointerUp(now: now, world: environment)
+        if wasDragging {
+            if environment.hidden { onDragCancelled?() }
+            else { onDragReleased?(point ?? environment.cursor) }
+        }
         refresh(now: now)
     }
 
@@ -237,8 +241,12 @@ final class DesktopPetController {
         // 在浮動視窗中，若使用者在螢幕外或快速拖拽時釋放滑鼠，AppKit 的 mouseUp 有微小機率被系統遺失。
         // 若系統實體滑鼠左鍵已釋放（bit 0 為 0），但模型仍處於 isPressed，
         // 立即主動合成 pointerUp，使貓咪平穩著地，避免永久卡在抓起懸空狀態。
-        if !deliveringPointer, model.isPressed, pressedButtons() & 1 == 0 {
-            model.pointerUp(now: now, world: environment)
+        if !deliveringPointer, model.isPressed, pressedButtons() & 1 == 0, !environment.hidden {
+            // The display link can observe button-up before AppKit delivers mouseUp.
+            // Finish the controller-level release too, including a pending VPS drop.
+            // pointerUp clears the pressed state before callbacks; a late event is inert.
+            pointerUp(at: environment.cursor)
+            return
         }
         model.tick(now: now, world: environment)
         if wasDragging && !model.isDragging { onDragCancelled?() }
