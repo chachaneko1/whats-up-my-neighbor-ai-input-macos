@@ -19,10 +19,11 @@ import Combine
     private var escapeMonitor: Any?
     private var connectionObserver: AnyCancellable?
 
-    init(pet: DesktopPetController, connection: VPSDesktopConnection? = nil) {
+    init(pet: DesktopPetController, connection: VPSDesktopConnection? = nil,
+         resources: URL? = Bundle.main.resourceURL?.appendingPathComponent("DesktopPet")) {
         self.pet = pet
         self.connection = connection ?? VPSDesktopConnection()
-        catHost = VPSCatHostView(appearance: pet.appearance)
+        catHost = VPSCatHostView(resources: resources, appearance: pet.appearance)
         window = VPSDesktopWindow(contentRect: NSRect(origin: .zero, size: expandedSize), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
         super.init()
         window.delegate = self
@@ -37,12 +38,9 @@ import Combine
         window.contentMinSize = minimumSize
         window.hasShadow = true
         window.tabbingMode = .disallowed
-        window.contentView = NSHostingView(rootView: VPSDesktopView(panel: panel, connection: self.connection))
-        if let content = window.contentView {
-            catHost.frame = NSRect(x: (content.bounds.width - 208) / 2, y: 8, width: 208, height: 192)
-            catHost.autoresizingMask = [.minXMargin, .maxXMargin, .maxYMargin]
-            content.addSubview(catHost, positioned: .above, relativeTo: nil)
-        }
+        let desktop = NSHostingView(rootView: VPSDesktopView(panel: panel, connection: self.connection))
+        window.contentView = VPSDesktopContentView(desktop: desktop, cat: catHost)
+        window.contentView?.layoutSubtreeIfNeeded()
         panel.toggle = { [weak self] in self?.toggleCollapsed() }
         panel.returnCat = { [weak self] in self?.pet.returnFromVPS() }
         catHost.artwork.onPointerDown = { [weak self] point in self?.remotePointerDown(at: point) }

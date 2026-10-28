@@ -6,11 +6,11 @@ struct VPSCatWindowLifecycleTests {
         NSApplication.shared.setActivationPolicy(.accessory)
         let resources = URL(fileURLWithPath: CommandLine.arguments[1])
         let area = NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1200, height: 800)
-        let pet = DesktopPetController(resources: resources, automaticallyTicks: false,
+        let pet = DesktopPetController(resources: resources, appearance: CatAppearance.makePreset("orange-tabby")!, automaticallyTicks: false,
             world: { DesktopPetWorld(areas: [area], cursor: .zero, idleSeconds: 0) }, pressedButtons: { 1 })
         pet.setReleased(true)
         let connection = VPSDesktopConnection()
-        let controller = VPSDesktopWindowController(pet: pet, connection: connection)
+        let controller = VPSDesktopWindowController(pet: pet, connection: connection, resources: resources)
         // Synthetic connection events exercise the real controller without opening SSH/VNC.
         connection.handle("connected")
         controller.present()
@@ -31,6 +31,7 @@ struct VPSCatWindowLifecycleTests {
         pet.pointerDragged(to: edge)
         let hint = NSApp.windows.first { $0.title == "貓咪拖放提示" }!
         precondition(hint.isVisible && hint.ignoresMouseEvents && !hint.canBecomeKey && !hint.canBecomeMain)
+        precondition(hint.frame.width < 12, "The entry hint is only the archived narrow edge line, not a large colored panel")
         if let content = hint.contentView, let bitmap = content.bitmapImageRepForCachingDisplay(in: content.bounds) {
             content.cacheDisplay(in: content.bounds, to: bitmap)
             let output = resources.deletingLastPathComponent().deletingLastPathComponent()
@@ -39,6 +40,36 @@ struct VPSCatWindowLifecycleTests {
         }
         pet.pointerUp(at: edge)
         precondition(pet.remoteHosted && !hint.isVisible, "The original visible entry zone must accept the drop")
+        // Verify rendered pixels, not just hosted state or an accessibility node.
+        let content = window.contentView!
+        content.layoutSubtreeIfNeeded()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        let rendered = content.bitmapImageRepForCachingDisplay(in: content.bounds)!
+        content.cacheDisplay(in: content.bounds, to: rendered)
+        let screenshot = resources.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("build/cat-render/vps-hosted-cat.png")
+        try rendered.representation(using: .png, properties: [:])!.write(to: screenshot)
+        var coloredPixels = 0
+        for y in stride(from: 0, to: rendered.pixelsHigh, by: 2) {
+            for x in stride(from: 0, to: rendered.pixelsWide, by: 2) {
+                guard let color = rendered.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
+                if color.alphaComponent > 0.5 && color.redComponent > color.greenComponent * 1.18 &&
+                    color.greenComponent > color.blueComponent * 1.1 { coloredPixels += 1 }
+            }
+        }
+        precondition(coloredPixels > 80, "The hosted cat must be visible in the composite VPS view, not only present in state")
+        let host = (content as! VPSDesktopContentView).cat
+        let painted = host.artwork.convert(CGPoint(x: 104, y: 100), to: content)
+        precondition(host.hitTest(painted) === host.artwork, "The visible cat remains draggable")
+        let padding = CGPoint(x: host.frame.minX + 1, y: host.frame.minY + 1)
+        precondition(host.hitTest(padding) == nil, "Transparent cat padding must pass through to the viewer")
+        let originalFrame = window.frame
+        window.setFrame(originalFrame.insetBy(dx: -60, dy: -30), display: true)
+        content.layoutSubtreeIfNeeded()
+        precondition(host.frame.midX == content.bounds.midX && host.frame.maxY < content.bounds.maxY - 48,
+                     "Resizing keeps the cat in the desktop area below the header")
+        window.setFrame(originalFrame, display: true)
+        content.layoutSubtreeIfNeeded()
         pet.returnFromVPS()
         homeAgain()
         park()

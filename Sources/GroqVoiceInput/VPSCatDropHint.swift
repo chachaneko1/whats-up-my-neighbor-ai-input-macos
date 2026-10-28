@@ -1,6 +1,6 @@
 import AppKit
 
-/// Preserves the 2026-10-26 DirectDropExperiment hint artwork and virtual geometry.
+/// Reuses the archived DirectDrop edge stroke and invisible drop-target geometry.
 /// Only the coordinate adapter changes: the reference card becomes the real VPS window.
 enum VPSCatDropHintGeometry {
     static let entry = CGRect(x: 455, y: 132, width: 185, height: 384)
@@ -27,26 +27,13 @@ final class VPSCatDropHintView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     override func draw(_ dirtyRect: NSRect) {
-        // Copied from DirectDropExperiment/Sources/Main.swift, DropScene.draw.
-        // Keep the accepted colors, opacity, radii, edge stroke, text and positions.
-        if kind == .entry {
-            NSColor.systemPink.withAlphaComponent(0.16).setFill()
-            NSBezierPath(roundedRect: VPSCatDropHintGeometry.entry, xRadius: 16, yRadius: 16).fill()
-            NSColor.systemPink.withAlphaComponent(0.8).setStroke()
-            let edge = NSBezierPath(); edge.lineWidth = 4
-            edge.move(to: CGPoint(x: 501, y: 150)); edge.line(to: CGPoint(x: 501, y: 506)); edge.stroke()
-            text("放開，貓咪就進去", at: CGPoint(x: 365, y: 285), color: .systemPink)
-        } else {
-            NSColor.systemTeal.withAlphaComponent(0.10).setFill()
-            NSBezierPath(roundedRect: VPSCatDropHintGeometry.home, xRadius: 18, yRadius: 18).fill()
-            text("放開，回到本機", at: CGPoint(x: 170, y: 215), color: .systemTeal)
-        }
-    }
-
-    private func text(_ value: String, at point: CGPoint, color: NSColor) {
-        (value as NSString).draw(at: point, withAttributes: [
-            .font: NSFont.systemFont(ofSize: 14, weight: .semibold), .foregroundColor: color
-        ])
+        // Preserve only the archived DirectDrop edge stroke (x=501, y=150...506).
+        // The larger target rectangles remain invisible hit areas, not visible UI.
+        NSColor.systemPink.withAlphaComponent(0.8).setStroke()
+        let edge = NSBezierPath(); edge.lineWidth = 4
+        edge.move(to: CGPoint(x: 501, y: 150))
+        edge.line(to: CGPoint(x: 501, y: 506))
+        edge.stroke()
     }
 }
 
@@ -72,10 +59,10 @@ final class VPSCatDropHintView: NSView {
     }
 
     func show(_ kind: VPSCatDropHintView.Kind, beside host: NSWindow) {
-        let virtual = kind == .entry
-            ? CGRect(x: 365, y: 132, width: 275, height: 384)
-            : VPSCatDropHintGeometry.home
+        let virtual = CGRect(x: 497, y: 132, width: 8, height: 384)
         let frame = VPSCatDropHintGeometry.screenRect(virtual, window: host.frame)
+        if panel.isVisible, view.kind == kind, panel.frame == frame { return }
+        let wasVisible = panel.isVisible
         view.kind = kind
         panel.setFrame(frame, display: false)
         view.frame = CGRect(origin: .zero, size: frame.size)
@@ -83,7 +70,16 @@ final class VPSCatDropHintView: NSView {
         view.setAccessibilityLabel(kind == .entry ? "放開，貓咪就進去" : "放開，回到本機")
         view.needsDisplay = true
         // Insert immediately above the host, beneath the already-raised dragged cat.
+        if !wasVisible { panel.alphaValue = 0 }
         panel.order(.above, relativeTo: host.windowNumber)
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            panel.alphaValue = 1
+        } else if !wasVisible {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.12
+                panel.animator().alphaValue = 1
+            }
+        }
     }
 
     func hide() { panel.orderOut(nil) }

@@ -11,8 +11,8 @@ final class VPSCatHostView: NSView {
         didSet { artwork.alphaValue = followsRemoteDrag ? 0.001 : 1 }
     }
 
-    init(appearance: CatAppearance) {
-        artwork = DesktopPetView(appearance: appearance)
+    init(resources: URL? = Bundle.main.resourceURL?.appendingPathComponent("DesktopPet"), appearance: CatAppearance) {
+        artwork = DesktopPetView(resources: resources, appearance: appearance)
         super.init(frame: CGRect(origin: .zero, size: DesktopPetView.panelSize))
         wantsLayer = true
         artwork.frame = bounds
@@ -28,5 +28,33 @@ final class VPSCatHostView: NSView {
         guard acceptsCatInput else { return nil }
         let local = artwork.convert(point, from: superview)
         return artwork.containsCat(local) ? artwork : nil
+    }
+}
+
+/// Keep the cat outside NSHostingView's managed child hierarchy so SwiftUI/WKWebView
+/// cannot paint over it after a remote frame arrives.
+final class VPSDesktopContentView: NSView {
+    let desktop: NSView
+    let cat: VPSCatHostView
+
+    init(desktop: NSView, cat: VPSCatHostView) {
+        self.desktop = desktop
+        self.cat = cat
+        super.init(frame: .zero)
+        wantsLayer = true
+        desktop.autoresizingMask = [.width, .height]
+        cat.autoresizingMask = [.minXMargin, .maxXMargin, .maxYMargin]
+        addSubview(desktop)
+        addSubview(cat, positioned: .above, relativeTo: desktop)
+        cat.layer?.zPosition = 1
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func layout() {
+        super.layout()
+        desktop.frame = bounds
+        cat.frame = CGRect(x: max(0, (bounds.width - DesktopPetView.panelSize.width) / 2),
+                           y: 8, width: DesktopPetView.panelSize.width, height: DesktopPetView.panelSize.height)
     }
 }
