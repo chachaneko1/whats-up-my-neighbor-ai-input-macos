@@ -38,7 +38,7 @@ struct VPSDesktopView: View {
                         }.frame(maxWidth: .infinity, maxHeight: .infinity).background(Color(hex: 0xFAF8F9))
                     }
                 }.frame(maxWidth: .infinity, maxHeight: .infinity).clipped()
-                    .overlay(Rectangle().stroke(panel.dropHovered ? Color.pink : Color.clear, lineWidth: 3).allowsHitTesting(false))
+
             }
         }.background(Color.white).preferredColorScheme(.light).ignoresSafeArea()
         .alert("確定中斷 VPS 連線？", isPresented: $connection.confirmDisconnect) {

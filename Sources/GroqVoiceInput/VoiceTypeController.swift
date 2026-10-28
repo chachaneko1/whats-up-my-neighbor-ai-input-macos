@@ -170,6 +170,11 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
                 self.showAPIKeyDialog(firstRun: true)
             }
         }
+        // QA uses the existing in-app viewer, so a stale standalone preview cannot mask acceptance.
+        if Bundle.main.object(forInfoDictionaryKey: "NekoDevelopmentRevision") != nil,
+           ProcessInfo.processInfo.environment["NEKO_QA_OPEN_VPS"] == "1" {
+            DispatchQueue.main.async { [weak self] in self?.showVPSDesktop() }
+        }
     }
 
     // 應用程式即將關閉：

@@ -7,7 +7,7 @@ struct VPSCatWindowLifecycleTests {
         let resources = URL(fileURLWithPath: CommandLine.arguments[1])
         let area = NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1200, height: 800)
         let pet = DesktopPetController(resources: resources, automaticallyTicks: false,
-            world: { DesktopPetWorld(areas: [area], cursor: .zero, idleSeconds: 0) })
+            world: { DesktopPetWorld(areas: [area], cursor: .zero, idleSeconds: 0) }, pressedButtons: { 1 })
         pet.setReleased(true)
         let connection = VPSDesktopConnection()
         let controller = VPSDesktopWindowController(pet: pet, connection: connection)
@@ -25,6 +25,22 @@ struct VPSCatWindowLifecycleTests {
             precondition(!pet.remoteHosted && pet.testPanel.isVisible, "Failed recovery: \(phase), hosted=\(pet.remoteHosted), visible=\(pet.testPanel.isVisible), model=\(pet.model.visible)")
             precondition(pet.model.origin == home && !pet.model.isPressed)
         }
+        // The original side-entry component must be reached through actual pet callbacks.
+        pet.pointerDown(at: CGPoint(x: pet.model.frame.midX, y: pet.model.frame.midY))
+        let edge = CGPoint(x: window.frame.minX - 5, y: window.frame.midY)
+        pet.pointerDragged(to: edge)
+        let hint = NSApp.windows.first { $0.title == "貓咪拖放提示" }!
+        precondition(hint.isVisible && hint.ignoresMouseEvents && !hint.canBecomeKey && !hint.canBecomeMain)
+        if let content = hint.contentView, let bitmap = content.bitmapImageRepForCachingDisplay(in: content.bounds) {
+            content.cacheDisplay(in: content.bounds, to: bitmap)
+            let output = resources.deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("build/cat-render/vps-original-drop-hint.png")
+            try bitmap.representation(using: .png, properties: [:])?.write(to: output)
+        }
+        pet.pointerUp(at: edge)
+        precondition(pet.remoteHosted && !hint.isVisible, "The original visible entry zone must accept the drop")
+        pet.returnFromVPS()
+        homeAgain()
         park()
         controller.toggleCollapsed()
         homeAgain()
@@ -56,6 +72,17 @@ struct VPSCatWindowLifecycleTests {
         precondition(!pet.model.released && !pet.testPanel.isVisible,
                      "Connection changes must not resurrect a pet the user recalled")
         pet.setReleased(true)
+        for cancelByRecall in [true, false] {
+            pet.pointerDown(at: CGPoint(x: pet.model.frame.midX, y: pet.model.frame.midY))
+            pet.pointerDragged(to: edge)
+            precondition(hint.isVisible)
+            if cancelByRecall { pet.setReleased(false) }
+            else { pet.testSuspend(true) }
+            precondition(!hint.isVisible, "Cancelled drags must dismiss the original hint")
+            pet.testSuspend(false)
+            pet.setReleased(false)
+            pet.setReleased(true)
+        }
         park()
         phase = "shutdown"
         controller.shutdown()

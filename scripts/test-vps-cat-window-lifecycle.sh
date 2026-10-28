@@ -1,7 +1,7 @@
 #!/bin/zsh
 set -euo pipefail
 ROOT="${0:A:h:h}"
-mkdir -p "$ROOT/build"
+mkdir -p "$ROOT/build/cat-render"
 swiftc -swift-version 5 -D DESKTOP_PET_TESTS -framework AppKit -framework SwiftUI -framework WebKit -framework Combine -framework ApplicationServices -framework QuartzCore \
   "$ROOT"/Sources/GroqVoiceInput/DesktopPet*.swift \
   "$ROOT/Sources/GroqVoiceInput/CatAppearance.swift" \

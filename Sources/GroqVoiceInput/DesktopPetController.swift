@@ -41,6 +41,7 @@ final class DesktopPetController {
     var onReleasedChange: ((Bool) -> Void)?
     var onDragMoved: ((CGPoint) -> Void)?
     var onDragReleased: ((CGPoint) -> Void)?
+    var onDragCancelled: (() -> Void)?
     var onRemoteHostedChange: ((Bool) -> Void)?
     var onRemoteFrame: ((DesktopPetModel, Bool, CatAppearance) -> Void)?
     var isBusy: () -> Bool = { NSApp.modalWindow != nil }
@@ -131,7 +132,9 @@ final class DesktopPetController {
             remoteHosted = false
             onRemoteHostedChange?(false)
         }
+        let cancelledDrag = !value && model.isDragging
         model.setReleased(value, now: now, world: world(now: now))
+        if cancelledDrag { onDragCancelled?() }
         if !value { reader.cancel(); snapshot = .init() }
         refresh(now: now)
         onReleasedChange?(value)
@@ -217,6 +220,7 @@ final class DesktopPetController {
         guard !disposed else { return }
         let now = suppliedNow ?? clock()
         let environment = world(now: now)
+        let wasDragging = model.isDragging
         if remoteHosted {
             var parkedWorld = environment
             parkedWorld.idleSeconds = 0
@@ -237,6 +241,7 @@ final class DesktopPetController {
             model.pointerUp(now: now, world: environment)
         }
         model.tick(now: now, world: environment)
+        if wasDragging && !model.isDragging { onDragCancelled?() }
         if model.visible {
             // The login agent uses open -gj. Match the recording HUD's
             // nonactivating presentation instead of leaving a hidden app's
@@ -309,7 +314,7 @@ final class DesktopPetController {
         panel.orderOut(nil)
         panel.close()
         onReleasedChange = nil
-        onDragMoved = nil; onDragReleased = nil
+        onDragMoved = nil; onDragReleased = nil; onDragCancelled = nil
         onRemoteHostedChange = nil; onRemoteFrame = nil
         isBusy = { true }
     }

@@ -5,9 +5,7 @@ struct VPSCatTransferZone {
     static func accepts(_ point: CGPoint, window: CGRect, connected: Bool,
                         collapsed: Bool, visible: Bool) -> Bool {
         guard connected, !collapsed, visible, window.width >= 220, window.height >= 120 else { return false }
-        let desktop = CGRect(x: window.minX + 12, y: window.minY + 10,
-                             width: window.width - 24, height: window.height - 60)
-        return desktop.contains(point)
+        return VPSCatDropHintGeometry.screenRect(VPSCatDropHintGeometry.entry, window: window).contains(point)
     }
 
     static func hasExited(_ point: CGPoint, window: CGRect) -> Bool {

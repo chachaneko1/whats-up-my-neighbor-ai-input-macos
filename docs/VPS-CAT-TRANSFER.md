@@ -26,3 +26,9 @@
 - `./scripts/test-vps-desktop-viewer.sh`：既有 VNC 登入與斷線。
 
 真實 VNC 畫面及跨視窗拖放仍需另行實測，離線測試不能替代。整合源自 `80fb9f3`，保留原提交作者；最新主線的音訊修正與花色素材沿用。沒有修改 VPS 服務，也沒有新增第二隻貓或第二個 VPS 視窗。
+
+## 原拖放元件來源
+
+提示直接沿用桌面工作區 `design/cat-tunnel-2026-10-26/DirectDropExperiment` 的 `DropScene.draw` 與 `DropState`：粉色框邊入口、青綠色回家區、原字句、透明度、圓角、線寬及虛擬座標均保留。`VPSCatDropHint` 僅把原參考卡片座標映射到真實 VPS 視窗；它是滑鼠可穿透且不搶焦點的提示層，沒有第二隻貓或第二個 VNC viewer。原有視覺設計完整保留。
+
+原入口位於框邊，並不是整個遠端桌面內部。顯示與接受拖放共用原入口矩形。原 App 的「VPS 遠端桌面…」與舊獨立「VPS 遠端桌面 · Preview」屬於不同程序；驗收時應開啟前者。開發包可用 `NEKO_QA_OPEN_VPS=1` 打開同一個原 App 視窗，公開包忽略此驗收開關。

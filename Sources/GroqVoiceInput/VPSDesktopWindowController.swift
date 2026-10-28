@@ -7,6 +7,7 @@ import Combine
 @MainActor final class VPSDesktopWindowController: NSObject, NSWindowDelegate {
     private let connection: VPSDesktopConnection
     private let panel = VPSDesktopPanel()
+    private let dropHint = VPSCatDropHintController()
     private let pet: DesktopPetController
     private let catHost: VPSCatHostView
     private let window: NSWindow
@@ -49,6 +50,10 @@ import Combine
         catHost.artwork.onPointerUp = { [weak self] in self?.remotePointerUp(at: NSEvent.mouseLocation) }
         pet.onDragMoved = { [weak self] point in self?.updateDropHover(at: point) }
         pet.onDragReleased = { [weak self] point in self?.finishDrag(at: point) }
+        pet.onDragCancelled = { [weak self] in
+            self?.dropHint.hide()
+            self?.panel.dropHovered = false
+        }
         pet.onRemoteHostedChange = { [weak self] _ in self?.updateCatVisibility() }
         pet.onRemoteFrame = { [weak self] model, reduceMotion, appearance in
             self?.catHost.artwork.setAppearance(appearance)
@@ -58,6 +63,7 @@ import Combine
             guard let self, self.draggingFromVPS, event.keyCode == 53 else { return event }
             self.draggingFromVPS = false
             self.pet.cancelVPSDrag()
+            self.dropHint.hide()
             self.updateCatVisibility()
             return nil
         }
@@ -85,7 +91,7 @@ import Combine
         window.delegate = nil
         if let escapeMonitor { NSEvent.removeMonitor(escapeMonitor) }
         escapeMonitor = nil
-        pet.onDragMoved = nil; pet.onDragReleased = nil
+        pet.onDragMoved = nil; pet.onDragReleased = nil; pet.onDragCancelled = nil
         pet.onRemoteHostedChange = nil; pet.onRemoteFrame = nil
         catHost.removeFromSuperview()
         connection.disconnect()
@@ -99,6 +105,7 @@ import Combine
         draggingFromVPS = false
         pet.returnFromVPS()
         panel.dropHovered = false
+        dropHint.hide()
         updateCatVisibility()
     }
 
@@ -110,10 +117,13 @@ import Combine
         guard !draggingFromVPS else { return }
         panel.dropHovered = VPSCatTransferZone.accepts(point, window: window.frame,
             connected: acceptsDrop, collapsed: panel.collapsed, visible: window.isVisible)
+        if panel.dropHovered { dropHint.show(.entry, beside: window) }
+        else { dropHint.hide() }
     }
 
     private func finishDrag(at point: CGPoint) {
         panel.dropHovered = false
+        dropHint.hide()
         if draggingFromVPS {
             draggingFromVPS = false
             if !VPSCatTransferZone.hasExited(point, window: window.frame) {
@@ -135,7 +145,12 @@ import Combine
     }
 
     private func remotePointerDragged(to point: CGPoint) {
-        if draggingFromVPS { pet.pointerDragged(to: point) }
+        if draggingFromVPS {
+            pet.pointerDragged(to: point)
+            let home = VPSCatDropHintGeometry.screenRect(VPSCatDropHintGeometry.home, window: window.frame)
+            if home.contains(point) && acceptsDrop { dropHint.show(.home, beside: window) }
+            else { dropHint.hide() }
+        }
     }
 
     private func remotePointerUp(at point: CGPoint) {
