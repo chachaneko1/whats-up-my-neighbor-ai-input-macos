@@ -1,0 +1,60 @@
+import AppKit
+
+@main
+struct VPSCatWindowLifecycleTests {
+    @MainActor static func main() throws {
+        NSApplication.shared.setActivationPolicy(.accessory)
+        let resources = URL(fileURLWithPath: CommandLine.arguments[1])
+        let area = NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1200, height: 800)
+        let pet = DesktopPetController(resources: resources, automaticallyTicks: false,
+            world: { DesktopPetWorld(areas: [area], cursor: .zero, idleSeconds: 0) })
+        pet.setReleased(true)
+        let connection = VPSDesktopConnection()
+        let controller = VPSDesktopWindowController(pet: pet, connection: connection)
+        // Synthetic connection events exercise the real controller without opening SSH/VNC.
+        connection.handle("connected")
+        controller.present()
+        let window = NSApp.windows.first { $0.title == "VPS 遠端桌面" }!
+        let home = pet.model.origin
+        var phase = "collapse"
+        func park() {
+            precondition(pet.parkInVPS())
+            precondition(pet.remoteHosted && !pet.testPanel.isVisible)
+        }
+        func homeAgain() {
+            precondition(!pet.remoteHosted && pet.testPanel.isVisible, "Failed recovery: \(phase), hosted=\(pet.remoteHosted), visible=\(pet.testPanel.isVisible), model=\(pet.model.visible)")
+            precondition(pet.model.origin == home && !pet.model.isPressed)
+        }
+        park()
+        controller.toggleCollapsed()
+        homeAgain()
+        controller.toggleCollapsed()
+        park()
+        phase = "disconnect"
+        connection.handle("disconnected")
+        homeAgain()
+        connection.handle("connected")
+        park()
+        phase = "close"
+        window.close()
+        homeAgain()
+        precondition(connection.connected, "Closing the window keeps the VNC connection")
+        controller.present()
+        park()
+        phase = "minimize"
+        // Command-line AppKit runners do not enter the Dock animation loop.
+        // Exercise the delegate notification before the window becomes unavailable.
+        controller.windowWillMiniaturize(Notification(name: NSWindow.willMiniaturizeNotification, object: window))
+        homeAgain()
+        window.deminiaturize(nil)
+        park()
+        phase = "shutdown"
+        controller.shutdown()
+        homeAgain()
+        precondition(!connection.connected)
+        controller.shutdown()
+        pet.dispose()
+        window.close()
+        print("VPS cat window lifecycle passed: collapse, disconnect, close/reopen, minimize notification, idempotent shutdown; no network connection")
+    }
+}

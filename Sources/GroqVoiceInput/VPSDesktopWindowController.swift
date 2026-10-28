@@ -1,10 +1,11 @@
 import AppKit
 import SwiftUI
+import Combine
 
 /// Floating VPS desktop opened from the cat menu; it never adds a second status item.
 /// Closing or collapsing keeps the connection; only 中斷 or quitting the app ends it.
-@MainActor final class VPSDesktopWindowController {
-    private let connection = VPSDesktopConnection()
+@MainActor final class VPSDesktopWindowController: NSObject, NSWindowDelegate {
+    private let connection: VPSDesktopConnection
     private let panel = VPSDesktopPanel()
     private let pet: DesktopPetController
     private let catHost: VPSCatHostView
@@ -15,11 +16,15 @@ import SwiftUI
     private var hasConnected = false
     private var draggingFromVPS = false
     private var escapeMonitor: Any?
+    private var connectionObserver: AnyCancellable?
 
-    init(pet: DesktopPetController) {
+    init(pet: DesktopPetController, connection: VPSDesktopConnection? = nil) {
         self.pet = pet
+        self.connection = connection ?? VPSDesktopConnection()
         catHost = VPSCatHostView(appearance: pet.appearance)
         window = VPSDesktopWindow(contentRect: NSRect(origin: .zero, size: expandedSize), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
+        super.init()
+        window.delegate = self
         window.title = "VPS 遠端桌面"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
@@ -31,7 +36,7 @@ import SwiftUI
         window.contentMinSize = minimumSize
         window.hasShadow = true
         window.tabbingMode = .disallowed
-        window.contentView = NSHostingView(rootView: VPSDesktopView(panel: panel, connection: connection))
+        window.contentView = NSHostingView(rootView: VPSDesktopView(panel: panel, connection: self.connection))
         if let content = window.contentView {
             catHost.frame = NSRect(x: (content.bounds.width - 208) / 2, y: 8, width: 208, height: 192)
             catHost.autoresizingMask = [.minXMargin, .maxXMargin, .maxYMargin]
@@ -56,6 +61,9 @@ import SwiftUI
             self.updateCatVisibility()
             return nil
         }
+        connectionObserver = self.connection.$connected.removeDuplicates().sink { [weak self] connected in
+            if !connected { self?.recoverCat() }
+        }
         placeTopRight()
     }
 
@@ -72,7 +80,9 @@ import SwiftUI
     }
 
     func shutdown() {
-        if pet.remoteHosted { pet.returnFromVPS() }
+        recoverCat()
+        connectionObserver = nil
+        window.delegate = nil
         if let escapeMonitor { NSEvent.removeMonitor(escapeMonitor) }
         escapeMonitor = nil
         pet.onDragMoved = nil; pet.onDragReleased = nil
@@ -81,10 +91,25 @@ import SwiftUI
         connection.disconnect()
     }
 
+    func windowWillClose(_ notification: Notification) { recoverCat() }
+    func windowWillMiniaturize(_ notification: Notification) { recoverCat() }
+
+    private func recoverCat() {
+        if draggingFromVPS { pet.cancelVPSDrag() }
+        draggingFromVPS = false
+        pet.returnFromVPS()
+        panel.dropHovered = false
+        updateCatVisibility()
+    }
+
+    private var acceptsDrop: Bool {
+        connection.connected && !panel.collapsed && window.isVisible && !window.isMiniaturized
+    }
+
     private func updateDropHover(at point: CGPoint) {
         guard !draggingFromVPS else { return }
         panel.dropHovered = VPSCatTransferZone.accepts(point, window: window.frame,
-            connected: connection.connected, collapsed: panel.collapsed, visible: window.isVisible)
+            connected: acceptsDrop, collapsed: panel.collapsed, visible: window.isVisible)
     }
 
     private func finishDrag(at point: CGPoint) {
@@ -96,13 +121,13 @@ import SwiftUI
             }
             updateCatVisibility()
         } else if VPSCatTransferZone.accepts(point, window: window.frame,
-                    connected: connection.connected, collapsed: panel.collapsed, visible: window.isVisible) {
+                    connected: acceptsDrop, collapsed: panel.collapsed, visible: window.isVisible) {
             _ = pet.parkInVPS()
         }
     }
 
     private func remotePointerDown(at point: CGPoint) {
-        guard pet.remoteHosted, !panel.collapsed else { return }
+        guard pet.remoteHosted, acceptsDrop else { return }
         let screenRect = window.convertToScreen(catHost.convert(catHost.bounds, to: nil))
         draggingFromVPS = true
         catHost.followsRemoteDrag = true
@@ -136,9 +161,12 @@ import SwiftUI
         window.setFrame(NSRect(x: visible.maxX - width - 24, y: visible.maxY - expandedSize.height - 22, width: width, height: expandedSize.height), display: true)
     }
 
-    private func toggleCollapsed() {
+    func toggleCollapsed() {
         let collapsing = !panel.collapsed
-        if collapsing { expandedSize = window.frame.size }
+        if collapsing {
+            recoverCat()
+            expandedSize = window.frame.size
+        }
         panel.collapsed = collapsing
         let old = window.frame
         window.contentMinSize = collapsing ? NSSize(width: 320, height: 48) : minimumSize

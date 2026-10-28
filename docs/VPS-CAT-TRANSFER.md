@@ -14,15 +14,15 @@
 - 未連線、收合或隱藏的 VPS 視窗不能接受拖入。
 - 先前 `native-vps-cat-journey` 是獨立預覽，因為多開了 VNC 與貓咪，已停用並僅供追溯。
 
-## 驗證狀態
+## 視窗與連線生命週期
 
-- 修正分支：`codex/vps-existing-cat-transfer`，從 `9d07b55` 建立。
-- 2026-10-27 查到現用 App 在 `/Users/panh.c/Library/Application Support/AI語音輸入/AI語音輸入.app`，內含開發來源 `0827a84` 與原本的 VPS 選單；現用程序仍在執行，額外 `NekoDesktopPreview` 程序已關閉。
-- 桌面貓互動：4,737 項檢查通過；10 種原生姿勢渲染通過。
-- VPS 落點測試、可用性測試、VNC 登入與斷線 5 項測試通過。
-- 最後修正後的 arm64／x86_64 雙架構建置通過，產物的 designated requirement 與深層簽章驗證通過。這是工作區內的 QA 產物，未安裝。
-- 尚未替換使用者目前安裝的 QA App；尚未在真實 VNC 畫面驗收跨視窗拖放。
+收合、關閉、縮小視窗或斷線時，貓咪自動回到本機出發位置；視窗重新開啟後可以再次拖入。關閉與收合仍保留既有 VNC 連線。尚未連線、等待密碼、隱藏、收合與縮小時不接受拖入；拖到有效 VPS 畫面內才會進入。
 
-## 下一步
+## 驗證
 
-最後建置與測試通過後，依工作區 `AGENTS.md` 另取得 Mac 安裝授權，再備份現用 App 與設定指紋，替換 QA App。使用者在既有 VPS 視窗自行登入；實測拖入、拖出、回家及取消，確認後才考慮提交其他分支或發布。
+- `./scripts/test-vps-cat-transfer.sh`：落點及不可用狀態。
+- `./scripts/test-vps-cat-window-lifecycle.sh`：原生控制器的收合、關閉／重開、縮小通知、斷線及重複結束。連線事件為合成，不開啟 SSH／VNC。
+- `./scripts/test-desktop-pet-interaction.sh`：同一模型的進出、取消及原抓起／放下影格。
+- `./scripts/test-vps-desktop-viewer.sh`：既有 VNC 登入與斷線。
+
+真實 VNC 畫面及跨視窗拖放仍需另行實測，離線測試不能替代。整合源自 `80fb9f3`，保留原提交作者；最新主線的音訊修正與花色素材沿用。沒有修改 VPS 服務，也沒有新增第二隻貓或第二個 VPS 視窗。
