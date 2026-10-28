@@ -448,9 +448,13 @@ enum TextPipelineTests {
             "這是影片的結尾。歡迎訂閱我的頻道"
         ]
         for text in legitimateEndings {
-            for mode in TextOutputMode.allCases {
-                expect(TextPostProcessor.process(text, mode: mode), text)
-            }
+            expect(TextPostProcessor.process(text, mode: .verbatim), text)
+        }
+        // Standard/concise also have independent repeated-word cleanup; use a
+        // non-repeated ending to isolate suffix preservation across all modes.
+        let endingInAllModes = "請把簡報傳給團隊。感謝您的支持！"
+        for mode in TextOutputMode.allCases {
+            expect(TextPostProcessor.process(endingInAllModes, mode: mode), endingInAllModes)
         }
 
         // 正常文句即使包含訂閱與按讚，process 後必須完整保留
