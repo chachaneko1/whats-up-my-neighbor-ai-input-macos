@@ -48,6 +48,15 @@ struct VPSCatWindowLifecycleTests {
         homeAgain()
         window.deminiaturize(nil)
         park()
+        // Explicitly recalling the pet must survive a later disconnect/reconnect.
+        pet.setReleased(false)
+        precondition(!pet.remoteHosted && !pet.model.released && !pet.testPanel.isVisible)
+        connection.handle("disconnected")
+        connection.handle("connected")
+        precondition(!pet.model.released && !pet.testPanel.isVisible,
+                     "Connection changes must not resurrect a pet the user recalled")
+        pet.setReleased(true)
+        park()
         phase = "shutdown"
         controller.shutdown()
         homeAgain()
