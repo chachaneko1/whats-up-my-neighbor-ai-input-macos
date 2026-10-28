@@ -7,7 +7,7 @@ struct VPSCatWindowLifecycleTests {
         let resources = URL(fileURLWithPath: CommandLine.arguments[1])
         let area = NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1200, height: 800)
         let pet = DesktopPetController(resources: resources, automaticallyTicks: false,
-            world: { DesktopPetWorld(areas: [area], cursor: .zero, idleSeconds: 0) })
+            world: { DesktopPetWorld(areas: [area], cursor: .zero, idleSeconds: 0) }, pressedButtons: { 1 })
         pet.setReleased(true)
         let connection = VPSDesktopConnection()
         let controller = VPSDesktopWindowController(pet: pet, connection: connection)
@@ -25,6 +25,20 @@ struct VPSCatWindowLifecycleTests {
             precondition(!pet.remoteHosted && pet.testPanel.isVisible, "Failed recovery: \(phase), hosted=\(pet.remoteHosted), visible=\(pet.testPanel.isVisible), model=\(pet.model.visible)")
             precondition(pet.model.origin == home && !pet.model.isPressed)
         }
+        // Use the real pet callbacks to enter the edge hint and drop into the host.
+        pet.pointerDown(at: CGPoint(x: pet.model.frame.midX, y: pet.model.frame.midY))
+        let edge = CGPoint(x: window.frame.minX - 5, y: window.frame.midY)
+        pet.pointerDragged(to: edge)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        if CommandLine.arguments.count > 2, let content = window.contentView,
+           let bitmap = content.bitmapImageRepForCachingDisplay(in: content.bounds) {
+            content.cacheDisplay(in: content.bounds, to: bitmap)
+            try bitmap.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: CommandLine.arguments[2]))
+        }
+        pet.pointerUp(at: edge)
+        precondition(pet.remoteHosted, "Dropping in the displayed near-edge zone must accept the same cat")
+        pet.returnFromVPS()
+        homeAgain()
         park()
         controller.toggleCollapsed()
         homeAgain()

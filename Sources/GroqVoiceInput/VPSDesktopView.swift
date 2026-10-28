@@ -38,7 +38,18 @@ struct VPSDesktopView: View {
                         }.frame(maxWidth: .infinity, maxHeight: .infinity).background(Color(hex: 0xFAF8F9))
                     }
                 }.frame(maxWidth: .infinity, maxHeight: .infinity).clipped()
-                    .overlay(Rectangle().stroke(panel.dropHovered ? Color.pink : Color.clear, lineWidth: 3).allowsHitTesting(false))
+                    .overlay {
+                        if panel.dropHovered {
+                            ZStack {
+                                Rectangle().fill(Color.pink.opacity(0.12))
+                                Rectangle().stroke(Color.pink, lineWidth: 4)
+                                Label("放開，把貓咪放進來", systemImage: "arrow.down.to.line")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .padding(.horizontal, 18).padding(.vertical, 12)
+                                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+                            }.allowsHitTesting(false)
+                        }
+                    }
             }
         }.background(Color.white).preferredColorScheme(.light).ignoresSafeArea()
         .alert("確定中斷 VPS 連線？", isPresented: $connection.confirmDisconnect) {
