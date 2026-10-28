@@ -1,16 +1,20 @@
 import Foundation
 import AVFoundation
+import Darwin
 
 @main
 enum AudioSilenceTrimmerTests {
-    static func main() {
+    static func main() throws {
         testTrailingSilenceIsTrimmed()
         testPureToneIsNotTrimmed()
         testPureSilenceIsNotTrimmed()
         testShortSilenceIsNotTrimmed()
         testNonexistentFileReturnsGracefully()
         testInPlaceTrimming()
-        print("AudioSilenceTrimmer tests passed")
+        try testReplacementFailurePreservesRecording()
+        try testAtomicRenameFailurePreservesRecording()
+        try testCancellationDuringReplacementRemovesRecording()
+        print("AudioSilenceTrimmer tests passed (9 scenarios)")
     }
 
     private static let sampleRate: Double = 16000
@@ -124,5 +128,82 @@ enum AudioSilenceTrimmerTests {
             preconditionFailure("Cannot read back in-place trimmed file")
         }
     }
+
+    static func testReplacementFailurePreservesRecording() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("recording.m4a")
+        makeTestAudioFile(url: source, toneDuration: 0.8, silenceDuration: 1.2)
+        let original = try Data(contentsOf: source)
+        var replacementAttempted = false
+        let result = AudioSilenceTrimmer.trimTrailingSilence(at: source) { temporary, destination in
+            replacementAttempted = true
+            precondition(destination == source)
+            // The original must still exist when replacement begins.
+            let beforeReplacement = try Data(contentsOf: source)
+            precondition(beforeReplacement == original)
+            let trimmed = try AVAudioFile(forReading: temporary)
+            precondition(abs(Double(trimmed.length) / trimmed.processingFormat.sampleRate - 1.0) < 0.1)
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(EIO))
+        }
+        precondition(replacementAttempted && !result.isTrimmed && result.fileURL == source)
+        let retained = try Data(contentsOf: source)
+        precondition(retained == original, "Failed replacement must preserve the exact recording for retry")
+        let readable = try AVAudioFile(forReading: source)
+        precondition(readable.length > 0)
+        let remaining = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        precondition(remaining == ["recording.m4a"], "Failed trim must not leak its temporary output")
+    }
+
+    static func testAtomicRenameFailurePreservesRecording() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("recording.m4a")
+        let original = Data("original recording".utf8)
+        try original.write(to: source)
+        do {
+            try AudioSilenceTrimmer.replaceAtomically(directory.appendingPathComponent("missing.m4a"), source)
+            preconditionFailure("Missing replacement must fail")
+        } catch {
+            precondition((error as NSError).domain == NSPOSIXErrorDomain)
+        }
+        let retained = try Data(contentsOf: source)
+        precondition(retained == original)
+    }
+
+    static func testCancellationDuringReplacementRemovesRecording() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("recording.m4a")
+        makeTestAudioFile(url: source, toneDuration: 0.8, silenceDuration: 1.2)
+        let replacementReady = DispatchSemaphore(value: 0)
+        let resumeReplacement = DispatchSemaphore(value: 0)
+        let worker = DispatchQueue(label: "test.cancel-during-trim")
+        var transcriber = GroqDictationTranscriber(readAPIKey: { "offline-test-key" })
+        transcriber.workQueue = worker
+        transcriber.trimAudio = { url in
+            let result = AudioSilenceTrimmer.trimTrailingSilence(at: url) { temporary, destination in
+                replacementReady.signal()
+                precondition(resumeReplacement.wait(timeout: .now() + 10) == .success)
+                try AudioSilenceTrimmer.replaceAtomically(temporary, destination)
+            }
+            precondition(result.isTrimmed, "Exercise successful replacement after cancellation")
+        }
+        let request = transcriber.transcribe(url: source, language: .default, reinforce: false) { _ in
+            preconditionFailure("Cancelled recording must not complete transcription")
+        }
+        precondition(replacementReady.wait(timeout: .now() + 10) == .success)
+        // Match DictationCoordinator.cancel(): cancel the request, then remove its source.
+        request.cancel()
+        try FileManager.default.removeItem(at: source)
+        resumeReplacement.signal()
+        worker.sync {} // Wait for replacement AND the transcriber's post-trim cancellation guard.
+        let remaining = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        precondition(remaining.isEmpty, "Cancelled audio must not be recreated or leave a temporary file")
+    }
+
 }
 
