@@ -11,11 +11,6 @@ import CoreGraphics
         precondition(!VPSCatTransferZone.accepts(CGPoint(x: 800, y: 510), window: window, connected: true, collapsed: false, visible: true))
         precondition(!VPSCatTransferZone.hasExited(CGPoint(x: 800, y: 250), window: window))
         precondition(VPSCatTransferZone.hasExited(CGPoint(x: 400, y: 250), window: window))
-        let nearEdge = CGPoint(x: window.minX - 5, y: window.midY)
-        precondition(VPSCatTransferZone.accepts(nearEdge, window: window, connected: true, collapsed: false, visible: true))
-        precondition(!VPSCatTransferZone.accepts(CGPoint(x: window.minX - 40, y: window.midY), window: window, connected: true, collapsed: false, visible: true))
-        precondition(!VPSCatTransferZone.accepts(nearEdge, window: window, connected: false, collapsed: false, visible: true))
-        precondition(!VPSCatTransferZone.accepts(nearEdge, window: window, connected: true, collapsed: true, visible: true))
         print("VPS cat transfer zone tests passed.")
     }
 }

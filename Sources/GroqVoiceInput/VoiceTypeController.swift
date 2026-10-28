@@ -170,12 +170,6 @@ final class VoiceTypeController: NSObject, NSApplicationDelegate {
                 self.showAPIKeyDialog(firstRun: true)
             }
         }
-        // Explicit QA launches can open the real in-app viewer instead of a stale standalone preview.
-        // Release bundles have no development revision and ignore this switch.
-        if Bundle.main.object(forInfoDictionaryKey: "NekoDevelopmentRevision") != nil,
-           ProcessInfo.processInfo.environment["NEKO_QA_OPEN_VPS"] == "1" {
-            DispatchQueue.main.async { [weak self] in self?.showVPSDesktop() }
-        }
     }
 
     // 應用程式即將關閉：
